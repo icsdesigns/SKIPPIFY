@@ -843,6 +843,88 @@ async function fetchLatestWeeklyResult (groupId) {
   return currentSnap.exists() ? { id: 'current', ...currentSnap.data() } : null
 }
 
+/**
+ * Vigilancia de publicaciones ─────────────────────────────────────────────────
+ *
+ * El aviso de resultados sólo salía al abrir la pestaña Comunidad, que es justo
+ * cuando el usuario ya los está viendo. Aquí se repasan TODOS los grupos a los
+ * que se pertenece, sin necesidad de entrar en ninguna pantalla, y se notifica
+ * cada publicación nueva.
+ *
+ * Sin grupos no se hace ni una petición: quien no está en ninguna comunidad no
+ * tiene nada que recibir.
+ */
+const WEEKLY_WATCH_INTERVAL_MS = 30 * 60 * 1000
+
+let weeklyWatchTimer = null
+let weeklyWatchInFlight = false
+
+/**
+ * Repasa los grupos y avisa de lo que se haya publicado desde la última vez.
+ *
+ * La primera vez que se ve un grupo sólo se fija el punto de partida: avisar de
+ * un resumen que ya estaba publicado antes de instalar la app sería ruido.
+ *
+ * @returns {Promise<number>} avisos emitidos.
+ */
+async function checkPublishedResults () {
+  if (weeklyWatchInFlight) return 0
+  if (!ctx.enabled || !ctx.db) return 0
+  if (!state.value.groups.length) return 0
+
+  weeklyWatchInFlight = true
+  let avisos = 0
+
+  try {
+    // En silencio: este repaso corre solo, así que no puede dejar mensajes de
+    // error en una pantalla que el usuario no ha pedido.
+    if (!(await ensureAuth())) return 0
+
+    for (const group of [...state.value.groups]) {
+      try {
+        const result = await fetchLatestWeeklyResult(group.groupId)
+        const weekKey = (result?.weekKey || '').toString()
+        if (!weekKey) continue
+
+        const previo = (state.value.lastSeenWeekKeys?.[group.groupId] || '').toString()
+        state.value.lastSeenWeekKeys = { ...state.value.lastSeenWeekKeys, [group.groupId]: weekKey }
+        saveState()
+
+        // También se cachea lo leído: si el usuario entra en Comunidad tras el
+        // aviso, el ranking ya está puesto.
+        leaderboards[group.groupId] = {
+          ...result,
+          members: Array.isArray(result.members) ? result.members : []
+        }
+
+        if (previo && previo !== weekKey) {
+          avisos += 1
+          await requestWeeklyResultNotification(group.name)
+        }
+      } catch {
+        // Un grupo sin permiso o sin red no puede tumbar el repaso del resto.
+      }
+    }
+  } finally {
+    weeklyWatchInFlight = false
+  }
+
+  return avisos
+}
+
+/** Arranca el repaso periódico. Idempotente: llamarlo dos veces no duplica nada. */
+function startPublishedResultsWatch () {
+  void checkPublishedResults()
+  if (weeklyWatchTimer || typeof window === 'undefined') return
+  weeklyWatchTimer = setInterval(() => { void checkPublishedResults() }, WEEKLY_WATCH_INTERVAL_MS)
+}
+
+function stopPublishedResultsWatch () {
+  if (!weeklyWatchTimer) return
+  clearInterval(weeklyWatchTimer)
+  weeklyWatchTimer = null
+}
+
 async function loadLeaderboard (options = {}) {
   const silent = !!options?.silent
   const groupId = options?.groupId || state.value.activeGroupId
@@ -955,6 +1037,9 @@ export function useLeague () {
     setActiveGroup,
     syncLocalEvents,
     loadLeaderboard,
+    checkPublishedResults,
+    startPublishedResultsWatch,
+    stopPublishedResultsWatch,
     loadCurrentGroupInfo,
     loadGroupMembers,
     refreshAll,

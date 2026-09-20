@@ -110,6 +110,24 @@ public final class MacroRunner {
         }
     }
 
+    /**
+     * Qué suena ahora y desde dónde.
+     *
+     * El `contextoPlaylistId` es la playlist que está alimentando la
+     * reproducción, no la que contiene la canción: son cosas distintas y sólo
+     * la primera importa para no cortar la música (ver
+     * {@link #cortariaLaReproduccion}).
+     */
+    public static final class EnReproduccion {
+        public final Track track;
+        public final String contextoPlaylistId;
+
+        public EnReproduccion(Track track, String contextoPlaylistId) {
+            this.track = track;
+            this.contextoPlaylistId = contextoPlaylistId;
+        }
+    }
+
     public static final int APLICADA = 0;
     public static final int OMITIDA  = 1;
     public static final int ERROR    = 2;
@@ -171,6 +189,9 @@ public final class MacroRunner {
 
     /** Cuántos identificadores de canción recuerda el cursor de cada macro. */
     static final int MAX_VISTAS = 400;
+
+    /** Tope de canciones aplazadas por sonar. Más que eso sería un fallo. */
+    static final int MAX_APLAZADAS = 50;
 
     /** Máximo de URIs por llamada al escribir en una playlist / en la biblioteca. */
     static final int LOTE_PLAYLIST = 100;
@@ -265,6 +286,118 @@ public final class MacroRunner {
         return motivoExclusion(m) == null;
     }
 
+    // ── Guarda de reproducción ───────────────────────────────────────────────
+
+    /**
+     * Playlist de la que esta macro BORRA canciones, o null si no borra de
+     * ninguna. «Quitar de Tus me gusta» no cuenta: la biblioteca no da contexto
+     * de reproducción.
+     */
+    static String playlistQueVacia(Macro m) {
+        if (m == null) return null;
+        if ("remove_from_source".equals(m.action) || "move".equals(m.action)) {
+            return noVacio(m.sourcePlaylistId) ? m.sourcePlaylistId : null;
+        }
+        if ("remove".equals(m.action) && esPlaylist(m.target)) {
+            return noVacio(m.targetPlaylistId) ? m.targetPlaylistId : null;
+        }
+        return null;
+    }
+
+    /**
+     * ¿Cortaría esta macro la música si actuase ahora sobre esta canción?
+     *
+     * Spotify DETIENE la reproducción cuando se borra de la playlist que está
+     * sonando la canción que está sonando: el reproductor se queda sin el ítem
+     * que tenía en curso. Es la causa de que la música se pausara sola a
+     * mitad de canción sin relación con el motor de duplicadas —una macro de
+     * «mover» o «quitar» disparada por el cambio de canción, o por el repaso de
+     * listas cada quince minutos, bastaba para provocarlo.
+     *
+     * La comprobación es deliberadamente estrecha: sólo el borrado, sólo sobre
+     * la pista viva y sólo cuando la playlist que se vacía es la que da
+     * contexto. Copiar, encolar o tocar «Tus me gusta» no interrumpe nada y se
+     * sigue ejecutando al instante.
+     */
+    static boolean cortariaLaReproduccion(Macro m, String uri, EnReproduccion vivo) {
+        if (vivo == null || vivo.track == null || !noVacio(uri)) return false;
+        if (!uri.equals(vivo.track.uri)) return false;
+        if (!noVacio(vivo.contextoPlaylistId)) return false;
+
+        String playlist = playlistQueVacia(m);
+        return playlist != null && playlist.equals(vivo.contextoPlaylistId);
+    }
+
+    // ── Aplazadas ────────────────────────────────────────────────────────────
+
+    /**
+     * Canciones que una macro dejó a medias por estar sonando. No se descartan:
+     * se reintentan en la siguiente pasada, cuando ya no sean la pista viva.
+     */
+    static List<String> leerAplazadas(Macro m, Store store) {
+        List<String> out = new ArrayList<String>();
+        String crudo = store.get(clave(m, "aplazadas"));
+        if (crudo == null || crudo.length() == 0) return out;
+        String[] partes = crudo.split(",");
+        for (int i = 0; i < partes.length; i++) {
+            String p = partes[i].trim();
+            if (p.length() > 0 && !out.contains(p)) out.add(p);
+        }
+        return out;
+    }
+
+    static void guardarAplazadas(Macro m, List<String> uris, Store store) {
+        StringBuilder sb = new StringBuilder();
+        int n = 0;
+        for (int i = 0; i < uris.size() && n < MAX_APLAZADAS; i++) {
+            String uri = uris.get(i);
+            if (!noVacio(uri)) continue;
+            if (n > 0) sb.append(',');
+            sb.append(uri);
+            n++;
+        }
+        store.put(clave(m, "aplazadas"), sb.toString());
+    }
+
+    static void aplazar(Macro m, String uri, Store store) {
+        List<String> pendientes = leerAplazadas(m, store);
+        if (pendientes.contains(uri)) return;
+        pendientes.add(uri);
+        guardarAplazadas(m, pendientes, store);
+    }
+
+    /**
+     * Aplica lo aplazado que ya no esté sonando. Devuelve cuántas canciones se
+     * llegaron a tratar; los fallos se dejan en la lista para la próxima.
+     */
+    static int aplicarAplazadas(Macro m, Http http, Store store, EnReproduccion vivo) {
+        List<String> pendientes = leerAplazadas(m, store);
+        if (pendientes.isEmpty()) return 0;
+
+        List<Track> listas = new ArrayList<Track>();
+        List<String> siguen = new ArrayList<String>();
+        for (int i = 0; i < pendientes.size(); i++) {
+            String uri = pendientes.get(i);
+            if (cortariaLaReproduccion(m, uri, vivo)) siguen.add(uri);
+            // El nombre y el artista no se usan para actuar: basta el URI.
+            else listas.add(new Track(uri, "", ""));
+        }
+
+        if (listas.isEmpty()) {
+            guardarAplazadas(m, siguen, store);
+            return 0;
+        }
+
+        String error = aplicarLote(m, listas, http);
+        if (error != null) {
+            // Ha fallado la red o la API: se conserva todo para reintentar.
+            return 0;
+        }
+
+        guardarAplazadas(m, siguen, store);
+        return listas.size();
+    }
+
     /** Todas las que gobierna el servicio. */
     public static List<Macro> filtrar(List<Macro> macros) {
         List<Macro> out = new ArrayList<Macro>();
@@ -310,6 +443,17 @@ public final class MacroRunner {
      */
     public static List<Outcome> run(Track track, List<Macro> macros,
                                     Http http, Store store, Clock clock, boolean forzar) {
+        return run(track, macros, http, store, clock, forzar, null);
+    }
+
+    /**
+     * @param vivo qué suena y desde qué playlist, para no borrar la canción en
+     *             curso de la lista que la está reproduciendo. Con null se
+     *             actúa sin esa guarda (la app, que ejecuta a petición).
+     */
+    public static List<Outcome> run(Track track, List<Macro> macros,
+                                    Http http, Store store, Clock clock, boolean forzar,
+                                    EnReproduccion vivo) {
         List<Outcome> out = new ArrayList<Outcome>();
         if (track == null || !esPistaDelCatalogo(track.uri)) return out;
 
@@ -317,8 +461,28 @@ public final class MacroRunner {
         for (int i = 0; i < aplicables.size(); i++) {
             Macro m = aplicables.get(i);
 
+            // Lo que quedó aplazado se reintenta SIEMPRE, incluso si esta
+            // canción se salta por el freno de repetición: si no, una macro con
+            // trabajo pendiente se quedaría esperando al siguiente cambio.
+            int rescatadas = aplicarAplazadas(m, http, store, vivo);
+            if (rescatadas > 0) {
+                anotar(m, store, clock, APLICADA, rescatadas,
+                        "En segundo plano: " + rescatadas + " canción(es) aplazadas ya aplicadas.");
+            }
+
             if (!forzar && yaProcesada(m, track.uri, store, clock)) {
                 out.add(new Outcome(m.id, OMITIDA, "Ya procesada hace poco.", 0, 0));
+                continue;
+            }
+
+            // Borrar la canción viva de la playlist que la está reproduciendo
+            // corta la música. Se aparta para la próxima pasada.
+            if (cortariaLaReproduccion(m, track.uri, vivo)) {
+                aplazar(m, track.uri, store);
+                marcarProcesada(m, track.uri, store, clock);
+                String msg = "Aplazada: se aplicará al dejar de sonar, para no cortar la reproducción.";
+                anotar(m, store, clock, OMITIDA, 0, msg);
+                out.add(new Outcome(m.id, OMITIDA, msg, 1, 0));
                 continue;
             }
 
@@ -350,6 +514,13 @@ public final class MacroRunner {
      */
     public static List<Outcome> runListas(List<Macro> macros, Http http, Store store,
                                           Clock clock, boolean forzar, String soloId) {
+        return runListas(macros, http, store, clock, forzar, soloId, null);
+    }
+
+    /** @param vivo ver {@link #run(Track, List, Http, Store, Clock, boolean, EnReproduccion)}. */
+    public static List<Outcome> runListas(List<Macro> macros, Http http, Store store,
+                                          Clock clock, boolean forzar, String soloId,
+                                          EnReproduccion vivo) {
         List<Outcome> out = new ArrayList<Outcome>();
         List<Macro> aplicables = deLista(macros);
 
@@ -363,7 +534,7 @@ public final class MacroRunner {
             }
             store.put(clave(m, "listaAt"), Long.toString(clock.now()));
 
-            out.add(ejecutarLista(m, http, store, clock));
+            out.add(ejecutarLista(m, http, store, clock, vivo));
         }
         return out;
     }
@@ -375,6 +546,11 @@ public final class MacroRunner {
     }
 
     static Outcome ejecutarLista(Macro m, Http http, Store store, Clock clock) {
+        return ejecutarLista(m, http, store, clock, null);
+    }
+
+    static Outcome ejecutarLista(Macro m, Http http, Store store, Clock clock,
+                                 EnReproduccion vivo) {
         Origen origen = resolverOrigen(m, http);
         if (origen.error != null) {
             anotar(m, store, clock, ERROR, 0, "Error: " + origen.error);
@@ -405,6 +581,22 @@ public final class MacroRunner {
             store.put(clave(m, "cursorAt"), Long.toString(clock.now()));
             anotar(m, store, clock, OMITIDA, 0, "Sin canciones nuevas que procesar.");
             return new Outcome(m.id, OMITIDA, "Sin canciones nuevas que procesar.", 0, 0);
+        }
+
+        // La canción viva se aparta del lote si borrarla cortaría la música. No
+        // se marca como vista, así que vuelve a salir en el próximo repaso, ya
+        // sin sonar.
+        int aplazadas = 0;
+        for (int i = pendientes.size() - 1; i >= 0; i--) {
+            if (!cortariaLaReproduccion(m, pendientes.get(i).uri, vivo)) continue;
+            pendientes.remove(i);
+            aplazadas++;
+        }
+
+        if (pendientes.isEmpty()) {
+            String msg = "Aplazada: sonaba ahora mismo y borrarla habría cortado la reproducción.";
+            anotar(m, store, clock, OMITIDA, 0, msg);
+            return new Outcome(m.id, OMITIDA, msg, aplazadas, 0);
         }
 
         int encontradas = pendientes.size();
@@ -463,11 +655,37 @@ public final class MacroRunner {
      * las versiones en directo y los remixes.
      */
     public static Track cancionSonando(Http http) {
+        EnReproduccion vivo = sonandoAhora(http);
+        return vivo == null ? null : vivo.track;
+    }
+
+    /**
+     * Igual que {@link #cancionSonando}, pero conservando de qué playlist sale
+     * la reproducción. Es la misma petición: el contexto ya venía en la
+     * respuesta y antes se tiraba.
+     */
+    public static EnReproduccion sonandoAhora(Http http) {
         Response r = http.send("GET", API + "/me/player/currently-playing", null);
         if (r == null || r.status < 200 || r.status >= 300) return null;
         // 204: no hay nada sonando.
         if (r.body == null || r.body.trim().length() == 0) return null;
-        return pista(Json.get(Json.parse(r.body), "item"));
+
+        Object raiz = Json.parse(r.body);
+        Track track = pista(Json.get(raiz, "item"));
+        if (track == null) return null;
+
+        return new EnReproduccion(track, playlistDeContexto(raiz));
+    }
+
+    /** Id de la playlist que da contexto, o "" si se reproduce desde otra cosa. */
+    static String playlistDeContexto(Object raiz) {
+        Map<String, Object> contexto = Json.object(Json.get(raiz, "context"));
+        if (contexto == null) return "";
+        if (!"playlist".equals(Json.string(contexto, "type"))) return "";
+
+        String uri = Json.string(contexto, "uri");
+        if (uri == null || !uri.startsWith("spotify:playlist:")) return "";
+        return idDeUri(uri);
     }
 
     static Origen resolverOrigen(Macro m, Http http) {

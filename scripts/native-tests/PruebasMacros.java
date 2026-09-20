@@ -46,6 +46,7 @@ public final class PruebasMacros {
         unaSolaMacro();
         erroresDeLista();
         historialDeSieteDias();
+        noCortarLaReproduccion();
 
         System.out.println();
         if (fallos > 0) {
@@ -956,5 +957,99 @@ public final class PruebasMacros {
         MacroRunner.run(pista(), lista(c), http, store3, reloj3, true);
         check("también las de la canción actual",
                 MacroRunner.historial(c, store3, reloj3).size(), 1);
+    }
+
+    // ── T · no cortar la música al borrar la canción que suena ───────────────
+
+    static void noCortarLaReproduccion() {
+        titulo("Borrar la canción en curso no detiene la reproducción");
+        String C = MacroRunner.SOURCE_CURRENT_TRACK;
+
+        MacroRunner.EnReproduccion desdePL1 =
+                new MacroRunner.EnReproduccion(pista(), "PL1");
+        MacroRunner.EnReproduccion sinContexto =
+                new MacroRunner.EnReproduccion(pista(), "");
+
+        // Qué se considera peligroso y qué no.
+        check("quitar de la playlist que suena corta la música",
+                MacroRunner.cortariaLaReproduccion(
+                        macro("a", C, "remove", "playlist", "PL1"), pista().uri, desdePL1), true);
+        check("quitar de OTRA playlist no corta nada",
+                MacroRunner.cortariaLaReproduccion(
+                        macro("b", C, "remove", "playlist", "PL2"), pista().uri, desdePL1), false);
+        check("quitar de Tus me gusta no corta nada",
+                MacroRunner.cortariaLaReproduccion(
+                        macro("c", C, "remove", "liked", null), pista().uri, desdePL1), false);
+        check("copiar nunca corta nada",
+                MacroRunner.cortariaLaReproduccion(
+                        macro("d", C, "copy", "playlist", "PL1"), pista().uri, desdePL1), false);
+        check("encolar nunca corta nada",
+                MacroRunner.cortariaLaReproduccion(
+                        macro("e", C, "queue", null, null), pista().uri, desdePL1), false);
+        check("otra canción de la misma playlist no corta nada",
+                MacroRunner.cortariaLaReproduccion(
+                        macro("f", C, "remove", "playlist", "PL1"),
+                        "spotify:track:zzz999", desdePL1), false);
+        check("sin playlist de contexto no hay nada que proteger",
+                MacroRunner.cortariaLaReproduccion(
+                        macro("g", C, "remove", "playlist", "PL1"), pista().uri, sinContexto), false);
+        check("sin saber qué suena se actúa como siempre",
+                MacroRunner.cortariaLaReproduccion(
+                        macro("h", C, "remove", "playlist", "PL1"), pista().uri, null), false);
+
+        // El borrado peligroso se aplaza y se aplica en la pasada siguiente.
+        HttpFalso h = new HttpFalso();
+        Memoria store = new Memoria();
+        Reloj reloj = new Reloj();
+        List<MacroRunner.Macro> ms = lista(macro("rp", C, "remove", "playlist", "PL1"));
+
+        List<MacroRunner.Outcome> r1 =
+                MacroRunner.run(pista(), ms, h, store, reloj, false, desdePL1);
+        check("mientras suena: se omite", r1.get(0).status, MacroRunner.OMITIDA);
+        check("y NO sale ninguna petición", h.llamadas.size(), 0);
+        contiene("y se explica por qué", r1.get(0).message, "Aplazada");
+        check("queda apuntada para después",
+                MacroRunner.leerAplazadas(ms.get(0), store).size(), 1);
+
+        // Ya suena otra: la aplazada se aplica.
+        MacroRunner.Track otra = new MacroRunner.Track("spotify:track:zzz999", "Otra", "Alguien");
+        MacroRunner.EnReproduccion ahoraOtra = new MacroRunner.EnReproduccion(otra, "PL1");
+        MacroRunner.run(otra, ms, h, store, reloj, false, ahoraOtra);
+        contiene("al cambiar de canción se aplica la aplazada", h.llamadas.get(0),
+                "DELETE " + MacroRunner.API + "/playlists/PL1/items");
+        contiene("y es la canción correcta", h.llamadas.get(0), "spotify:track:abc123");
+        // La nueva pasa a ocupar su sitio: ahora es ella la que suena.
+        check("y la que suena ahora toma el relevo en la lista",
+                MacroRunner.leerAplazadas(ms.get(0), store).get(0), otra.uri);
+        check("sin acumularse de más",
+                MacroRunner.leerAplazadas(ms.get(0), store).size(), 1);
+
+        // Sin contexto de playlist, el borrado sale al instante como siempre.
+        HttpFalso h2 = new HttpFalso();
+        MacroRunner.run(pista(), lista(macro("rp2", C, "remove", "playlist", "PL1")),
+                h2, new Memoria(), new Reloj(), false, sinContexto);
+        check("reproducción sin playlist: se borra al momento", h2.llamadas.size(), 1);
+
+        // El repaso de listas aparta la canción viva y la deja para la próxima.
+        HttpFalso h3 = new HttpFalso();
+        h3.body = paginaPlaylist(null, "abc123");
+        Memoria store3 = new Memoria();
+        Reloj reloj3 = new Reloj();
+        MacroRunner.Macro lista3 =
+                macroLista("pl", "playlist_new", "remove_from_source", null, null, "PL1");
+        // Primera pasada de un origen incremental: sólo fija el punto de partida.
+        MacroRunner.runListas(lista(lista3), h3, store3, reloj3, true, null, desdePL1);
+        h3.llamadas.clear();
+        MacroRunner.runListas(lista(lista3), h3, store3, reloj3, true, null, desdePL1);
+        check("repaso de listas: no se borra lo que suena", contarEscrituras(h3), 0);
+    }
+
+    /** Peticiones que modifican algo, ignorando las lecturas del origen. */
+    static int contarEscrituras(HttpFalso h) {
+        int n = 0;
+        for (int i = 0; i < h.llamadas.size(); i++) {
+            if (!h.llamadas.get(i).startsWith("GET ")) n++;
+        }
+        return n;
     }
 }

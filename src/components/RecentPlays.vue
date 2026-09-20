@@ -82,13 +82,13 @@
         <Transition name="month-menu">
           <div
             v-if="monthMenuOpen"
-            class="absolute z-20 mt-2 w-full rounded-xl border border-slate-700 bg-slate-900/95 backdrop-blur-sm shadow-2xl overflow-hidden"
+            class="absolute z-20 mt-2 max-h-72 w-full overflow-y-auto rounded-card bg-ink-400 p-1 shadow-lift"
           >
             <button
               type="button"
               @click="selectMonth('all')"
-              class="w-full text-left px-3 py-2 text-sm transition-colors"
-              :class="selectedMonth === 'all' ? 'bg-brand-500/15 text-brand-200' : 'text-slate-200 hover:bg-slate-800'"
+              class="w-full truncate rounded-md px-3 py-2 text-left text-sm font-semibold transition-colors"
+              :class="selectedMonth === 'all' ? 'bg-white/[0.14] text-white' : 'text-slate-300 hover:bg-white/[0.08] hover:text-white'"
             >
               Todos
             </button>
@@ -97,8 +97,8 @@
               :key="`month-opt-${item.key}`"
               type="button"
               @click="selectMonth(item.key)"
-              class="w-full text-left px-3 py-2 text-sm transition-colors"
-              :class="selectedMonth === item.key ? 'bg-brand-500/15 text-brand-200' : 'text-slate-200 hover:bg-slate-800'"
+              class="w-full truncate rounded-md px-3 py-2 text-left text-sm font-semibold transition-colors"
+              :class="selectedMonth === item.key ? 'bg-white/[0.14] text-white' : 'text-slate-300 hover:bg-white/[0.08] hover:text-white'"
             >
               {{ item.label }} ({{ item.count }})
             </button>
@@ -109,33 +109,30 @@
 
     <p v-if="feedback" class="text-xs text-slate-400 mb-3">{{ feedback }}</p>
 
-    <div class="overflow-x-auto overflow-y-auto max-h-[600px]">
-      <table class="w-full text-sm">
-        <thead class="sticky top-0 z-10 bg-slate-900/95 backdrop-blur">
-          <tr class="border-b border-white/[0.07] text-left text-[11px] uppercase tracking-wider text-slate-500">
-            <th class="text-left py-2 pr-4">Canción</th>
-            <th class="text-left py-2 pr-4">Artista</th>
-            <th class="text-left py-2 w-px whitespace-nowrap">Fecha</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr
-            v-for="e in visibleRows"
-            :key="e.key"
-            class="border-b border-white/[0.04] transition-colors hover:bg-white/[0.03]"
-          >
-            <td class="py-2 pr-4">{{ e.track }}</td>
-            <td class="py-2 pr-4 text-slate-300">{{ e.artist }}</td>
-            <td class="py-2 w-px text-slate-400 text-xs leading-tight">
-              <div>{{ e.date }}</div>
-              <div class="text-slate-500">{{ e.time }}</div>
-            </td>
-          </tr>
-          <tr v-if="!filteredEvents.length">
-            <td colspan="3" class="py-3 text-slate-400">{{ search ? 'Sin resultados para "' + search + '"' : 'No hay reproducciones registradas' }}</td>
-          </tr>
-        </tbody>
-      </table>
+    <!-- Filas de canción al estilo de Spotify en vez de una tabla: el número, el
+         título sobre el artista y la fecha a la derecha. Una tabla de tres
+         columnas obligaba a desplazamiento lateral en cuanto el título era
+         largo; así cada dato tiene su sitio a cualquier ancho. -->
+    <div class="max-h-[600px] overflow-y-auto overflow-x-hidden">
+      <ol class="space-y-0.5">
+        <li v-for="(e, i) in visibleRows" :key="e.key" class="sk-row group">
+          <span class="w-6 shrink-0 text-right font-mono text-[11px] tabular-nums text-slate-500 group-hover:text-slate-400">
+            {{ i + 1 }}
+          </span>
+          <span class="min-w-0 flex-1">
+            <span class="block truncate text-sm font-semibold text-white">{{ e.track }}</span>
+            <span class="block truncate text-xs text-slate-400">{{ e.artist }}</span>
+          </span>
+          <span class="shrink-0 text-right text-[11px] leading-tight text-slate-500">
+            <span class="block whitespace-nowrap">{{ e.date }}</span>
+            <span class="block whitespace-nowrap text-slate-500">{{ e.time }}</span>
+          </span>
+        </li>
+      </ol>
+
+      <p v-if="!filteredEvents.length" class="px-2.5 py-6 text-center text-sm text-slate-400">
+        {{ search ? `Sin resultados para «${search}»` : 'No hay reproducciones registradas' }}
+      </p>
     </div>
 
     <div v-if="hasMore" class="mt-3 flex items-center justify-center gap-3">
@@ -161,25 +158,25 @@
       <div class="sk-card sk-card-lit relative w-full max-w-sm p-6">
 
         <!-- Header -->
-        <div class="flex items-center gap-3 mb-6">
-          <div class="flex h-10 w-10 items-center justify-center rounded-full bg-red-600/20">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-red-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <div class="mb-6 flex items-center gap-3">
+          <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-rose-500/[0.18]">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-rose-200" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
             </svg>
           </div>
-          <div>
-            <h3 class="font-semibold text-white">Eliminar historial</h3>
-            <p class="text-xs text-slate-400">Arrastra para seleccionar el rango</p>
+          <div class="min-w-0">
+            <h3 class="truncate text-base font-extrabold tracking-tight text-white">Eliminar historial</h3>
+            <p class="truncate text-xs text-slate-400">Arrastra para seleccionar el rango</p>
           </div>
         </div>
 
         <!-- Selected label -->
         <div class="mb-4 text-center">
           <span
-            class="inline-block rounded-lg px-4 py-1.5 text-sm font-semibold transition-colors"
+            class="inline-block max-w-full truncate rounded-full px-4 py-1.5 text-sm font-bold transition-colors"
             :class="sliderIndex === steps.length - 1
-              ? 'bg-red-600/20 text-red-300 border border-red-600/40'
-              : 'bg-slate-800 text-slate-100 border border-slate-700'"
+              ? 'bg-rose-500/[0.18] text-rose-200'
+              : 'bg-white/[0.10] text-white'"
           >
             {{ steps[sliderIndex].label }}
           </span>
@@ -202,7 +199,7 @@
               v-for="(s, i) in steps"
               :key="i"
               class="text-[10px] text-center transition-colors"
-              :class="i === sliderIndex ? 'text-slate-200 font-semibold' : 'text-slate-600'"
+              :class="i === sliderIndex ? 'text-slate-200 font-semibold' : 'text-slate-500'"
               :style="{ width: (100 / steps.length) + '%' }"
             >{{ s.tick }}</span>
           </div>
@@ -226,10 +223,10 @@
           </button>
           <button
             @click="confirmDelete"
-            class="flex-1 rounded-lg px-4 py-2.5 text-sm font-semibold transition-colors"
+            class="sk-btn flex-1"
             :class="sliderIndex === steps.length - 1
-              ? 'bg-red-600 hover:bg-red-500 text-white'
-              : 'bg-red-600/20 hover:bg-red-600/35 text-red-300 border border-red-600/40'"
+              ? 'bg-rose-500 text-white hover:bg-rose-400'
+              : 'bg-rose-500/[0.18] text-rose-200 hover:bg-rose-500/30'"
           >
             Eliminar
           </button>
@@ -430,13 +427,11 @@ function confirmDelete () {
 
 <style scoped>
 .month-filter-shell {
-  border-radius: 0.75rem;
-  box-shadow: 0 0 0 1px rgba(16, 185, 129, 0.08) inset;
+  border-radius: 0.375rem;
 }
 
 .month-filter-select {
   letter-spacing: 0.01em;
-  box-shadow: 0 8px 24px rgba(2, 6, 23, 0.28), 0 0 0 1px rgba(148, 163, 184, 0.04) inset;
 }
 
 .month-menu-enter-active,
@@ -459,10 +454,10 @@ function confirmDelete () {
   border-radius: 9999px;
   background: linear-gradient(
     to right,
-    #ef4444 0%,
-    #ef4444 calc(var(--pct) * 1%),
-    #334155 calc(var(--pct) * 1%),
-    #334155 100%
+    #f4436a 0%,
+    #f4436a calc(var(--pct) * 1%),
+    rgba(255, 255, 255, 0.18) calc(var(--pct) * 1%),
+    rgba(255, 255, 255, 0.18) 100%
   );
   outline: none;
   cursor: pointer;
@@ -474,24 +469,24 @@ function confirmDelete () {
   width: 20px;
   height: 20px;
   border-radius: 50%;
-  background: #ef4444;
-  border: 2px solid #fca5a5;
-  box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.15);
+  background: #f4436a;
+  border: 2px solid #ffb5c5;
+  box-shadow: 0 0 0 4px rgba(244, 67, 106, 0.18);
   cursor: pointer;
   transition: box-shadow 0.15s ease;
 }
 
 .slider::-webkit-slider-thumb:hover {
-  box-shadow: 0 0 0 6px rgba(239, 68, 68, 0.25);
+  box-shadow: 0 0 0 6px rgba(244, 67, 106, 0.3);
 }
 
 .slider::-moz-range-thumb {
   width: 20px;
   height: 20px;
   border-radius: 50%;
-  background: #ef4444;
-  border: 2px solid #fca5a5;
-  box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.15);
+  background: #f4436a;
+  border: 2px solid #ffb5c5;
+  box-shadow: 0 0 0 4px rgba(244, 67, 106, 0.18);
   cursor: pointer;
 }
 

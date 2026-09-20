@@ -6,19 +6,17 @@
       data-tour="permissions-required"
       class="overflow-hidden sk-card"
     >
-      <header class="flex flex-wrap items-center gap-2 border-b border-white/[0.07] bg-gradient-to-r from-brand-500/10 to-transparent px-5 py-4">
-        <span class="flex h-8 w-8 items-center justify-center rounded-xl bg-brand-500/15 text-base">🛡️</span>
+      <header class="sk-card-head">
+        <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-400/[0.18] text-base">🛡️</span>
         <div class="min-w-0">
-          <h2 class="text-sm font-semibold text-slate-100">Permisos del sistema</h2>
+          <h2 class="text-sm font-bold text-white">Permisos del sistema</h2>
           <p class="text-[11px] text-slate-400">Sin ellos Skippify no puede ver lo que suena en Spotify.</p>
         </div>
         <span
-          class="ml-auto inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-semibold"
-          :class="allPermissionsGranted
-            ? 'border-brand-500/35 bg-brand-500/10 text-brand-300'
-            : 'border-amber-400/35 bg-amber-500/10 text-amber-300'"
+          class="sk-badge ml-auto"
+          :class="allPermissionsGranted ? 'sk-badge-ok' : 'sk-badge-warn'"
         >
-          <span class="h-1.5 w-1.5 rounded-full" :class="allPermissionsGranted ? 'bg-brand-300' : 'bg-amber-300'" />
+          <span class="h-1.5 w-1.5 rounded-full" :class="allPermissionsGranted ? 'bg-brand-400' : 'bg-amber-300'" />
           {{ grantedCount }} / {{ orderedPermissionCards.length }}
         </span>
       </header>
@@ -27,23 +25,24 @@
         <article
           v-for="card in orderedPermissionCards"
           :key="card.id"
-          class="rounded-xl border p-3.5 transition-all duration-200"
-          :class="card.granted
-            ? 'border-brand-500/25 bg-brand-500/[0.05]'
-            : 'border-amber-400/35 bg-amber-500/[0.05]'"
+          class="rounded-card border-l-4 bg-white/[0.04] p-3.5 transition-colors duration-200"
+          :class="card.granted ? 'border-brand-400' : 'border-amber-400'"
         >
           <div class="flex items-start gap-2.5">
             <span class="pt-0.5 text-base leading-none" aria-hidden="true">{{ card.icon }}</span>
 
             <div class="min-w-0 flex-1">
-              <p class="text-sm font-semibold leading-tight text-slate-100">{{ card.title }}</p>
+              <!-- `anywhere` sólo aquí: uno de estos títulos lleva el
+                   identificador del permiso de Android (POST_NOTIFICATIONS),
+                   una única palabra de 147 px que a 320 px no cabe de ninguna
+                   forma. Partir un identificador es lo correcto; lo que no vale
+                   es que ensanche la tarjeta. -->
+              <p class="text-sm font-bold leading-tight text-white [overflow-wrap:anywhere]">{{ card.title }}</p>
               <span
-                class="mt-1 inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-medium"
-                :class="card.granted
-                  ? 'border-brand-500/35 bg-brand-500/15 text-brand-300'
-                  : 'border-amber-400/35 bg-amber-500/15 text-amber-300'"
+                class="sk-badge mt-1.5"
+                :class="card.granted ? 'sk-badge-ok' : 'sk-badge-warn'"
               >
-                <span class="h-1.5 w-1.5 rounded-full" :class="card.granted ? 'bg-brand-300' : 'bg-amber-300'" />
+                <span class="h-1.5 w-1.5 rounded-full" :class="card.granted ? 'bg-brand-400' : 'bg-amber-300'" />
                 {{ card.granted ? 'Concedido' : 'No concedido' }}
               </span>
             </div>
@@ -60,7 +59,7 @@
 
           <div v-if="card.action && isCapacitor" class="mt-3">
             <button
-              class="w-full rounded-lg border border-amber-400/35 bg-amber-500/15 px-3 py-2 text-[11px] font-semibold text-amber-200 transition-colors hover:bg-amber-500/25 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+              class="sk-btn sk-btn-sm w-full bg-amber-400/[0.18] text-amber-100 hover:bg-amber-400/30 sm:w-auto"
               :disabled="checkingPermissions"
               @click="card.action"
             >
@@ -68,7 +67,7 @@
             </button>
           </div>
 
-          <div v-if="expandedPermissionId === card.id" class="mt-2.5 rounded-xl border border-white/[0.07] bg-slate-950/50 px-3 py-2.5">
+          <div v-if="expandedPermissionId === card.id" class="sk-well mt-2.5 px-3 py-2.5">
             <p class="text-[11px] leading-relaxed text-slate-400">{{ card.description }}</p>
             <p class="mt-1 text-[11px] text-slate-500">{{ card.meta }}</p>
           </div>
@@ -76,14 +75,14 @@
 
         <p
           v-if="batteryHint"
-          class="rounded-xl border border-amber-400/35 bg-amber-500/10 px-3.5 py-2.5 text-[11px] leading-relaxed text-amber-200"
+          class="rounded-card bg-amber-400/[0.14] px-3.5 py-2.5 text-[11px] leading-relaxed text-amber-100"
         >
           {{ batteryHint }}
         </p>
 
         <p
           v-if="notifError"
-          class="rounded-xl border border-rose-500/30 bg-rose-500/10 px-3.5 py-2.5 text-xs text-rose-300"
+          class="rounded-card bg-rose-500/[0.16] px-3.5 py-2.5 text-xs text-rose-200"
         >
           Error al verificar permisos: {{ notifError }}
         </p>
@@ -92,13 +91,13 @@
 
     <!-- ── Respaldo ───────────────────────────────────────────────────────── -->
     <section class="overflow-hidden sk-card">
-      <header class="flex flex-wrap items-center gap-2 border-b border-white/[0.07] bg-gradient-to-r from-sky-500/10 to-transparent px-5 py-4">
-        <span class="flex h-8 w-8 items-center justify-center rounded-xl bg-sky-500/15 text-base">💾</span>
+      <header class="sk-card-head">
+        <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-sky-400/[0.18] text-base">💾</span>
         <div class="min-w-0">
-          <h2 class="text-sm font-semibold text-slate-100">Historial y estadísticas</h2>
+          <h2 class="text-sm font-bold text-white">Historial y estadísticas</h2>
           <p class="text-[11px] text-slate-400">Exporta o importa tus canciones junto con la configuración.</p>
         </div>
-        <span class="ml-auto rounded-full border border-sky-500/30 bg-sky-500/10 px-2.5 py-1 text-[10px] font-semibold text-sky-300">
+        <span class="ml-auto sk-badge bg-sky-400/[0.18] text-sky-200">
           Datos locales
         </span>
       </header>
@@ -113,7 +112,7 @@
           </button>
 
           <button
-            class="rounded-lg border border-sky-500/35 bg-sky-500/15 px-4 py-2 text-xs font-semibold text-sky-200 transition-colors hover:bg-sky-500/25"
+            class="sk-btn sk-btn-sm bg-sky-400/[0.18] text-sky-100 hover:bg-sky-400/30"
             @click="triggerImport"
           >
             Importar respaldo
@@ -129,8 +128,8 @@
 
         </div>
 
-        <div v-if="backupPreview" class="rounded-xl border border-white/[0.06] bg-slate-950/45 p-3.5 text-xs text-slate-300">
-          <p class="mb-2 flex items-center gap-2 font-semibold text-slate-100">
+        <div v-if="backupPreview" class="sk-well p-3.5 text-xs text-slate-300">
+          <p class="mb-2 flex items-center gap-2 font-bold text-white">
             <span class="h-1.5 w-1.5 rounded-full bg-sky-400" />Vista previa de importación
           </p>
           <p>Canciones válidas: {{ backupPreview.totalTracks }}</p>
@@ -144,7 +143,7 @@
             de dos dispositivos con escuchas solapadas que ninguna estadística
             sabía interpretar, así que se avisa de lo que va a pasar y ya está.
           -->
-          <p class="mt-3 rounded-lg border border-amber-400/35 bg-amber-500/10 px-3 py-2.5 text-[11px] leading-relaxed text-amber-200">
+          <p class="mt-3 block rounded-md bg-amber-400/[0.14] px-3 py-2.5 text-[11px] leading-relaxed text-amber-100">
             <span class="font-semibold">Se reemplazará tu historial.</span>
             Las {{ currentTrackCount }} canciones que tienes ahora se sustituyen por las
             {{ backupPreview.totalTracks }} del respaldo. No se puede deshacer: exporta antes
@@ -168,9 +167,9 @@
         </div>
 
         <div class="space-y-1.5">
-          <p v-if="backupMessage" class="text-[11px] text-brand-300">{{ backupMessage }}</p>
+          <p v-if="backupMessage" class="text-[11px] font-semibold text-brand-400">{{ backupMessage }}</p>
           <p v-if="backupWarning" class="text-[11px] text-amber-300">{{ backupWarning }}</p>
-          <p v-if="backupError" class="text-[11px] text-rose-300">{{ backupError }}</p>
+          <p v-if="backupError" class="text-[11px] text-rose-200">{{ backupError }}</p>
         </div>
       </div>
     </section>
@@ -182,22 +181,22 @@
       que «no hay nada nuevo», así que aquí sí se enseña lo que ocurre.
     -->
     <section class="overflow-hidden sk-card">
-      <header class="flex flex-wrap items-center gap-2 border-b border-white/[0.07] bg-gradient-to-r from-brand-500/10 to-transparent px-5 py-4">
-        <span class="flex h-8 w-8 items-center justify-center rounded-xl bg-brand-500/15 text-base">⬆️</span>
+      <header class="sk-card-head">
+        <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-400/[0.18] text-base">⬆️</span>
         <div class="min-w-0">
-          <h2 class="text-sm font-semibold text-slate-100">Actualizaciones</h2>
+          <h2 class="text-sm font-bold text-white">Actualizaciones</h2>
           <p class="text-[11px] text-slate-400">Se comprueba sola al abrir la app.</p>
         </div>
       </header>
 
       <div class="p-5">
-        <div class="mb-3 flex items-center justify-between gap-3 rounded-xl border border-white/[0.06] bg-slate-950/45 px-3.5 py-2.5">
+        <div class="mb-3 flex items-center justify-between gap-3 sk-well px-3.5 py-2.5">
           <span class="text-xs text-slate-300">Versión instalada</span>
-          <span class="font-mono text-sm font-semibold text-brand-300">{{ installedVersionLabel }}</span>
+          <span class="font-mono text-sm font-bold text-brand-400">{{ installedVersionLabel }}</span>
         </div>
 
         <button
-          class="sk-btn w-full border-brand-400/40 bg-brand-500/15 text-brand-100 hover:bg-brand-500/25"
+          class="sk-btn sk-btn-primary w-full"
           :disabled="updateBusy"
           @click="checkForUpdates"
         >
@@ -206,10 +205,10 @@
 
         <p
           v-if="updateCheckMessage"
-          class="mt-3 rounded-xl border px-3 py-2.5 text-xs"
+          class="mt-3 rounded-card px-3 py-2.5 text-xs"
           :class="updateCheckFailed
-            ? 'border-rose-400/25 bg-rose-500/10 text-rose-100'
-            : 'border-brand-400/25 bg-brand-500/10 text-brand-100'"
+            ? 'bg-rose-500/[0.16] text-rose-100'
+            : 'bg-brand-400/[0.14] text-brand-100'"
         >{{ updateCheckMessage }}</p>
 
         <p v-if="!isCapacitor" class="mt-3 text-[11px] text-slate-500">
@@ -219,23 +218,23 @@
     </section>
 
     <section class="overflow-hidden sk-card">
-      <header class="flex flex-wrap items-center gap-2 border-b border-white/[0.07] bg-gradient-to-r from-slate-500/10 to-transparent px-5 py-4">
-        <span class="flex h-8 w-8 items-center justify-center rounded-xl bg-slate-500/15 text-base">⚙️</span>
+      <header class="sk-card-head">
+        <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-400/[0.18] text-base">⚙️</span>
         <div class="min-w-0">
-          <h2 class="text-sm font-semibold text-slate-100">Umbrales de esta versión</h2>
+          <h2 class="text-sm font-bold text-white">Umbrales de esta versión</h2>
           <p class="text-[11px] text-slate-400">Cuánto tiene que sonar una canción para contar.</p>
         </div>
       </header>
 
       <div class="p-5">
-        <div class="divide-y divide-slate-800/60 overflow-hidden rounded-xl border border-white/[0.06] bg-slate-950/45">
+        <div class="sk-well divide-y divide-white/[0.06] overflow-hidden">
           <div
             v-for="row in runtimeRows"
             :key="row.label"
             class="flex items-center justify-between gap-3 px-3.5 py-2.5"
           >
             <span class="text-xs text-slate-300">{{ row.label }}</span>
-            <span class="font-mono text-sm font-semibold text-brand-300">{{ row.value }}</span>
+            <span class="font-mono text-sm font-bold text-brand-400">{{ row.value }}</span>
           </div>
         </div>
         <p class="mt-2.5 text-[11px] text-slate-500">Firma de app: {{ APP_SIGNATURE }}</p>

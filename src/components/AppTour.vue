@@ -2,15 +2,15 @@
   <Transition name="tour-slide">
     <div
       v-if="modelValue"
-      class="fixed inset-x-0 bottom-0 z-[100] px-3 pb-3 sm:px-4 sm:pb-4"
+      class="tour-dock fixed inset-x-0 bottom-0 z-[100] px-3 sm:px-4"
       role="dialog"
       aria-label="Guía rápida de Skippify"
     >
       <div class="tour-panel mx-auto w-full max-w-2xl">
         <!-- Barra de progreso: primero, porque es lo que sitúa al usuario -->
-        <div class="h-1 w-full overflow-hidden rounded-t-2xl bg-white/[0.06]">
+        <div class="h-1 w-full overflow-hidden rounded-t-shelf bg-white/[0.10]">
           <div
-            class="h-full bg-gradient-to-r from-brand-400 to-teal-400 transition-all duration-300"
+            class="h-full bg-brand-400 transition-all duration-300"
             :style="{ width: `${((stepIndex + 1) / steps.length) * 100}%` }"
           />
         </div>
@@ -19,20 +19,20 @@
           <div class="mb-3 flex items-start justify-between gap-3">
             <div class="flex min-w-0 items-center gap-3">
               <span
-                class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-brand-400/25 bg-brand-500/12 text-lg"
+                class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand-400/[0.18] text-lg"
               >{{ currentStep.icon }}</span>
               <div class="min-w-0">
-                <p class="text-[10px] font-semibold uppercase tracking-[0.2em] text-brand-300/80">
+                <p class="truncate text-[10px] font-bold uppercase tracking-[0.18em] text-brand-400">
                   {{ currentStep.eyebrow }}
                 </p>
-                <h3 class="truncate text-base font-semibold leading-tight text-white">{{ currentStep.title }}</h3>
+                <h3 class="truncate text-lg font-extrabold leading-tight tracking-tight text-white">{{ currentStep.title }}</h3>
               </div>
             </div>
-            <span class="shrink-0 whitespace-nowrap text-xs text-slate-400">{{ stepIndex + 1 }} / {{ steps.length }}</span>
+            <span class="shrink-0 whitespace-nowrap text-xs font-bold tabular-nums text-slate-400">{{ stepIndex + 1 }} / {{ steps.length }}</span>
           </div>
 
           <div class="tour-body">
-            <p class="text-sm leading-relaxed text-slate-200/90">{{ currentStep.description }}</p>
+            <p class="text-sm leading-relaxed text-slate-300">{{ currentStep.description }}</p>
 
             <!-- Paso obligatorio: sin modo elegido no se pasa de aquí. Se
                  resuelve dentro del panel para no depender de que la tarjeta de
@@ -43,13 +43,11 @@
                   v-for="modo in modosEscucha"
                   :key="modo.id"
                   type="button"
-                  class="rounded-xl border p-3 text-left transition-all duration-200"
-                  :class="modoElegido === modo.id
-                    ? 'border-brand-400/45 bg-brand-500/[0.10]'
-                    : 'border-white/[0.07] bg-white/[0.03] hover:border-white/[0.18]'"
+                  class="min-w-0 rounded-card border p-3 text-left transition-colors duration-200"
+                  :class="modoElegido === modo.id ? 'sk-option-active' : 'sk-option'"
                   @click="elegirModoEscucha(modo.id)"
                 >
-                  <p class="text-sm font-semibold" :class="modoElegido === modo.id ? 'text-brand-100' : 'text-white'">
+                  <p class="text-sm font-bold text-white">
                     {{ modo.icon }} {{ modo.title }}
                   </p>
                   <p class="mt-1 text-[11px] leading-relaxed text-slate-400">{{ modo.detail }}</p>
@@ -58,7 +56,7 @@
 
               <p
                 class="mt-2.5 text-[11px] leading-relaxed"
-                :class="modoElegido ? 'text-brand-300' : 'text-amber-300'"
+                :class="modoElegido ? 'text-brand-400' : 'text-amber-300'"
               >
                 <template v-if="modoElegido">
                   Listo: has elegido {{ tituloModo(modoElegido) }}. Puedes cambiarlo cuando
@@ -78,15 +76,13 @@
                 <li
                   v-for="permiso in permisos"
                   :key="permiso.id"
-                  class="rounded-xl border px-3 py-2.5"
-                  :class="permiso.granted
-                    ? 'border-brand-400/25 bg-brand-500/[0.07]'
-                    : 'border-amber-400/25 bg-amber-500/[0.06]'"
+                  class="rounded-card border-l-4 bg-white/[0.05] px-3 py-2.5"
+                  :class="permiso.granted ? 'border-brand-400' : 'border-amber-400'"
                 >
                   <div class="flex items-start gap-3">
                     <span class="mt-0.5 text-base">{{ permiso.granted ? '✅' : '⚠️' }}</span>
                     <div class="min-w-0 flex-1">
-                      <p class="text-sm font-medium text-slate-100">{{ permiso.title }}</p>
+                      <p class="text-sm font-bold text-white">{{ permiso.title }}</p>
                       <p class="mt-0.5 text-[11px] leading-relaxed text-slate-400">{{ permiso.detail }}</p>
                     </div>
                     <button
@@ -99,13 +95,13 @@
                     </button>
                     <span
                       v-else
-                      class="shrink-0 self-center rounded-md bg-brand-500/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-brand-300"
+                      class="sk-badge sk-badge-ok shrink-0 self-center uppercase"
                     >Concedido</span>
                   </div>
                 </li>
               </ul>
 
-              <p v-else class="mt-3 rounded-xl border border-white/[0.07] bg-white/[0.03] px-3 py-2.5 text-[11px] leading-relaxed text-slate-400">
+              <p v-else class="mt-3 rounded-card bg-white/[0.05] px-3 py-2.5 text-[11px] leading-relaxed text-slate-400">
                 Estás viendo Skippify en el navegador: aquí no hay permisos que conceder.
                 En la app de Android este paso te obliga a activarlos antes de terminar.
               </p>
@@ -407,11 +403,18 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+.tour-dock {
+  /* El hueco seguro del sistema se suma al relleno: en un móvil con gestos, un
+     bottom:0 pelado deja el botón de «Siguiente» bajo la barra de inicio. */
+  padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
+}
+
 .tour-panel {
-  border-radius: 18px;
-  border: 1px solid rgba(52, 211, 153, 0.28);
-  background: linear-gradient(150deg, rgba(12, 18, 29, 0.98), rgba(2, 6, 23, 0.99));
-  box-shadow: 0 -12px 60px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(148, 163, 184, 0.06) inset;
+  border-radius: 16px;
+  /* Gris sólido, como las hojas de Spotify: una superficie translúcida sobre
+     una pantalla llena de tarjetas se volvía ilegible. */
+  background: #242424;
+  box-shadow: 0 -12px 60px rgba(0, 0, 0, 0.65);
   overflow: hidden;
 }
 

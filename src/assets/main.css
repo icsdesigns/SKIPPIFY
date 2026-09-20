@@ -3,14 +3,19 @@
 @tailwind utilities;
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   Base: fondo de la aplicación
-   Un lienzo con dos halos fijos en lugar de un color plano. Va en `body::before`
-   con `position: fixed` para que no se desplace al hacer scroll ni cueste un
-   repintado del degradado en cada frame.
+   BASE · el lienzo
+   Spotify no pinta halos de color por el fondo: pinta negro y deja que el
+   contenido tenga el color. El único degradado va arriba del todo, muy tenue,
+   para que la cabecera no arranque con un corte seco.
    ────────────────────────────────────────────────────────────────────────────*/
 @layer base {
   :root {
     color-scheme: dark;
+
+    /* Altura real de la barra inferior en móvil, hueco seguro incluido. Las
+       vistas la usan para reservar sitio y no quedar tapadas. */
+    --sk-tabbar-h: 4.25rem;
+    --sk-safe-bottom: env(safe-area-inset-bottom, 0px);
   }
 
   html {
@@ -18,7 +23,11 @@
   }
 
   body {
-    @apply bg-ink-900 text-slate-100 antialiased;
+    @apply bg-ink-800 text-slate-50 antialiased;
+    /* 'clip' y no 'hidden': 'hidden' convertiría el documento en contenedor de
+       scroll y la cabecera adherida (position: sticky) dejaría de funcionar.
+       'clip' recorta igual el desbordamiento lateral sin ese efecto. */
+    overflow-x: clip;
     font-feature-settings: 'cv02', 'cv03', 'cv04', 'ss01';
   }
 
@@ -29,30 +38,61 @@
     z-index: -1;
     pointer-events: none;
     background:
-      radial-gradient(1100px 620px at 12% -8%, rgba(16, 185, 129, 0.16), transparent 60%),
-      radial-gradient(900px 560px at 92% 4%, rgba(56, 189, 248, 0.10), transparent 58%),
-      linear-gradient(180deg, #0b1220 0%, #050b14 55%, #050b14 100%);
+      radial-gradient(1200px 520px at 50% -18%, rgba(30, 215, 96, 0.10), transparent 68%),
+      linear-gradient(180deg, #1a1a1a 0%, #121212 34%, #121212 100%);
+  }
+
+  /* Ninguna palabra debe poder ensanchar su contenedor: los títulos de canción
+     y los nombres de playlist llegan sin espacios y sin límite de longitud.
+
+     `break-word` y no `anywhere`: `anywhere` parte cualquier palabra en cuanto
+     la línea se estrecha, y con eso «Descubrimiento» salía como «Descubrimient
+     / o» en la rejilla de tres columnas. `break-word` sólo parte la palabra que
+     no cabría ni ocupando una línea entera —que es el caso real del que hay que
+     protegerse—, y deja intactos los rótulos normales. */
+  h1, h2, h3, h4, h5, h6, p, span, li, td, th, label, button, a {
+    overflow-wrap: break-word;
+    word-break: normal;
+  }
+
+  /* Un hijo de flex/grid mide por su contenido salvo que se le diga lo
+     contrario: es la causa habitual de que una tarjeta se salga de la fila. */
+  .min-w-0 {
+    min-width: 0;
   }
 
   ::selection {
-    background: rgba(16, 185, 129, 0.32);
+    background: rgba(30, 215, 96, 0.32);
+    color: #fff;
   }
 
-  /* Barras de desplazamiento discretas: en la WebView de Android la barra por
-     defecto es un bloque gris que rompe el conjunto. */
+  /* Foco visible y coherente: el anillo verde es el mismo en toda la app. */
+  :focus-visible {
+    outline: 2px solid rgba(30, 215, 96, 0.75);
+    outline-offset: 2px;
+  }
+
+  /* Barras de desplazamiento al estilo de Spotify: finas, grises, sin pista. */
   * {
     scrollbar-width: thin;
-    scrollbar-color: rgba(148, 163, 184, 0.28) transparent;
+    scrollbar-color: rgba(255, 255, 255, 0.22) transparent;
   }
 
   ::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
+    width: 10px;
+    height: 10px;
   }
 
   ::-webkit-scrollbar-thumb {
-    background: rgba(148, 163, 184, 0.26);
+    background: rgba(255, 255, 255, 0.18);
     border-radius: 9999px;
+    border: 3px solid transparent;
+    background-clip: content-box;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.34);
+    background-clip: content-box;
   }
 
   ::-webkit-scrollbar-track {
@@ -61,113 +101,207 @@
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   Componentes compartidos
-   Estas clases son el vocabulario visual de la app: tarjetas, botones, chips y
-   controles. Antes cada vista repetía su propia combinación de utilidades y la
-   misma tarjeta tenía tres bordes distintos según la pantalla.
+   COMPONENTES · el vocabulario visual
+   Cada clase aquí es un acuerdo: si una pantalla necesita una tarjeta, usa
+   `.sk-card` y se parece a todas las demás. Cambiar el aspecto de la app es
+   cambiar este bloque, no cuarenta plantillas.
    ────────────────────────────────────────────────────────────────────────────*/
 @layer components {
-  /* Sin backdrop-blur a propósito: detrás sólo hay un degradado fijo, así que
-     desenfocarlo no aporta nada y en la WebView cuesta un repintado por tarjeta
-     en pantallas con listas largas. */
+  /* ── Superficies ──────────────────────────────────────────────────────────
+     Spotify eleva con GRIS SÓLIDO, no con transparencias: una tarjeta sobre
+     otra sigue siendo legible y las listas largas no se emborronan. */
   .sk-card {
-    @apply relative rounded-2xl border border-white/[0.07] bg-slate-900/55 shadow-card;
+    @apply relative rounded-card bg-ink-700 shadow-card;
   }
 
-  /* Tarjeta con un filo de luz superior: para los bloques principales. */
-  .sk-card-lit::before {
-    content: '';
-    position: absolute;
-    inset-inline: 1.25rem;
-    top: 0;
-    height: 1px;
-    background: linear-gradient(90deg, transparent, rgba(52, 211, 153, 0.45), transparent);
+  /* Bloque principal de una pantalla: un punto más claro y algo más de sombra. */
+  .sk-card-lit {
+    @apply bg-ink-600 shadow-lift;
   }
 
   .sk-card-hover {
-    @apply transition-colors duration-200 hover:border-white/[0.14] hover:bg-slate-900/70;
+    @apply transition-colors duration-200 hover:bg-ink-500;
   }
 
+  /* Cabecera de una tarjeta con secciones. Llevaba un degradado de color por
+     sección y un borde inferior; ahora la separa una franja más clara, que es
+     como Spotify divide sus bloques. */
+  .sk-card-head {
+    @apply flex flex-wrap items-center gap-2.5 border-b border-white/[0.07] bg-white/[0.03] px-5 py-4;
+  }
+
+  /* Pastilla de estado: verde si todo está en orden, ámbar si falta algo. */
+  .sk-badge {
+    @apply inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold;
+  }
+
+  .sk-badge-ok {
+    @apply bg-brand-400/[0.18] text-brand-200;
+  }
+
+  .sk-badge-warn {
+    @apply bg-amber-400/[0.18] text-amber-200;
+  }
+
+  /* ── Texto ────────────────────────────────────────────────────────────────
+     Los títulos van apretados y en peso alto, como los de Spotify; el cuerpo
+     va en el gris secundario (#b3b3b3), que sobre negro rinde 9,7:1. */
   .sk-title {
-    @apply text-base font-semibold tracking-tight text-slate-100;
+    @apply text-base font-bold tracking-tight text-white;
   }
 
   .sk-subtitle {
     @apply mt-1 text-xs leading-relaxed text-slate-400;
   }
 
+  /* El interletrado se bajó de 0,14 a 0,08 em: en versales, cada décima suma
+     casi un carácter de ancho a la palabra, y con 0,14 «DUPLICADAS» no cabía en
+     una tarjeta de métrica a dos columnas en un móvil de 320 px. */
   .sk-eyebrow {
-    @apply text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500;
+    @apply text-[11px] font-bold uppercase tracking-[0.08em] text-slate-400;
   }
 
+  /* ── Chips ────────────────────────────────────────────────────────────────*/
   .sk-chip {
-    @apply inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[11px] font-medium text-slate-300;
+    @apply inline-flex max-w-full items-center gap-1.5 rounded-full bg-white/[0.08] px-3 py-1 text-[11px] font-semibold text-slate-200;
   }
 
   .sk-chip-accent {
-    @apply border-brand-400/30 bg-brand-400/10 text-brand-200;
+    @apply bg-brand-400/[0.16] text-brand-200;
   }
 
+  /* ── Botones ──────────────────────────────────────────────────────────────
+     Píldora y negrita, la firma del botón de Spotify.
+
+     La escala sólo ENCOGE (`active:scale-[0.98]`). Agrandar al pasar por
+     encima, que es lo que hace Spotify con su botón grande, no vale aquí:
+     media docena de estos botones son `w-full` dentro de una tarjeta, y un
+     3 % de un botón ancho se sale por los lados de su contenedor. Encoger al
+     pulsar da la misma respuesta táctil —la que de verdad se nota en un
+     móvil— sin poder desbordar nada. El realce del hover lo lleva el fondo. */
   .sk-btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold transition-all duration-150 disabled:cursor-not-allowed disabled:opacity-45;
+    @apply inline-flex max-w-full items-center justify-center gap-2 rounded-full px-5 py-2.5 text-sm font-bold tracking-tight
+           transition-all duration-150 active:scale-[0.98]
+           disabled:pointer-events-none disabled:opacity-40 disabled:active:scale-100;
   }
 
+  /* El verde vivo con texto NEGRO: es la única combinación que pasa AAA sobre
+     el verde de Spotify (13,2:1). Texto blanco encima se quedaría en 2,3:1. */
   .sk-btn-primary {
-    @apply border-brand-400/40 bg-brand-500/20 text-brand-100 hover:bg-brand-500/30 hover:border-brand-400/60;
+    @apply bg-brand-400 text-black shadow-glow hover:bg-brand-300;
   }
 
   .sk-btn-ghost {
-    @apply border-white/10 bg-white/[0.03] text-slate-300 hover:bg-white/[0.07] hover:text-slate-100;
+    @apply bg-white/[0.08] text-white hover:bg-white/[0.16];
   }
 
   .sk-btn-danger {
-    @apply border-rose-500/35 bg-rose-500/10 text-rose-200 hover:bg-rose-500/20;
+    @apply bg-rose-500/[0.18] text-rose-200 hover:bg-rose-500/30;
   }
 
   .sk-btn-sm {
-    @apply px-3 py-1.5 text-xs;
+    @apply px-3.5 py-1.5 text-xs;
   }
 
+  /* ── Formularios ──────────────────────────────────────────────────────────*/
   .sk-input {
-    @apply w-full rounded-xl border border-white/10 bg-slate-950/60 px-3 py-2.5 text-sm text-slate-100 placeholder:text-slate-600 transition-colors focus:border-brand-400/50 focus:outline-none focus:ring-2 focus:ring-brand-500/15;
+    @apply w-full rounded-md border border-transparent bg-ink-500 px-3.5 py-2.5 text-sm text-white
+           placeholder:text-slate-500 transition-colors
+           focus:border-white focus:outline-none focus:ring-0;
   }
 
-  /* Selector segmentado (rangos de tiempo, intervalos…). */
+  /* ── Control segmentado ───────────────────────────────────────────────────
+     Píldoras sueltas, como los filtros de la portada de Spotify: la activa se
+     invierte (blanco sobre negro) en lugar de teñirse. */
   .sk-segment {
-    @apply inline-flex flex-wrap gap-1 rounded-xl border border-white/[0.07] bg-slate-950/45 p-1;
+    @apply inline-flex max-w-full flex-wrap gap-2;
   }
 
   .sk-segment-item {
-    @apply rounded-lg px-3 py-1.5 text-xs font-medium text-slate-400 transition-all duration-150 hover:text-slate-100;
+    @apply rounded-full bg-white/[0.08] px-3.5 py-1.5 text-xs font-bold text-slate-200
+           transition-colors duration-150 hover:bg-white/[0.16];
   }
 
   .sk-segment-item-active {
-    @apply bg-brand-500/18 text-brand-200 shadow-[0_1px_0_0_rgba(255,255,255,0.06)_inset];
+    @apply bg-white text-black hover:bg-white;
   }
 
+  /* ── Deslizador ───────────────────────────────────────────────────────────
+     El de Spotify: pista fina y gris, relleno blanco y tirador que sólo
+     aparece al acercarse. En táctil no hay «acercarse», así que se deja
+     siempre visible en pantallas sin puntero fino. */
+  .sk-range {
+    @apply h-1 w-full cursor-pointer appearance-none rounded-full bg-white/[0.20] accent-white;
+  }
+
+  .sk-range::-webkit-slider-thumb {
+    @apply h-3 w-3 appearance-none rounded-full bg-white;
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35);
+  }
+
+  .sk-range::-moz-range-thumb {
+    @apply h-3 w-3 rounded-full border-0 bg-white;
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35);
+  }
+
+  .sk-range:disabled {
+    @apply cursor-not-allowed opacity-40;
+  }
+
+  /* ── Interruptor ──────────────────────────────────────────────────────────*/
   .sk-switch {
-    @apply relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500;
+    @apply relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border transition-colors duration-200
+           focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400;
   }
 
   .sk-switch-knob {
     @apply inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform duration-200;
   }
 
+  /* ── Separadores y rejillas ───────────────────────────────────────────────*/
   .sk-divider {
-    @apply h-px w-full bg-gradient-to-r from-transparent via-white/10 to-transparent;
-  }
-
-  /* Rejilla de métricas: mismo ritmo vertical en todas las pantallas. */
-  .sk-stat {
-    @apply sk-card p-4;
-  }
-
-  .sk-stat-value {
-    @apply mt-1.5 text-2xl font-bold leading-none tracking-tight text-slate-50;
+    @apply h-px w-full bg-white/[0.08];
   }
 
   .sk-stat-hint {
     @apply mt-1.5 text-[11px] leading-snug text-slate-500;
+  }
+
+  /* ── Tarjeta seleccionable ────────────────────────────────────────────────
+     Modos de escucha, intervalos, pasos del asistente… Todas eran «contorno
+     tenue + tinte tenue», que sobre negro se quedaba en un rectángulo casi
+     invisible. Ahora la opción en reposo se apoya en una superficie clara y la
+     elegida se marca con el verde: se distingue de un vistazo y también sin
+     color, porque cambia el brillo del fondo.
+
+     Ambas dan por hecho que el elemento ya trae la utilidad `border`. */
+  .sk-option {
+    @apply border-transparent bg-white/[0.05] transition-colors duration-150 hover:bg-white/[0.10];
+  }
+
+  .sk-option-active {
+    @apply border-brand-400 bg-brand-400/[0.12] text-white;
+  }
+
+  /* Superficie hundida para bloques informativos dentro de una tarjeta. */
+  .sk-well {
+    @apply rounded-card bg-black/25;
+  }
+
+  /* ── Fila de lista ────────────────────────────────────────────────────────
+     La fila de canción de Spotify: sin bordes, se enciende al pasar. */
+  .sk-row {
+    @apply flex items-center gap-3 rounded-md px-2.5 py-2 transition-colors duration-150 hover:bg-white/[0.07];
+  }
+
+  /* ── Salvavidas de desbordamiento ─────────────────────────────────────────
+     Recorta a dos líneas donde el texto es de longitud imprevisible (títulos
+     de canción, descripciones de pestaña) sin dejarlo crecer sin fin. */
+  .sk-clamp-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
   }
 }
 
@@ -204,5 +338,13 @@
   .sk-wave-bar {
     animation: none !important;
     opacity: 1;
+  }
+
+  .sk-btn {
+    transition: none !important;
+  }
+
+  .sk-btn:active {
+    transform: none !important;
   }
 }

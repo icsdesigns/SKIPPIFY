@@ -1,7 +1,7 @@
 <template>
   <div class="sk-stagger space-y-4">
     <!-- ── Estado del servicio ───────────────────────────────────────────── -->
-    <div v-if="!enabled" class="sk-card border-amber-500/25 p-5">
+    <div v-if="!enabled" class="sk-card p-5">
       <p class="text-sm font-semibold text-amber-200">La comunidad no está configurada</p>
       <p class="mt-1 text-xs text-amber-200/70">
         Define las variables <span class="font-mono">VITE_FIREBASE_*</span> para poder crear grupos
@@ -24,25 +24,25 @@
             v-for="group in groups"
             :key="group.groupId"
             type="button"
-            class="flex items-center gap-2 rounded-xl border px-3 py-2 text-left transition-colors"
+            class="flex max-w-full items-center gap-2 rounded-full border border-transparent px-3.5 py-2 text-left transition-colors"
             :class="group.groupId === activeGroupId
-              ? 'border-brand-400/45 bg-brand-500/12 text-brand-100'
-              : 'border-white/[0.07] bg-white/[0.02] text-slate-300 hover:border-white/[0.16]'"
+              ? 'bg-white text-black'
+              : 'bg-white/[0.08] text-slate-200 hover:bg-white/[0.16]'"
             @click="onSelectGroup(group.groupId)"
           >
-            <span class="text-sm font-medium">{{ groupLabel(group) }}</span>
-            <span v-if="memberCount(group.groupId)" class="text-[10px] text-slate-500">
+            <span class="min-w-0 truncate text-sm font-bold">{{ groupLabel(group) }}</span>
+            <span v-if="memberCount(group.groupId)" class="shrink-0 text-[10px] opacity-70">
               {{ memberCount(group.groupId) }} miembro{{ memberCount(group.groupId) === 1 ? '' : 's' }}
             </span>
-            <span class="font-mono text-[10px] text-slate-500">{{ group.inviteCode || '······' }}</span>
+            <span class="shrink-0 font-mono text-[10px] opacity-60">{{ group.inviteCode || '······' }}</span>
           </button>
         </div>
       </section>
 
-      <section class="sk-card sk-card-lit border-brand-500/25 p-5">
+      <section class="sk-card sk-card-lit p-5">
         <header class="flex flex-wrap items-start justify-between gap-3">
           <div class="min-w-0">
-            <h2 class="truncate text-base font-semibold text-brand-200">{{ groupLabel(activeGroup) }}</h2>
+            <h2 class="sk-clamp-2 text-xl font-extrabold tracking-tightest text-white">{{ groupLabel(activeGroup) }}</h2>
             <p class="mt-1 text-xs text-slate-400">Próxima publicación: {{ nextPublishLabel }}</p>
             <p class="mt-0.5 text-xs text-slate-500">Cuenta atrás: {{ nextPublishCountdown }}</p>
             <p v-if="activeLastUpdate" class="mt-0.5 text-xs text-slate-500">
@@ -63,7 +63,7 @@
             </button>
             <button
               v-if="accesoRechazado"
-              class="sk-btn sk-btn-sm border-amber-400/40 bg-amber-500/15 text-amber-100 hover:bg-amber-500/25"
+              class="sk-btn sk-btn-sm bg-amber-400/[0.18] text-amber-100 hover:bg-amber-400/30"
               :disabled="reparando"
               @click="onRepair"
             >
@@ -81,7 +81,7 @@
              Son las fichas de `members`, las mismas que puntúa la función
              semanal: si alguien sale aquí, cuenta en el ranking. -->
         <div class="flex flex-wrap items-center justify-between gap-2">
-          <h3 class="text-sm font-semibold text-slate-100">Miembros</h3>
+          <h3 class="text-sm font-bold text-white">Miembros</h3>
           <span class="sk-chip">{{ activeMembers.length || '—' }}</span>
         </div>
 
@@ -93,21 +93,21 @@
           <li
             v-for="miembro in activeMembers"
             :key="miembro.uid"
-            class="flex items-center gap-2 rounded-xl border px-2.5 py-1.5"
+            class="flex max-w-full items-center gap-2 rounded-full px-2.5 py-1.5"
             :class="miembro.uid === state.uid
-              ? 'border-brand-400/35 bg-brand-500/[0.08]'
-              : 'border-white/[0.07] bg-white/[0.03]'"
+              ? 'bg-brand-400/[0.16]'
+              : 'bg-white/[0.06]'"
           >
             <span
-              class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-[10px] font-bold uppercase"
+              class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold uppercase"
               :class="miembro.uid === state.uid
-                ? 'border-brand-400/40 bg-brand-500/15 text-brand-200'
-                : 'border-white/[0.10] bg-white/[0.05] text-slate-400'"
+                ? 'bg-brand-400 text-black'
+                : 'bg-white/[0.12] text-slate-300'"
             >{{ inicial(miembro) }}</span>
             <span class="min-w-0">
               <span class="block truncate text-xs text-slate-200">
                 {{ miembro.displayName || shortenUid(miembro.uid) }}
-                <span v-if="miembro.uid === state.uid" class="text-[10px] uppercase tracking-wider text-brand-300">tú</span>
+                <span v-if="miembro.uid === state.uid" class="text-[10px] uppercase tracking-wider text-brand-400">tú</span>
               </span>
               <span class="block text-[10px] text-slate-500">
                 {{ miembro.role === 'owner' ? 'Propietario' : 'Miembro' }}<template v-if="miembro.joinedAt"> · desde {{ fechaCorta(miembro.joinedAt) }}</template>
@@ -119,7 +119,7 @@
         <div class="sk-divider my-4" />
 
         <div class="flex flex-wrap items-center justify-between gap-2">
-          <h3 class="text-sm font-semibold text-slate-100">Resultados semanales</h3>
+          <h3 class="text-sm font-bold text-white">Resultados semanales</h3>
           <span v-if="weekLabel" class="sk-chip">{{ weekLabel }}</span>
         </div>
 
@@ -131,15 +131,15 @@
           <li
             v-for="(item, idx) in weeklyMembers"
             :key="`${item.uid}-${idx}`"
-            class="flex items-center justify-between gap-3 rounded-xl border px-3 py-2.5"
+            class="flex items-center justify-between gap-3 rounded-md px-3 py-2.5 transition-colors"
             :class="item.uid === state.uid
-              ? 'border-brand-400/35 bg-brand-500/[0.08]'
-              : 'border-white/[0.07] bg-white/[0.03]'"
+              ? 'bg-brand-400/[0.14]'
+              : 'bg-white/[0.05] hover:bg-white/[0.09]'"
           >
             <div class="min-w-0">
-              <p class="truncate text-sm text-slate-100">
+              <p class="truncate text-sm font-semibold text-white">
                 {{ rankLabel(idx) }} {{ item.displayName || shortenUid(item.uid) }}
-                <span v-if="item.uid === state.uid" class="ml-1 text-[10px] uppercase tracking-wider text-brand-300">tú</span>
+                <span v-if="item.uid === state.uid" class="ml-1 text-[10px] uppercase tracking-wider text-brand-400">tú</span>
               </p>
               <p class="mt-0.5 text-[11px] text-slate-400">
                 {{ formatHours(item.totalMinutes) }} · {{ getTrackCount(item) }} canciones
@@ -148,7 +148,7 @@
                 🎤 {{ getTopArtist(item) }} · 🎵 {{ getTopTrack(item) }}
               </p>
             </div>
-            <span class="shrink-0 font-mono text-sm font-semibold text-brand-300">{{ formatScore(item.score) }}</span>
+            <span class="shrink-0 font-mono text-sm font-bold tabular-nums text-brand-400">{{ formatScore(item.score) }}</span>
           </li>
         </ul>
       </section>
@@ -172,22 +172,20 @@
           type="button"
           class="relative overflow-hidden rounded-xl border p-4 text-left transition-all duration-200"
           :class="accion === opcion.id
-            ? 'border-brand-400/45 bg-brand-500/[0.07]'
-            : 'border-white/[0.06] bg-white/[0.02] hover:border-white/[0.16] hover:bg-white/[0.05]'"
+            ? 'sk-option-active'
+            : 'sk-option'"
           @click="accion = accion === opcion.id ? '' : opcion.id"
         >
           <div
             v-if="accion === opcion.id"
-            class="pointer-events-none absolute inset-0 bg-gradient-to-br from-brand-500/10 to-transparent"
+            class="pointer-events-none absolute inset-0 bg-gradient-to-br from-brand-400/[0.10] to-transparent"
           />
           <div class="relative">
             <span
-              class="flex h-10 w-10 items-center justify-center rounded-xl border text-lg transition-colors"
-              :class="accion === opcion.id
-                ? 'border-brand-400/35 bg-brand-500/15'
-                : 'border-white/[0.07] bg-white/[0.03]'"
+              class="flex h-10 w-10 items-center justify-center rounded-full text-lg transition-colors"
+              :class="accion === opcion.id ? 'bg-brand-400/25' : 'bg-white/[0.08]'"
             >{{ opcion.icon }}</span>
-            <p class="mt-2.5 text-sm font-semibold" :class="accion === opcion.id ? 'text-brand-100' : 'text-white'">
+            <p class="mt-2.5 text-sm font-bold text-white">
               {{ opcion.title }}
             </p>
             <p class="mt-1 text-[11px] leading-relaxed text-slate-400">{{ opcion.description }}</p>
@@ -196,7 +194,7 @@
       </div>
 
       <Transition name="desplegar">
-        <div v-if="accion" class="mt-4 border-t border-white/[0.06] pt-4">
+        <div v-if="accion" class="mt-4 border-t border-white/[0.07] pt-4">
           <label class="block">
             <span class="sk-eyebrow">Tu nombre en los rankings</span>
             <input
@@ -248,14 +246,14 @@
       </Transition>
 
       <p v-if="authLoading" class="mt-3 text-xs text-sky-300">Conectando con Firebase…</p>
-      <p v-if="message" class="mt-3 text-xs text-brand-300">{{ message }}</p>
+      <p v-if="message" class="mt-3 text-xs text-brand-400">{{ message }}</p>
 
-      <div v-if="error" class="mt-3 rounded-xl border border-rose-500/30 bg-rose-500/[0.07] px-3.5 py-3">
-        <p class="text-xs text-rose-300">{{ error }}</p>
+      <div v-if="error" class="mt-3 rounded-card bg-rose-500/[0.16] px-3.5 py-3">
+        <p class="text-xs text-rose-200">{{ error }}</p>
 
         <div v-if="accesoRechazado" class="mt-2.5 flex flex-wrap items-center gap-2">
           <button
-            class="sk-btn sk-btn-sm border-amber-400/40 bg-amber-500/15 text-amber-100 hover:bg-amber-500/25"
+            class="sk-btn sk-btn-sm bg-amber-400/[0.18] text-amber-100 hover:bg-amber-400/30"
             :disabled="reparando || !activeGroupId"
             @click="onRepair"
           >

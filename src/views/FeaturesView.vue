@@ -4,9 +4,9 @@
     <!-- ══ 1 · Salto de duplicadas ═══════════════════════════════════════════ -->
     <section class="space-y-4">
       <header class="flex items-center gap-3">
-        <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-brand-400/25 bg-brand-500/12 text-base">🔁</span>
+        <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-400/[0.18] text-base">🔁</span>
         <div class="min-w-0">
-          <h2 class="text-base font-semibold text-white">Salto de duplicadas</h2>
+          <h2 class="text-xl font-extrabold tracking-tightest text-white">Salto de duplicadas</h2>
           <p class="text-[11px] text-slate-500">Cuánto tiempo tiene que pasar para volver a oír la misma canción</p>
         </div>
       </header>
@@ -20,47 +20,51 @@
 
         <!-- Los tres modos, siempre a la vista: son los mismos que ofrece la
              notificación persistente, así que la rejilla no cambia de forma. -->
-        <div class="mt-4 grid gap-2.5 sm:grid-cols-3">
+        <!-- Tres columnas sólo a partir de lg: entre 640 y 1024 px la barra
+             lateral se lleva 264 px y cada tarjeta se quedaba en 98 px de texto
+             útil, menos de los 112 px que mide «Descubrimiento». -->
+        <div class="mt-4 grid gap-2.5 lg:grid-cols-3">
           <button
             v-for="modo in modos"
             :key="modo.id"
             type="button"
             class="relative overflow-hidden rounded-xl border p-4 text-left transition-all duration-200"
             :class="features.listeningMode === modo.id
-              ? 'border-brand-400/45 bg-brand-500/[0.07] shadow-[0_0_0_1px_rgba(34,197,94,0.10)]'
-              : 'border-white/[0.06] bg-white/[0.02] hover:border-white/[0.16] hover:bg-white/[0.05]'"
+              ? 'sk-option-active'
+              : 'sk-option'"
             :aria-expanded="modo.id === 'custom' ? panelPersonalizado : undefined"
             @click="elegirModo(modo)"
           >
             <div
               v-if="features.listeningMode === modo.id"
-              class="pointer-events-none absolute inset-0 bg-gradient-to-br from-brand-500/10 to-transparent"
+              class="pointer-events-none absolute inset-0 bg-gradient-to-br from-brand-400/[0.10] to-transparent"
             />
+            <!-- Icono y marcador arriba, título debajo a todo el ancho. En una
+                 sola fila los tres, «Descubrimiento» se quedaba en 26 px útiles
+                 con la rejilla de tres columnas y salía recortado; así el título
+                 siempre dispone del ancho entero de la tarjeta. -->
             <div class="relative flex items-center gap-2.5">
               <span
-                class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border text-base transition-colors"
-                :class="features.listeningMode === modo.id
-                  ? 'border-brand-400/35 bg-brand-500/15'
-                  : 'border-white/[0.07] bg-white/[0.03]'"
+                class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-base transition-colors"
+                :class="features.listeningMode === modo.id ? 'bg-brand-400/25' : 'bg-white/[0.08]'"
               >{{ modo.icon }}</span>
-              <span class="text-sm font-semibold" :class="features.listeningMode === modo.id ? 'text-brand-100' : 'text-white'">
-                {{ modo.title }}
-              </span>
               <span
                 v-if="modo.id === 'custom'"
-                class="ml-auto shrink-0 text-[11px] text-slate-500 transition-transform"
+                class="ml-auto shrink-0 text-[13px] text-slate-400 transition-transform"
                 :class="panelPersonalizado ? 'rotate-90' : ''"
               >›</span>
               <span
                 v-else
                 class="ml-auto flex h-4 w-4 shrink-0 items-center justify-center rounded-full border transition-colors"
-                :class="features.listeningMode === modo.id ? 'border-brand-400/60 text-brand-300' : 'border-white/15'"
+                :class="features.listeningMode === modo.id ? 'border-brand-400/60 text-brand-400' : 'border-white/15'"
                 aria-hidden="true"
               >
                 <span v-if="features.listeningMode === modo.id" class="h-1.5 w-1.5 rounded-full bg-current" />
               </span>
             </div>
-            <p class="relative mt-2 text-[11px] leading-relaxed text-slate-400">{{ modo.description }}</p>
+
+            <p class="relative mt-2.5 text-sm font-bold leading-tight text-white">{{ modo.title }}</p>
+            <p class="relative mt-1.5 text-[11px] leading-relaxed text-slate-400">{{ modo.description }}</p>
             <p class="relative mt-1.5 text-[11px] leading-relaxed text-slate-500">{{ modo.detail }}</p>
           </button>
         </div>
@@ -68,7 +72,7 @@
         <!-- Panel del modo personalizado: se abre al pulsarlo y se cierra al
              elegir una frecuencia. -->
         <Transition name="desplegar">
-          <div v-if="panelPersonalizado" class="mt-4 border-t border-white/[0.06] pt-4">
+          <div v-if="panelPersonalizado" class="mt-4 border-t border-white/[0.07] pt-4">
             <p class="sk-eyebrow">No repetir una canción hasta pasados</p>
             <div class="mt-2.5 grid grid-cols-2 gap-2 sm:grid-cols-5">
               <button
@@ -77,8 +81,8 @@
                 type="button"
                 class="rounded-xl border px-3 py-2.5 text-center text-xs font-semibold transition-all duration-200"
                 :class="features.skipDuplicatesInterval === opt.value && features.listeningMode === 'custom'
-                  ? 'border-brand-400/45 bg-brand-500/[0.12] text-brand-100'
-                  : 'border-white/[0.06] bg-white/[0.02] text-slate-300 hover:border-white/[0.16] hover:bg-white/[0.05]'"
+                  ? 'sk-option-active'
+                  : 'sk-option text-slate-200'"
                 @click="elegirIntervalo(opt.value)"
               >{{ opt.label }}</button>
             </div>
@@ -93,7 +97,7 @@
       <!-- ── Calibración del salto ────────────────────────────────────────── -->
       <article data-tour="calibration-cta" class="sk-card p-5">
         <div class="flex flex-wrap items-center gap-3">
-          <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-violet-400/25 bg-violet-500/12 text-lg">🩺</span>
+          <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-violet-400/[0.18] text-lg">🩺</span>
           <div class="min-w-0 flex-1">
             <h3 class="sk-title">Calibración del salto</h3>
             <p class="mt-0.5 text-[11px] leading-relaxed text-slate-400">
@@ -113,18 +117,18 @@
     <!-- ══ 2 · Silenciamiento de anuncios ════════════════════════════════════ -->
     <section class="space-y-4">
       <header class="flex items-center gap-3">
-        <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-amber-400/25 bg-amber-500/12 text-base">🔇</span>
+        <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-amber-400/[0.18] text-base">🔇</span>
         <div class="min-w-0">
-          <h2 class="text-base font-semibold text-white">Silenciamiento de anuncios</h2>
+          <h2 class="text-xl font-extrabold tracking-tightest text-white">Silenciamiento de anuncios</h2>
           <p class="text-[11px] text-slate-500">Solo tiene efecto en cuentas gratuitas de Spotify</p>
         </div>
       </header>
 
-      <article class="sk-card sk-card-lit p-5" :class="features.silenceAds ? 'border-brand-500/25' : ''">
+      <article class="sk-card sk-card-lit p-5">
         <div class="flex items-start gap-4">
           <span
-            class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border text-xl transition-colors"
-            :class="features.silenceAds ? 'border-brand-400/30 bg-brand-500/12' : 'border-white/[0.07] bg-white/[0.03]'"
+            class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-xl transition-colors"
+            :class="features.silenceAds ? 'bg-brand-400/25' : 'bg-white/[0.08]'"
           >🚫</span>
 
           <div class="min-w-0 flex-1">
@@ -145,7 +149,7 @@
             role="switch"
             :aria-checked="features.silenceAds"
             class="sk-switch mt-1"
-            :class="features.silenceAds ? 'border-brand-400/50 bg-brand-500' : 'border-white/10 bg-white/[0.08]'"
+            :class="features.silenceAds ? 'border-transparent bg-brand-400' : 'border-transparent bg-white/[0.18]'"
             @click="features.silenceAds = !features.silenceAds"
           >
             <span class="sk-switch-knob" :class="features.silenceAds ? 'translate-x-6' : 'translate-x-1'" />
@@ -153,14 +157,14 @@
         </div>
 
         <Transition name="desplegar">
-          <div v-if="features.silenceAds" class="mt-4 border-t border-white/[0.06] pt-4">
+          <div v-if="features.silenceAds" class="mt-4 border-t border-white/[0.07] pt-4">
             <p class="sk-eyebrow">Palabras clave detectadas</p>
             <div class="mt-2 flex flex-wrap gap-1.5">
               <span v-for="kw in features.silenceAdsKeywords" :key="kw" class="sk-chip">
                 {{ kw }}
                 <button
                   v-if="!requiredKeywords.includes(kw)"
-                  class="text-slate-500 transition-colors hover:text-rose-300"
+                  class="text-slate-500 transition-colors hover:text-rose-200"
                   aria-label="Quitar palabra"
                   @click="removeKeyword(kw)"
                 >×</button>
@@ -271,9 +275,15 @@ function elegirIntervalo (value) {
   panelPersonalizado.value = false
 }
 
-/** La calibración vive fuera de la navegación: sólo se entra desde aquí. */
+/**
+ * La calibración vive fuera de la navegación: sólo se entra desde aquí.
+ *
+ * Se aterriza en la pantalla de elección —«Asistente de calibración» o «Ajuste
+ * manual»— y no directamente en el asistente: quien ya sabe qué parámetro
+ * quiere mover no tiene por qué pasar antes por una prueba guiada entera.
+ */
 function abrirCalibracion () {
-  router.push({ path: '/calibration', query: { asistente: '1' } })
+  router.push({ path: '/calibration' })
 }
 
 function normalizeKeyword (value) {

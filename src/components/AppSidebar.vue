@@ -1,127 +1,121 @@
 <template>
-  <!-- Mobile backdrop -->
-  <Transition name="backdrop">
-    <div
-      v-if="open"
-      class="fixed inset-0 bg-black/60 z-30 md:hidden"
-      @click="$emit('update:open', false)"
-    />
-  </Transition>
-
-  <!-- ── Escritorio ─────────────────────────────────────────────────────────-->
+  <!-- ── Escritorio · barra lateral negra con estantes ───────────────────────
+       El patrón de Spotify: fondo a negro puro, y dentro dos «estantes»
+       redondeados en gris. La jerarquía la da la superficie, no los bordes. -->
   <aside
     :class="[
-      'flex flex-col border-r border-white/[0.06] bg-ink-900/85 backdrop-blur-xl',
-      'transition-[width] duration-300 ease-in-out overflow-hidden',
-      'hidden md:flex',
-      collapsed ? 'md:w-16' : 'md:w-60',
+      // Adherida y a pantalla completa, como la de Spotify: el contenido pasa
+      // por debajo y la navegación nunca se va con el scroll. Se usa 'sticky' y
+      // no 'fixed' para no tener que reservar el hueco a mano.
+      'hidden shrink-0 flex-col gap-2 bg-ink-900 p-2 md:sticky md:top-0 md:flex md:h-screen',
+      'transition-[width] duration-300 ease-in-out',
+      collapsed ? 'md:w-[5.5rem]' : 'md:w-[16.5rem]'
     ]"
   >
-    <div
-      class="flex items-center gap-3 border-b border-white/[0.06] h-16 px-3 flex-shrink-0"
-      :class="collapsed ? 'justify-center' : 'px-4'"
-    >
-      <div class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl border border-brand-500/30 bg-gradient-to-br from-brand-500/20 to-teal-500/5 shadow-md shadow-brand-500/10">
-          <BrandMark gradient class="h-5 w-5" />
-        </div>
-      <Transition name="label">
-        <div v-if="!collapsed" class="overflow-hidden whitespace-nowrap">
-          <p class="text-sm font-bold tracking-wide text-white leading-none">Skippify</p>
-          <p class="text-[10px] text-slate-500 leading-none mt-0.5">Funcionalidades premium para tu Spotify</p>
-        </div>
-      </Transition>
+    <!-- Estante 1 · identidad -->
+    <div class="rounded-shelf bg-ink-700 px-3 py-3">
+      <router-link
+        to="/"
+        class="flex items-center gap-3 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+        :class="collapsed ? 'justify-center' : ''"
+        :title="collapsed ? 'Skippify' : ''"
+      >
+        <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-400 shadow-glow">
+          <BrandMark class="h-5 w-5 text-black" />
+        </span>
+        <span v-if="!collapsed" class="min-w-0 overflow-hidden">
+          <span class="block truncate text-[15px] font-extrabold leading-none tracking-tight text-white">Skippify</span>
+          <span class="mt-1 block truncate text-[10px] leading-none text-slate-400">Premium para tu Spotify</span>
+        </span>
+      </router-link>
     </div>
 
-    <nav data-tour="sidebar-nav" class="flex-1 py-3 flex flex-col gap-1 px-2 overflow-y-auto">
+    <!-- Estante 2 · navegación -->
+    <div class="flex min-h-0 flex-1 flex-col rounded-shelf bg-ink-700">
+      <div
+        class="flex items-center justify-between px-3 pt-3 pb-1"
+        :class="collapsed ? 'justify-center' : ''"
+      >
+        <p v-if="!collapsed" class="truncate px-1 text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">
+          Tu Skippify
+        </p>
+        <button
+          class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-white/[0.08] hover:text-white"
+          :title="collapsed ? 'Expandir menú' : 'Contraer menú'"
+          :aria-label="collapsed ? 'Expandir menú' : 'Contraer menú'"
+          @click="collapsed = !collapsed"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 transition-transform duration-300"
+            :class="collapsed ? 'rotate-0' : 'rotate-180'"
+            viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"
+          >
+            <polyline points="9 18 15 12 9 6" />
+          </svg>
+        </button>
+      </div>
+
+      <nav data-tour="sidebar-nav" class="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto overflow-x-hidden p-2">
+        <router-link
+          v-for="item in desktopItems"
+          :key="item.to"
+          :to="item.to"
+          custom
+          v-slot="{ isActive, navigate }"
+        >
+          <button
+            :data-tour="item.tour"
+            :title="collapsed ? item.label : ''"
+            class="group relative flex w-full items-center gap-3 rounded-lg transition-colors duration-150"
+            :class="[
+              collapsed ? 'justify-center px-0 py-2.5' : 'px-3 py-2.5',
+              navClasses(item, isActive)
+            ]"
+            @click="navigate()"
+          >
+            <span class="shrink-0" :class="iconClasses(item, isActive)">
+              <NavIcon :name="item.icon" :active="isActive" />
+            </span>
+
+            <span v-if="!collapsed" class="min-w-0 flex-1 overflow-hidden text-left">
+              <span class="block truncate text-sm font-bold leading-tight">{{ item.label }}</span>
+              <span class="mt-0.5 block truncate text-[10px] leading-tight text-slate-500">{{ item.hint }}</span>
+            </span>
+
+            <!-- Aviso de permisos: un punto, no un bloque rojo. Informa sin
+                 gritar, y en modo contraído sigue viéndose. -->
+            <span
+              v-if="item.highlight && needsPermissions"
+              class="absolute h-2 w-2 rounded-full bg-rose-400 ring-2 ring-ink-700"
+              :class="collapsed ? 'right-3 top-2' : 'right-3 top-1/2 -translate-y-1/2'"
+            />
+
+            <!-- Rótulo flotante cuando el menú está contraído -->
+            <span
+              v-if="collapsed"
+              class="pointer-events-none absolute left-full z-50 ml-3 whitespace-nowrap rounded-md bg-ink-400 px-2.5 py-1.5 text-xs font-semibold text-white opacity-0 shadow-lift transition-opacity duration-150 group-hover:opacity-100"
+            >{{ item.label }}</span>
+          </button>
+        </router-link>
+      </nav>
+
       <p
         v-if="!collapsed"
-        class="px-2 mb-1 text-[10px] font-semibold uppercase tracking-widest text-slate-600 whitespace-nowrap overflow-hidden"
-      >Navegación</p>
-
-      <router-link
-        v-for="item in mainItems"
-        :key="item.to"
-        :to="item.to"
-        custom
-        v-slot="{ isActive, navigate }"
-      >
-        <button
-          :data-tour="item.tour"
-          :title="collapsed ? item.label : ''"
-          class="group relative flex items-center gap-3 rounded-xl transition-all duration-150 w-full"
-          :class="[
-            collapsed ? 'justify-center px-0 py-3.5' : 'px-3.5 py-3.5',
-            item.highlight ? permissionsButtonClasses(isActive) : standardButtonClasses(isActive)
-          ]"
-          @click="navigate()"
-        >
-          <span
-            class="flex-shrink-0 flex h-8 w-8 items-center justify-center rounded-lg transition-colors"
-            :class="item.highlight ? permissionsIconClasses(isActive) : standardIconClasses(isActive)"
-          >
-            <NavIcon :name="item.icon" />
-          </span>
-          <Transition name="label">
-            <div v-if="!collapsed" class="text-left overflow-hidden whitespace-nowrap">
-              <p class="text-base font-semibold leading-none">{{ item.label }}</p>
-              <p class="text-[10px] mt-0.5 text-slate-500">{{ item.hint }}</p>
-            </div>
-          </Transition>
-          <span
-            v-if="collapsed"
-            class="pointer-events-none absolute left-full z-50 ml-3 whitespace-nowrap rounded-lg border border-white/10 bg-slate-800/95 px-2.5 py-1.5 text-xs text-white opacity-0 shadow-xl backdrop-blur transition-opacity duration-150 group-hover:opacity-100"
-          >{{ item.label }}</span>
-        </button>
-      </router-link>
-    </nav>
-
-    <div class="border-t border-white/[0.06] p-2 flex-shrink-0" :class="collapsed ? 'flex justify-center' : 'flex justify-end'">
-      <button
-        @click="collapsed = !collapsed"
-        class="flex h-8 w-8 items-center justify-center rounded-lg border border-white/[0.08] bg-white/[0.04] text-slate-500 transition-all hover:bg-white/[0.09] hover:text-slate-200"
-        :title="collapsed ? 'Expandir menú' : 'Contraer menú'"
-      >
-        <svg
-          xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 transition-transform duration-300"
-          :class="collapsed ? 'rotate-0' : 'rotate-180'"
-          viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-        >
-          <polyline points="9 18 15 12 9 6"/>
-        </svg>
-      </button>
+        class="truncate border-t border-white/[0.07] px-4 py-3 text-[10px] text-slate-500"
+      >{{ APP_SIGNATURE }}</p>
     </div>
   </aside>
 
-  <!-- ── Móvil ──────────────────────────────────────────────────────────────-->
-  <aside
-    :class="[
-      'fixed inset-y-0 left-0 z-40 flex w-72 flex-col border-r border-white/[0.06] bg-ink-900/95 backdrop-blur-xl',
-      'transition-transform duration-300 ease-in-out md:hidden',
-      open ? 'translate-x-0' : '-translate-x-full'
-    ]"
+  <!-- ── Móvil · barra de pestañas inferior ──────────────────────────────────
+       Sustituye al cajón lateral. El pulgar llega solo, la pestaña activa se ve
+       sin abrir nada y se gana el gesto de deslizar desde el borde, que en
+       Android es «atrás» y chocaba con el cajón. Configuración no va aquí: vive
+       en el botón de la cabecera, como el engranaje de Spotify. -->
+  <nav
+    class="sk-tabbar fixed inset-x-0 bottom-0 z-40 md:hidden"
+    aria-label="Navegación principal"
   >
-    <div class="relative border-b border-white/[0.06] px-4 py-4 flex-shrink-0">
-      <button
-        class="absolute right-3 top-3 rounded-lg border border-white/[0.08] bg-white/[0.04] p-1.5 text-slate-400 transition-colors hover:text-white"
-        @click="$emit('update:open', false)"
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-      </button>
-
-      <div class="flex items-start gap-3 pr-10">
-        <div class="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl border border-brand-500/30 bg-gradient-to-br from-brand-500/20 to-teal-500/5">
-            <BrandMark gradient class="h-6 w-6" />
-          </div>
-        <div class="min-w-0">
-          <p class="text-base font-extrabold tracking-wide text-white leading-none">Skippify</p>
-          <p class="text-xs text-slate-400 leading-relaxed mt-1">Funcionalidades premium para tu Spotify</p>
-        </div>
-      </div>
-    </div>
-
-    <nav data-tour="sidebar-nav" class="flex-1 py-3 flex flex-col gap-1 px-2 overflow-y-auto">
-      <p class="px-2 mb-1 text-[10px] font-semibold uppercase tracking-widest text-slate-600">Navegación</p>
-
+    <div class="flex items-stretch justify-around gap-0.5 px-1 pt-1.5">
       <router-link
         v-for="item in mobileItems"
         :key="item.to"
@@ -131,47 +125,17 @@
       >
         <button
           :data-tour="item.tour"
-          class="group flex items-center gap-3 px-3.5 py-3.5 rounded-xl w-full transition-all duration-150 border"
-          :class="item.highlight ? permissionsButtonClasses(isActive) : standardButtonClasses(isActive)"
+          class="flex min-w-0 flex-1 flex-col items-center gap-1 rounded-lg px-1 py-1.5 transition-colors duration-150"
+          :class="isActive ? 'text-white' : 'text-slate-400 active:text-white'"
+          :aria-current="isActive ? 'page' : undefined"
           @click="navigate(); $emit('update:open', false)"
         >
-          <span
-            class="flex h-8 w-8 items-center justify-center rounded-lg"
-            :class="item.highlight ? permissionsIconClasses(isActive) : standardIconClasses(isActive)"
-          >
-            <NavIcon :name="item.icon" />
-          </span>
-          <div class="text-left">
-            <p class="text-base font-semibold leading-none">{{ item.label }}</p>
-            <p class="text-[10px] mt-0.5 text-slate-500">{{ item.hint }}</p>
-          </div>
+          <NavIcon :name="item.icon" :active="isActive" class="h-[22px] w-[22px]" />
+          <span class="w-full truncate text-center text-[10px] font-bold leading-none">{{ item.short }}</span>
         </button>
       </router-link>
-
-      <div class="mt-auto pt-2 border-t border-white/[0.06]">
-        <router-link to="/settings" custom v-slot="{ isActive, navigate }">
-          <button
-            data-tour="settings-nav"
-            class="group flex items-center gap-3 px-3.5 py-3.5 rounded-xl w-full transition-all duration-150 border"
-            :class="permissionsButtonClasses(isActive)"
-            @click="navigate(); $emit('update:open', false)"
-          >
-            <span class="flex h-8 w-8 items-center justify-center rounded-lg" :class="permissionsIconClasses(isActive)">
-              <NavIcon name="shield" />
-            </span>
-            <div class="text-left">
-              <p class="text-base font-semibold leading-none">Configuración</p>
-              <p class="text-[10px] mt-0.5 text-slate-500">Permisos y respaldos</p>
-            </div>
-          </button>
-        </router-link>
-      </div>
-    </nav>
-
-    <div class="border-t border-white/[0.06] px-5 py-4">
-      <p class="text-[10px] text-slate-600 text-center">Skippify &copy; 2026 · {{ APP_SIGNATURE }}</p>
     </div>
-  </aside>
+  </nav>
 </template>
 
 <script setup>
@@ -179,41 +143,38 @@ import { computed, h, ref } from 'vue'
 import BrandMark from '@/components/BrandMark.vue'
 import { useNotifListener } from '@/composables/useNotifListener'
 
+// `open` se conserva aunque el cajón ya no exista: la guía rápida emite
+// «ciérralo» al arrancar y App.vue sigue pasándolo. Quitar la prop obligaría a
+// tocar ese contrato sin ganar nada.
 defineProps({ open: Boolean })
 defineEmits(['update:open'])
 
-const collapsed = ref(true)
+const collapsed = ref(false)
 const APP_VERSION = __APP_VERSION__
 const APP_SIGNATURE = `Skippify ${APP_VERSION}`
 
 const notif = useNotifListener()
 
 /**
- * Trazos de cada icono. Antes cada entrada del menú llevaba su SVG escrito a
- * mano DOS veces (escritorio y móvil): al tocar la navegación era muy fácil que
- * ambas listas dejaran de coincidir.
+ * Trazos de cada icono, en dos versiones: contorno para el estado normal y
+ * relleno para el activo. Es el recurso que usa Spotify para marcar la pestaña
+ * en la que estás sin recurrir al color, de modo que también se distingue en
+ * escala de grises.
+ *
+ * Antes cada entrada del menú llevaba su SVG escrito a mano DOS veces
+ * (escritorio y móvil): al tocar la navegación era muy fácil que ambas listas
+ * dejaran de coincidir.
  */
 const ICON_PATHS = {
-  grid: [
-    ['rect', { x: 3, y: 3, width: 7, height: 7 }],
-    ['rect', { x: 14, y: 3, width: 7, height: 7 }],
-    ['rect', { x: 14, y: 14, width: 7, height: 7 }],
-    ['rect', { x: 3, y: 14, width: 7, height: 7 }]
-  ],
-  shield: [['path', { d: 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z' }]],
+  home: [['path', { d: 'M4 10.5 12 3.5l8 7V20a1 1 0 0 1-1 1h-4.5v-6h-5v6H5a1 1 0 0 1-1-1z' }]],
   bars: [
     ['line', { x1: 4, y1: 20, x2: 20, y2: 20 }],
     ['rect', { x: 6, y: 11, width: 3, height: 6 }],
     ['rect', { x: 11, y: 8, width: 3, height: 9 }],
     ['rect', { x: 16, y: 5, width: 3, height: 12 }]
   ],
-  cube: [
-    ['path', { d: 'M12 3l7 4v10l-7 4-7-4V7l7-4z' }],
-    ['path', { d: 'M9.5 10.5h5' }],
-    ['path', { d: 'M9.5 13.5h5' }]
-  ],
   layers: [
-    ['path', { d: 'M12 2L2 7l10 5 10-5-10-5z' }],
+    ['path', { d: 'M12 2 2 7l10 5 10-5-10-5z' }],
     ['path', { d: 'M2 17l10 5 10-5' }],
     ['path', { d: 'M2 12l10 5 10-5' }]
   ],
@@ -223,44 +184,41 @@ const ICON_PATHS = {
     ['path', { d: 'M2 12h4' }],
     ['path', { d: 'M18 12h4' }]
   ],
-  bolt: [['path', { d: 'M13 2L4.5 13.5H11l-1 8.5 8.5-11.5H12l1-8.5z' }]],
-  sliders: [
-    ['line', { x1: 4, y1: 21, x2: 4, y2: 14 }],
-    ['line', { x1: 4, y1: 10, x2: 4, y2: 3 }],
-    ['line', { x1: 12, y1: 21, x2: 12, y2: 12 }],
-    ['line', { x1: 12, y1: 8, x2: 12, y2: 3 }],
-    ['line', { x1: 20, y1: 21, x2: 20, y2: 16 }],
-    ['line', { x1: 20, y1: 12, x2: 20, y2: 3 }],
-    ['line', { x1: 1, y1: 14, x2: 7, y2: 14 }],
-    ['line', { x1: 9, y1: 8, x2: 15, y2: 8 }],
-    ['line', { x1: 17, y1: 16, x2: 23, y2: 16 }]
-  ]
+  bolt: [['path', { d: 'M13 2 4.5 13.5H11l-1 8.5L18.5 10.5H12l1-8.5z' }]],
+  shield: [['path', { d: 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z' }]]
 }
 
-const NavIcon = (props) => h(
-  'svg',
-  {
-    xmlns: 'http://www.w3.org/2000/svg',
-    class: 'h-4 w-4',
-    viewBox: '0 0 24 24',
-    fill: 'none',
-    stroke: 'currentColor',
-    'stroke-width': 2,
-    'stroke-linecap': 'round',
-    'stroke-linejoin': 'round'
-  },
-  (ICON_PATHS[props.name] || []).map(([tag, attrs]) => h(tag, attrs))
-)
-NavIcon.props = ['name']
+/** Iconos que quedan bien rellenos al estar activos (silueta cerrada). */
+const FILLABLE = new Set(['home', 'trophy', 'bolt', 'shield', 'layers'])
+
+const NavIcon = (props) => {
+  const filled = props.active && FILLABLE.has(props.name)
+  return h(
+    'svg',
+    {
+      xmlns: 'http://www.w3.org/2000/svg',
+      class: props.class || 'h-5 w-5',
+      viewBox: '0 0 24 24',
+      fill: filled ? 'currentColor' : 'none',
+      stroke: 'currentColor',
+      'stroke-width': filled ? 1.5 : 2,
+      'stroke-linecap': 'round',
+      'stroke-linejoin': 'round',
+      'aria-hidden': 'true'
+    },
+    (ICON_PATHS[props.name] || []).map(([tag, attrs]) => h(tag, attrs))
+  )
+}
+NavIcon.props = ['name', 'active', 'class']
 
 const BASE_ITEMS = [
-  { to: '/', label: 'Inicio', hint: 'Métricas y reproducciones', icon: 'grid', tour: 'dashboard-nav' },
-  { to: '/stats', label: 'Estadísticas', hint: 'Top artistas y canciones', icon: 'bars', tour: 'stats-nav' },
-  { to: '/features', label: 'Funciones', hint: 'Salto y anuncios', icon: 'layers', tour: 'features-nav' },
-  { to: '/comunidad', label: 'Comunidad', hint: 'Grupos y ranking entre amigos', icon: 'trophy', tour: 'community-nav' },
+  { to: '/', label: 'Inicio', short: 'Inicio', hint: 'Métricas y reproducciones', icon: 'home', tour: 'dashboard-nav' },
+  { to: '/stats', label: 'Estadísticas', short: 'Stats', hint: 'Top artistas y canciones', icon: 'bars', tour: 'stats-nav' },
+  { to: '/features', label: 'Funciones', short: 'Funciones', hint: 'Salto y anuncios', icon: 'layers', tour: 'features-nav' },
+  { to: '/comunidad', label: 'Comunidad', short: 'Grupos', hint: 'Grupos y ranking entre amigos', icon: 'trophy', tour: 'community-nav' },
   // Macros ya no se puede ocultar desde Configuración: era el único conmutador
   // de la sección y escondía una pestaña entera sin ganar nada a cambio.
-  { to: '/macros', label: 'Macros', hint: 'Automatiza tu biblioteca', icon: 'bolt' }
+  { to: '/macros', label: 'Macros', short: 'Macros', hint: 'Automatiza tu biblioteca', icon: 'bolt' }
 ]
 
 // «Calibración de salto» no aparece aquí a propósito: se entra desde el panel
@@ -269,20 +227,17 @@ const BASE_ITEMS = [
 const SETTINGS_ITEM = {
   to: '/settings',
   label: 'Configuración',
+  short: 'Ajustes',
   hint: 'Permisos y respaldos',
   icon: 'shield',
   tour: 'settings-nav',
   highlight: true
 }
 
-// En escritorio Configuración va arriba (junto a Inicio); en móvil queda anclada
-// al pie, así que su lista no la incluye.
-const mainItems = computed(() => [
-  BASE_ITEMS[0],
-  SETTINGS_ITEM,
-  ...BASE_ITEMS.slice(1)
-])
-
+// En escritorio Configuración cierra la lista; en móvil no entra en la barra de
+// pestañas (cinco es el tope antes de que los rótulos dejen de leerse) y se
+// alcanza por el botón de la cabecera.
+const desktopItems = computed(() => [...BASE_ITEMS, SETTINGS_ITEM])
 const mobileItems = computed(() => [...BASE_ITEMS])
 
 const needsPermissions = computed(() => {
@@ -291,56 +246,31 @@ const needsPermissions = computed(() => {
   return !notif.notifEnabled.value
 })
 
-function standardButtonClasses (isActive) {
-  return isActive
-    ? 'border border-brand-500/25 bg-brand-500/12 text-brand-200 shadow-[0_1px_0_0_rgba(255,255,255,0.05)_inset]'
-    : 'border border-transparent text-slate-400 hover:bg-white/[0.05] hover:text-slate-100'
+/**
+ * Activo = texto blanco sobre una superficie algo más clara. Spotify no tiñe la
+ * entrada activa de color: la ilumina. Así el verde queda reservado para lo que
+ * de verdad es una acción.
+ */
+function navClasses (item, isActive) {
+  if (isActive) return 'bg-white/[0.12] text-white'
+  return 'text-slate-400 hover:bg-white/[0.07] hover:text-white'
 }
 
-function standardIconClasses (isActive) {
-  return isActive
-    ? 'bg-brand-500/22 text-brand-300'
-    : 'bg-white/[0.05] text-slate-500 group-hover:text-slate-300'
-}
-
-function permissionsButtonClasses (isActive) {
-  if (needsPermissions.value) {
-    return isActive
-      ? 'bg-gradient-to-r from-rose-500/25 to-red-500/10 text-rose-100 border-rose-400/45'
-      : 'text-rose-200 border-rose-500/35 bg-gradient-to-r from-rose-500/14 to-transparent hover:from-rose-500/24 hover:text-rose-100'
-  }
-
-  return isActive
-    ? 'bg-gradient-to-r from-brand-500/25 to-teal-500/10 text-brand-100 border-brand-400/45'
-    : 'text-brand-200 border-brand-500/35 bg-gradient-to-r from-brand-500/14 to-transparent hover:from-brand-500/24 hover:text-brand-100'
-}
-
-function permissionsIconClasses (isActive) {
-  if (needsPermissions.value) {
-    return isActive ? 'bg-rose-500/25 text-rose-200' : 'bg-rose-500/15 text-rose-300'
-  }
-  return isActive ? 'bg-brand-500/25 text-brand-200' : 'bg-brand-500/15 text-brand-300'
+function iconClasses (item, isActive) {
+  if (item.highlight && needsPermissions.value) return 'text-rose-200'
+  return isActive ? 'text-white' : 'text-slate-400 group-hover:text-white'
 }
 </script>
 
 <style scoped>
-.label-enter-active,
-.label-leave-active {
-  transition: opacity 0.15s ease, max-width 0.3s ease;
-  max-width: 200px;
-}
-.label-enter-from,
-.label-leave-to {
-  opacity: 0;
-  max-width: 0;
-}
-
-.backdrop-enter-active,
-.backdrop-leave-active {
-  transition: opacity 0.2s ease;
-}
-.backdrop-enter-from,
-.backdrop-leave-to {
-  opacity: 0;
+/* La barra inferior se apoya en un degradado hacia negro: el contenido que pasa
+   por debajo se desvanece en vez de cortarse en una línea dura. El hueco seguro
+   del sistema (gestos de Android, isla dinámica) se suma al relleno. */
+.sk-tabbar {
+  padding-bottom: calc(0.35rem + env(safe-area-inset-bottom, 0px));
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.78) 0%, #000 42%);
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
 }
 </style>

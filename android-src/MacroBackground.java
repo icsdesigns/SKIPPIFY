@@ -310,18 +310,32 @@ public final class MacroBackground {
 
         // 1 · La canción que suena ahora. Sólo se pregunta si hay alguna macro
         // que la use: una petición de más en cada cambio de canción se nota.
+        //
+        // Se guarda también de qué playlist sale: borrar de ella la pista en
+        // curso detiene la reproducción, y ésa era la causa de que la música se
+        // pausara sola a media canción.
+        MacroRunner.EnReproduccion vivo = null;
         if (!MacroRunner.deCancionActual(objetivo).isEmpty()) {
-            MacroRunner.Track track = MacroRunner.cancionSonando(http);
+            vivo = MacroRunner.sonandoAhora(http);
+            MacroRunner.Track track = vivo == null ? null : vivo.track;
             try {
                 resumen.put("track", track == null ? JSONObject.NULL : track.uri);
             } catch (Throwable ignored) { }
             if (track != null) {
-                res.addAll(MacroRunner.run(track, objetivo, http, store, RELOJ, forzar));
+                res.addAll(MacroRunner.run(track, objetivo, http, store, RELOJ, forzar, vivo));
             }
         }
 
         // 2 · Orígenes de lista, con su propio freno de 15 minutos por macro.
-        res.addAll(MacroRunner.runListas(objetivo, http, store, RELOJ, forzar, null));
+        //
+        // Aquí también hace falta saber qué suena: un repaso de lista con
+        // «quitar» puede toparse con la canción en curso igual que el disparo
+        // por cambio de canción. Si nadie lo ha preguntado ya, se pregunta sólo
+        // cuando alguna de estas macros borra de una playlist.
+        if (vivo == null && alguna(MacroRunner.deLista(objetivo))) {
+            vivo = MacroRunner.sonandoAhora(http);
+        }
+        res.addAll(MacroRunner.runListas(objetivo, http, store, RELOJ, forzar, null, vivo));
 
         for (int i = 0; i < res.size(); i++) {
             MacroRunner.Outcome o = res.get(i);
@@ -339,6 +353,14 @@ public final class MacroBackground {
 
         Log.i(TAG, "macros en segundo plano: " + res.size() + " evaluadas");
         return resumen;
+    }
+
+    /** ¿Hay alguna macro que borre de una playlist? Si no, no se pregunta nada. */
+    static boolean alguna(List<MacroRunner.Macro> ms) {
+        for (int i = 0; i < ms.size(); i++) {
+            if (MacroRunner.playlistQueVacia(ms.get(i)) != null) return true;
+        }
+        return false;
     }
 
     static List<MacroRunner.Macro> seleccionar(List<MacroRunner.Macro> ms, String soloId) {

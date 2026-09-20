@@ -1,26 +1,26 @@
 <template>
-  <section
-    class="sk-card sk-card-lit relative overflow-hidden p-5 sm:p-6"
-    :class="tone.border"
-  >
-    <!-- Halo de estado: teñir el fondo entero era ilegible con portadas largas -->
-    <div class="pointer-events-none absolute inset-0 opacity-90" :class="tone.wash" />
+  <!-- Cabecera de reproducción al estilo de la página de álbum de Spotify: un
+       degradado del color del estado que se funde con el lienzo, la «portada»
+       (aquí el disco de estado) y el texto grande a su derecha. -->
+  <section class="sk-card sk-card-lit relative overflow-hidden">
+    <div class="pointer-events-none absolute inset-0" :class="tone.wash" />
 
-    <div class="relative">
-      <!-- Sin cartel de estado: el color del anillo y el punto ya lo dicen -->
+    <div class="relative p-5 sm:p-6">
       <div class="flex items-center gap-2">
-        <span class="relative flex h-1.5 w-1.5" role="img" :aria-label="tone.label">
+        <span class="relative flex h-2 w-2" role="img" :aria-label="tone.label">
           <span v-if="isPlaying" class="absolute inline-flex h-full w-full animate-ping rounded-full opacity-75" :class="tone.dot" />
-          <span class="relative inline-flex h-1.5 w-1.5 rounded-full" :class="tone.dot" />
+          <span class="relative inline-flex h-2 w-2 rounded-full" :class="tone.dot" />
         </span>
-        <p class="sk-eyebrow">Reproducción actual</p>
+        <p class="sk-eyebrow truncate">Reproducción actual</p>
       </div>
 
-      <div class="mt-5 flex items-center gap-4 sm:gap-6">
-        <!-- Anillo de progreso: dice a la vez estado y avance sin ocupar sitio -->
-        <div class="relative flex h-[88px] w-[88px] shrink-0 items-center justify-center sm:h-24 sm:w-24">
+      <!-- En móvil el disco y el texto van en columna: a 320 px de ancho, uno al
+           lado del otro deja el título en dos letras por línea. -->
+      <div class="mt-4 flex flex-col gap-4 sm:mt-5 sm:flex-row sm:items-center sm:gap-6">
+        <!-- Disco con anillo de progreso: dice estado y avance sin ocupar sitio -->
+        <div class="relative flex h-24 w-24 shrink-0 items-center justify-center self-start rounded-full bg-black/40 shadow-lift sm:h-28 sm:w-28 sm:self-auto">
           <svg class="absolute inset-0 h-full w-full -rotate-90" viewBox="0 0 80 80">
-            <circle cx="40" cy="40" r="34" fill="none" stroke="rgba(148,163,184,0.14)" stroke-width="5" />
+            <circle cx="40" cy="40" r="34" fill="none" stroke="rgba(255,255,255,0.10)" stroke-width="5" />
             <circle
               cx="40" cy="40" r="34" fill="none"
               :stroke="tone.ring"
@@ -35,7 +35,7 @@
           <!-- Ecualizador mientras suena; icono de estado en cualquier otro caso.
                Las barras crecen desde su centro y el perfil es simétrico (la más
                alta al medio), así el conjunto queda centrado en el círculo. -->
-          <div v-if="isPlaying" class="flex h-8 items-center justify-center gap-[3px]">
+          <div v-if="isPlaying" class="flex h-9 items-center justify-center gap-[3px]">
             <span
               v-for="(h, i) in WAVE_BARS"
               :key="i"
@@ -43,37 +43,40 @@
               :style="{ height: h + 'px', animationDelay: WAVE_DELAYS[i] + 's' }"
             />
           </div>
-          <svg v-else class="h-7 w-7" :class="tone.icon" viewBox="0 0 24 24" fill="currentColor">
+          <svg v-else class="h-8 w-8" :class="tone.icon" viewBox="0 0 24 24" fill="currentColor">
             <path v-if="state.mode === 'paused'" d="M9 5h3v14H9zM14 5h3v14h-3z" />
-            <path v-else d="M7 7h10v10H7z" />
+            <path v-else d="M8 8h8v8H8z" />
           </svg>
         </div>
 
         <div class="min-w-0 flex-1">
-          <p class="truncate text-lg font-bold leading-tight tracking-tight text-white sm:text-xl">{{ trackLabel }}</p>
-          <p class="mt-1 truncate text-sm text-slate-400">{{ artistLabel }}</p>
+          <p class="sk-clamp-2 text-2xl font-extrabold leading-[1.1] tracking-tightest text-white sm:text-3xl">
+            {{ trackLabel }}
+          </p>
+          <p class="mt-1.5 truncate text-sm font-semibold text-slate-400">{{ artistLabel }}</p>
 
-          <div class="mt-2.5 flex flex-wrap items-center gap-1.5">
-            <span v-if="state.album" class="sk-chip max-w-full truncate">💿 {{ state.album }}</span>
+          <div class="mt-3 flex flex-wrap items-center gap-1.5">
+            <span v-if="state.album" class="sk-chip min-w-0"><span class="truncate">💿 {{ state.album }}</span></span>
             <span v-if="durationLabel" class="sk-chip">⏱ {{ durationLabel }}</span>
-            <span v-if="meta" class="sk-chip">{{ meta }}</span>
+            <span v-if="meta" class="sk-chip min-w-0"><span class="truncate">{{ meta }}</span></span>
           </div>
         </div>
       </div>
 
-      <!-- Barra de avance con tiempos: sólo cuando hay algo que medir -->
+      <!-- Barra de avance con tiempos: sólo cuando hay algo que medir. Se pinta
+           como la de Spotify — pista fina y gris que se llena de blanco. -->
       <div v-if="showProgress" class="mt-5">
-        <div class="h-1.5 w-full overflow-hidden rounded-full bg-white/[0.07]">
+        <div class="h-1.5 w-full overflow-hidden rounded-full bg-white/[0.14]">
           <div
             class="h-full rounded-full transition-[width] duration-700 ease-out"
             :class="tone.bar"
             :style="{ width: `${progressPct}%` }"
           />
         </div>
-        <div class="mt-1.5 flex items-center justify-between font-mono text-[10px] text-slate-500">
-          <span>{{ elapsedLabel }}</span>
-          <span>{{ progressPct }}%</span>
-          <span>{{ durationLabel || '--:--' }}</span>
+        <div class="mt-2 flex items-center justify-between gap-2 font-mono text-[11px] font-semibold text-slate-400">
+          <span class="shrink-0">{{ elapsedLabel }}</span>
+          <span class="shrink-0 tabular-nums">{{ progressPct }}%</span>
+          <span class="shrink-0">{{ durationLabel || '--:--' }}</span>
         </div>
       </div>
     </div>
@@ -95,7 +98,7 @@ const props = defineProps({
  * dos pares iguales a los lados el ecualizador tiene un eje propio, que es el que
  * se hace coincidir con el centro del anillo de progreso.
  */
-const WAVE_BARS = [14, 22, 28, 22, 14]
+const WAVE_BARS = [14, 22, 30, 22, 14]
 /** El desfase también es simétrico: la onda nace en el centro y se abre. */
 const WAVE_DELAYS = [0.22, 0.11, 0, 0.11, 0.22]
 const RING_LENGTH = 2 * Math.PI * 34
@@ -107,28 +110,25 @@ const isPlaying = computed(() => props.state.mode === 'playing')
 const TONES = {
   playing: {
     label: 'Reproduciendo',
-    border: 'border-brand-400/25',
-    wash: 'bg-[radial-gradient(600px_180px_at_12%_0%,rgba(16,185,129,0.20),transparent_70%)]',
+    wash: 'bg-[linear-gradient(160deg,rgba(30,215,96,0.22),rgba(30,215,96,0.04)_48%,transparent_72%)]',
     dot: 'bg-brand-400',
-    ring: '#34d399',
-    bar: 'bg-gradient-to-r from-brand-400 to-teal-300',
-    icon: 'text-brand-300'
+    ring: '#1ed760',
+    bar: 'bg-brand-400',
+    icon: 'text-brand-400'
   },
   paused: {
     label: 'En pausa',
-    border: 'border-amber-400/25',
-    wash: 'bg-[radial-gradient(600px_180px_at_12%_0%,rgba(245,158,11,0.16),transparent_70%)]',
-    dot: 'bg-amber-400',
-    ring: '#fbbf24',
-    bar: 'bg-gradient-to-r from-amber-400 to-orange-300',
+    wash: 'bg-[linear-gradient(160deg,rgba(247,201,72,0.18),rgba(247,201,72,0.03)_48%,transparent_72%)]',
+    dot: 'bg-amber-300',
+    ring: '#f7c948',
+    bar: 'bg-amber-300',
     icon: 'text-amber-300'
   },
   stopped: {
     label: 'Sin reproducción',
-    border: 'border-white/[0.07]',
-    wash: 'bg-[radial-gradient(600px_180px_at_12%_0%,rgba(148,163,184,0.10),transparent_70%)]',
+    wash: 'bg-[linear-gradient(160deg,rgba(255,255,255,0.07),transparent_62%)]',
     dot: 'bg-slate-600',
-    ring: '#475569',
+    ring: '#535353',
     bar: 'bg-slate-600',
     icon: 'text-slate-500'
   }
@@ -219,15 +219,13 @@ onBeforeUnmount(() => {
   width: 4px;
   min-height: 6px;
   border-radius: 3px;
-  /* Degradado simétrico: sin extremo «pesado», la barra se lee igual arriba
-     que abajo al crecer desde el centro. */
-  background: linear-gradient(to bottom, #6ee7b7, #10b981, #6ee7b7);
+  background: #1ed760;
   transform-origin: center center;
   animation: sk-eq-bounce 1s ease-in-out infinite;
 }
 
 @keyframes sk-eq-bounce {
-  0%, 100% { transform: scaleY(0.35); opacity: 0.6; }
+  0%, 100% { transform: scaleY(0.35); opacity: 0.65; }
   50% { transform: scaleY(1); opacity: 1; }
 }
 

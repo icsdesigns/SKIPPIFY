@@ -104,7 +104,15 @@ final class DuplicateSkipEngine {
     private static final int INDEX_SLOTS = 3;
 
     private static final long SKIP_VERIFY_RETRY_DELAY_MS = 350L;
-    private static final long PAUSE_TO_SKIP_MAX_HOLD_MS = 2000L;
+    private static final long PAUSE_TO_SKIP_MAX_HOLD_MS = 4000L;
+    /**
+     * Reintentos de la reanudación tras «Pausar antes de saltar». Se insiste
+     * hasta confirmar que vuelve a sonar: un `play()` de más no hace nada, pero
+     * un `play()` de menos deja la música parada sin que nadie lo repare.
+     */
+    private static final long[] RESUME_RETRY_DELAYS_MS = { 400L, 900L, 1600L, 2600L, 4200L };
+    /** Margen que se le da al PlaybackState para publicar el estado real. */
+    private static final long PAUSE_STATE_SETTLE_MS = 350L;
     private static final int TELEMETRY_MAX = 120;
 
     /**
@@ -250,6 +258,12 @@ final class DuplicateSkipEngine {
     // vuelto a silenciar (cambio de pista), la vieja ya no debe subir el volumen.
     private long mMuteEpoch = 0L;
 
+    // Pausa del método heredado «Pausar antes de saltar». Sólo se pone a true
+    // dentro de issueSkip() y sólo si el ajuste está activo, así que cualquier
+    // reanudación de este motor se puede rastrear hasta esa función.
+    private volatile boolean mPauseHoldActive = false;
+    private volatile long mPauseHoldStartedUptimeMs = 0L;
+
     private final Deque<JSONObject> mTelemetry = new ArrayDeque<>();
     private final Object mTelemetryLock = new Object();
     private volatile long mSkipCount = 0L;
@@ -267,6 +281,10 @@ final class DuplicateSkipEngine {
     }
 
     void detach() {
+        // Último intento de deshacer una pausa heredada antes de soltar el
+        // transporte: pasado este punto ya no habrá quien la repare.
+        if (mPauseHoldActive) resumeSafely("detach");
+        mPauseHoldActive = false;
         // Nunca dejar el volumen a 0 al perder el transporte.
         releasePremute(false, "detach");
         // Cierra la sesión viva para que su escucha se consolide si procede.
@@ -748,10 +766,13 @@ final class DuplicateSkipEngine {
             }
 
             if (pauseFirst) {
-                // Modo heredado, desactivado por defecto. La reanudación es
-                // incondicional e idempotente: nunca puede quedarse pausado.
+                // Modo heredado, desactivado por defecto. La reanudación se
+                // vigila hasta confirmarla (ver scheduleResumeWatchdog).
+                mPauseHoldActive = true;
+                mPauseHoldStartedUptimeMs = SystemClock.uptimeMillis();
+                recordTelemetryEvent("pausa_previa", expectedKey, "pausar_antes_de_saltar");
                 try { t.pause(); } catch (Throwable ignored) {}
-                mHandler.postDelayed(() -> resumeSafely("tras_pausa"), PAUSE_TO_SKIP_MAX_HOLD_MS);
+                scheduleResumeWatchdog("tras_pausa");
             }
 
             try { t.skipToNext(); } catch (Throwable ignored) {}
@@ -760,7 +781,7 @@ final class DuplicateSkipEngine {
                     + " latenciaMs=" + (SystemClock.uptimeMillis() - obs.uptimeMs));
 
             if (pauseFirst) {
-                mHandler.postDelayed(() -> resumeSafely("tras_salto"), 400L);
+                scheduleResumeWatchdog("tras_salto");
             }
 
             // Reintento: algunas versiones de Spotify ignoran el primer
@@ -786,14 +807,60 @@ final class DuplicateSkipEngine {
         });
     }
 
+    /**
+     * Reanuda tras «Pausar antes de saltar» y NO se fía de un solo intento.
+     *
+     * El fallo que dejaba la música parada a mitad de canción estaba aquí: se
+     * reanudaba sólo `if (!isPlaying())`, y `isPlaying()` lee el último
+     * PlaybackState PUBLICADO, no el real. Justo después de pedir la pausa ese
+     * estado todavía dice PLAYING durante unos milisegundos, así que la guarda
+     * daba por reanudado lo que seguía pausándose y no se volvía a mirar: la
+     * pausa se quedaba puesta indefinidamente.
+     *
+     * Ahora la reanudación se reintenta hasta confirmar que suena, o hasta
+     * agotar el plazo de seguridad. `play()` sobre algo que ya suena no hace
+     * nada, de modo que insistir es inofensivo.
+     */
+    private void scheduleResumeWatchdog(String reason) {
+        for (long delay : RESUME_RETRY_DELAYS_MS) {
+            mHandler.postDelayed(() -> resumeSafely(reason), delay);
+        }
+    }
+
     private void resumeSafely(String reason) {
+        if (!mPauseHoldActive) return;
+
         Transport t = mTransport;
         if (t == null) return;
+
+        boolean playing;
         try {
-            if (!t.isPlaying()) {
-                t.play();
-                Log.d(TAG, "reanudado (" + reason + ")");
-            }
+            playing = t.isPlaying();
+        } catch (Throwable ignored) {
+            playing = false;
+        }
+
+        // Sólo se da por resuelto cuando el estado publicado dice que suena, y
+        // nunca antes de que le haya dado tiempo a refrescarse.
+        long heldMs = SystemClock.uptimeMillis() - mPauseHoldStartedUptimeMs;
+        if (playing && heldMs >= PAUSE_STATE_SETTLE_MS) {
+            mPauseHoldActive = false;
+            recordTelemetryEvent("reanudado", "", reason);
+            return;
+        }
+
+        if (heldMs > PAUSE_TO_SKIP_MAX_HOLD_MS) {
+            // Vencido el plazo se deja de insistir, pero con un último intento:
+            // quedarse pausado es peor que un play() de más.
+            mPauseHoldActive = false;
+            try { t.play(); } catch (Throwable ignored) {}
+            recordTelemetryEvent("reanudado", "", reason + "_ultimo_intento");
+            return;
+        }
+
+        try {
+            t.play();
+            Log.d(TAG, "reanudado (" + reason + ")");
         } catch (Throwable ignored) {
         }
     }

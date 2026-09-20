@@ -8,9 +8,9 @@
     <template v-if="!connected">
       <section class="space-y-4">
         <header class="flex items-center gap-3">
-          <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-brand-400/25 bg-brand-500/12 text-lg">🔗</span>
+          <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-400/[0.18] text-lg">🔗</span>
           <div class="min-w-0">
-            <h2 class="text-xl font-bold tracking-tight text-white">Conecta tu cuenta de Spotify</h2>
+            <h2 class="text-xl font-extrabold tracking-tightest text-white">Conecta tu cuenta de Spotify</h2>
             <p class="text-[11px] text-slate-500">Tres pasos. El acceso lo concedes tú y puedes revocarlo cuando quieras.</p>
           </div>
         </header>
@@ -19,9 +19,9 @@
           <!-- Paso 1 · crear la aplicación en el panel de Spotify -->
           <div class="border-b border-white/[0.07] p-5">
             <div class="flex items-start gap-3">
-              <span class="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-brand-400/40 bg-brand-500/15 text-[11px] font-bold text-brand-200">1</span>
+              <span class="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-400 text-[11px] font-bold text-black">1</span>
               <div class="min-w-0 flex-1">
-                <p class="text-sm font-semibold text-slate-100">Crea una aplicación en Spotify</p>
+                <p class="text-sm font-bold text-white">Crea una aplicación en Spotify</p>
                 <p class="mt-1 text-[11px] leading-relaxed text-slate-400">
                   Entra en <span class="text-slate-300">developer.spotify.com/dashboard</span>,
                   pulsa <span class="text-slate-300">Create app</span> y ponle el nombre que quieras.
@@ -33,14 +33,14 @@
           <!-- Paso 2 · pegar la URI de redirección -->
           <div class="border-b border-white/[0.07] p-5">
             <div class="flex items-start gap-3">
-              <span class="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-brand-400/40 bg-brand-500/15 text-[11px] font-bold text-brand-200">2</span>
+              <span class="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-400 text-[11px] font-bold text-black">2</span>
               <div class="min-w-0 flex-1">
-                <p class="text-sm font-semibold text-slate-100">Copia esta URI de redirección en la app</p>
+                <p class="text-sm font-bold text-white">Copia esta URI de redirección en la app</p>
                 <p class="mt-1 text-[11px] leading-relaxed text-slate-400">
                   Va en el campo <span class="text-slate-300">Redirect URIs</span>. Tiene que ser exactamente ésta:
                 </p>
                 <div class="mt-2 flex flex-wrap items-center gap-2">
-                  <code class="min-w-0 flex-1 break-all rounded-lg border border-white/[0.07] bg-slate-950/80 px-2.5 py-2 font-mono text-[11px] text-brand-300">{{ redirectUri() }}</code>
+                  <code class="min-w-0 flex-1 break-all rounded-lg bg-black/30 px-2.5 py-2 font-mono text-[11px] text-brand-400">{{ redirectUri() }}</code>
                   <button type="button" class="sk-btn sk-btn-ghost sk-btn-sm shrink-0" @click="copiarRedirect">
                     {{ redirectCopiada ? '¡Copiada!' : 'Copiar' }}
                   </button>
@@ -52,9 +52,9 @@
           <!-- Paso 3 · pegar el Client ID y conectar -->
           <div class="p-5">
             <div class="flex items-start gap-3">
-              <span class="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-brand-400/40 bg-brand-500/15 text-[11px] font-bold text-brand-200">3</span>
+              <span class="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-400 text-[11px] font-bold text-black">3</span>
               <div class="min-w-0 flex-1">
-                <p class="text-sm font-semibold text-slate-100">Pega el Client ID y conecta</p>
+                <p class="text-sm font-bold text-white">Pega el Client ID y conecta</p>
                 <p class="mt-1 text-[11px] leading-relaxed text-slate-400">
                   Lo encuentras en <span class="text-slate-300">Settings</span> de la aplicación que acabas de crear.
                 </p>
@@ -62,7 +62,7 @@
                   v-model="clientIdInput"
                   type="text"
                   placeholder="32 caracteres del panel de desarrollador"
-                  class="mt-2.5 w-full sk-input px-3 py-2.5 font-mono text-xs text-slate-200 placeholder:text-slate-600 focus:border-brand-500/50 focus:outline-none"
+                  class="mt-2.5 w-full sk-input px-3 py-2.5 font-mono text-xs text-slate-200 placeholder:text-slate-600"
                 >
                 <button
                   type="button"
@@ -73,7 +73,7 @@
                   {{ state.connecting ? 'Esperando a Spotify…' : 'Conectar con Spotify' }}
                 </button>
 
-                <p v-if="state.error" class="mt-2.5 rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-[11px] text-rose-300">
+                <p v-if="state.error" class="mt-2.5 rounded-md bg-rose-500/[0.16] px-3 py-2 text-[11px] text-rose-200">
                   {{ state.error }}
                 </p>
               </div>
@@ -85,22 +85,22 @@
       <!-- ── Demostración: qué se puede hacer una vez conectada ─────────────── -->
       <section class="space-y-4">
         <header class="flex items-center gap-3">
-          <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-violet-400/25 bg-violet-500/12 text-lg">✨</span>
+          <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-violet-400/[0.18] text-lg">✨</span>
           <div class="min-w-0">
-            <h2 class="text-xl font-bold tracking-tight text-white">Un ejemplo de macro</h2>
+            <h2 class="text-xl font-extrabold tracking-tightest text-white">Un ejemplo de macro</h2>
             <p class="text-[11px] text-slate-500">Así queda una macro montada. Ésta es sólo una muestra: no se ejecuta.</p>
           </div>
         </header>
 
-        <article class="sk-card border-violet-500/20 p-5">
+        <article class="sk-card p-5">
           <div class="grid gap-2.5 sm:grid-cols-3">
             <div
               v-for="tramo in demoMacro"
               :key="tramo.letra"
-              class="rounded-xl border border-white/[0.07] bg-slate-950/40 p-3.5"
+              class="rounded-card bg-black/30 p-3.5"
             >
               <div class="flex items-center gap-2">
-                <span class="flex h-5 w-5 items-center justify-center rounded-full border border-violet-400/40 bg-violet-500/15 text-[10px] font-bold text-violet-200">{{ tramo.letra }}</span>
+                <span class="flex h-5 w-5 items-center justify-center rounded-full bg-violet-400/[0.22] text-[10px] font-bold text-violet-100">{{ tramo.letra }}</span>
                 <span class="text-[10px] font-semibold uppercase tracking-wider text-slate-500">{{ tramo.etapa }}</span>
               </div>
               <p class="mt-2 text-sm font-medium text-slate-100">{{ tramo.icon }} {{ tramo.titulo }}</p>
@@ -108,7 +108,7 @@
             </div>
           </div>
 
-          <p class="mt-4 rounded-xl border border-white/[0.06] bg-slate-950/45 px-3.5 py-3 text-xs leading-relaxed text-slate-300">
+          <p class="mt-4 rounded-xl bg-black/30 px-3.5 py-3 text-xs leading-relaxed text-slate-300">
             Resultado: cada canción nueva de «Descubrimiento semanal» acaba sola en Tus me gusta,
             sin abrir la app. El servicio la ejecuta en segundo plano en cuanto detecta novedades.
           </p>
@@ -120,9 +120,9 @@
       <!-- ══ 1 · Datos de la cuenta ══════════════════════════════════════════ -->
       <section class="space-y-4">
         <header class="flex flex-wrap items-center gap-3">
-          <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-sky-400/25 bg-sky-500/12 text-lg">🗂️</span>
+          <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-sky-400/[0.18] text-lg">🗂️</span>
           <div class="min-w-0 flex-1">
-            <h2 class="text-xl font-bold tracking-tight text-white">Datos de la cuenta</h2>
+            <h2 class="text-xl font-extrabold tracking-tightest text-white">Datos de la cuenta</h2>
             <p class="text-[11px] text-slate-500">Lo que Skippify puede leer y escribir con los permisos que le diste.</p>
           </div>
           <button
@@ -142,12 +142,12 @@
               v-if="state.profile?.images?.[0]?.url"
               :src="state.profile.images[0].url"
               alt=""
-              class="h-9 w-9 rounded-full border border-slate-700 object-cover"
+              class="h-9 w-9 rounded-full object-cover"
             >
-            <span v-else class="flex h-9 w-9 items-center justify-center rounded-full bg-brand-500/15 text-base">👤</span>
+            <span v-else class="flex h-9 w-9 items-center justify-center rounded-full bg-brand-400/[0.18] text-base">👤</span>
 
             <div class="min-w-0 flex-1">
-              <p class="truncate text-sm font-semibold text-slate-100">
+              <p class="truncate text-sm font-bold text-white">
                 {{ state.profile?.display_name || 'Cuenta conectada' }}
               </p>
               <p class="truncate text-[11px] text-slate-500">
@@ -166,18 +166,18 @@
             <div
               v-for="item in dataCatalog"
               :key="item.key"
-              class="rounded-xl border border-white/[0.06] bg-slate-950/40 px-2 py-2.5 text-center"
+              class="rounded-card bg-black/30 px-2 py-2.5 text-center"
               :title="item.detail"
             >
               <p class="text-base leading-none">{{ item.icon }}</p>
-              <p class="mt-1.5 font-mono text-sm font-semibold text-slate-100">
+              <p class="mt-1.5 font-mono text-sm font-bold text-white">
                 {{ item.count === null ? '·' : item.count }}
               </p>
               <p class="mt-0.5 truncate text-[10px] leading-tight text-slate-500">{{ item.short }}</p>
             </div>
           </div>
 
-          <p v-if="libraryError" class="mt-3 rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-[11px] text-rose-300">
+          <p v-if="libraryError" class="mt-3 rounded-md bg-rose-500/[0.16] px-3 py-2 text-[11px] text-rose-200">
             {{ libraryError }}
           </p>
         </article>
@@ -188,9 +188,9 @@
            leer toda la pantalla para entender por dónde ibas. -->
       <section class="space-y-4">
         <header class="flex items-center gap-3">
-          <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-violet-400/25 bg-violet-500/12 text-lg">⚡</span>
+          <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-violet-400/[0.18] text-lg">⚡</span>
           <div class="min-w-0">
-            <h2 class="text-xl font-bold tracking-tight text-white">Crear una macro</h2>
+            <h2 class="text-xl font-extrabold tracking-tightest text-white">Crear una macro</h2>
             <p class="text-[11px] text-slate-500">De dónde salen las canciones, qué se hace con ellas y dónde acaban.</p>
           </div>
         </header>
@@ -206,16 +206,16 @@
               <span
                 class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-[10px] transition-colors"
                 :class="i === pasoIdx
-                  ? 'border-violet-400/60 bg-violet-500/20 text-violet-100'
+                  ? 'border-transparent bg-violet-400 text-black'
                   : (i < pasoIdx
-                      ? 'border-brand-400/50 bg-brand-500/20 text-brand-200'
-                      : 'border-slate-600 bg-slate-800 text-slate-500')"
+                      ? 'border-transparent bg-brand-400 text-black'
+                      : 'border-transparent bg-white/[0.10] text-slate-400')"
               >{{ paso.letter }}</span>
               <span
                 class="truncate"
                 :class="i === pasoIdx ? 'text-violet-100' : (i < pasoIdx ? 'text-brand-200' : 'text-slate-500')"
               >{{ paso.label }}</span>
-              <span v-if="i < pasos.length - 1" class="flex-1 border-t border-dashed border-slate-700" />
+              <span v-if="i < pasos.length - 1" class="flex-1 border-t border-dashed border-white/[0.14]" />
             </li>
           </ol>
 
@@ -230,11 +230,11 @@
                   type="button"
                   class="rounded-xl border p-3 text-left transition-all"
                   :class="draft.source.type === source.type
-                    ? 'border-brand-400/50 bg-brand-500/10'
-                    : 'border-white/[0.07] bg-slate-950/40 hover:border-slate-500/70'"
+                    ? 'sk-option-active'
+                    : 'sk-option'"
                   @click="pickSource(source)"
                 >
-                  <p class="text-sm font-medium text-slate-100">{{ source.icon }} {{ source.label }}</p>
+                  <p class="text-sm font-bold text-white">{{ source.icon }} {{ source.label }}</p>
                   <p class="mt-1 text-[11px] leading-relaxed text-slate-500">{{ source.detail }}</p>
                 </button>
               </div>
@@ -242,7 +242,7 @@
               <select
                 v-if="selectedSource?.needsPlaylist"
                 v-model="draft.source.playlistId"
-                class="mt-2.5 w-full sk-input px-3 py-2.5 text-xs text-slate-200 focus:border-brand-500/50 focus:outline-none"
+                class="mt-2.5 w-full sk-input px-3 py-2.5 text-xs text-slate-200"
                 @change="syncSourcePlaylistName"
               >
                 <option value="">Elige la playlist de origen…</option>
@@ -270,11 +270,11 @@
                   type="button"
                   class="rounded-xl border p-3 text-left transition-all"
                   :class="draft.action.type === action.type
-                    ? 'border-violet-400/50 bg-violet-500/10'
-                    : 'border-white/[0.07] bg-slate-950/40 hover:border-slate-500/70'"
+                    ? 'border-violet-400 bg-violet-400/[0.14] text-white'
+                    : 'sk-option'"
                   @click="pickAction(action)"
                 >
-                  <p class="text-sm font-medium text-slate-100">{{ action.icon }} {{ action.label }}</p>
+                  <p class="text-sm font-bold text-white">{{ action.icon }} {{ action.label }}</p>
                   <p class="mt-1 text-[11px] leading-relaxed text-slate-500">{{ action.detail }}</p>
                 </button>
               </div>
@@ -290,18 +290,18 @@
                   type="button"
                   class="rounded-xl border p-3 text-left transition-all"
                   :class="draft.target.type === target.type
-                    ? 'border-sky-400/50 bg-sky-500/10'
-                    : 'border-white/[0.07] bg-slate-950/40 hover:border-slate-500/70'"
+                    ? 'border-sky-400 bg-sky-400/[0.14] text-white'
+                    : 'sk-option'"
                   @click="pickTarget(target)"
                 >
-                  <p class="text-sm font-medium text-slate-100">{{ target.icon }} {{ target.label }}</p>
+                  <p class="text-sm font-bold text-white">{{ target.icon }} {{ target.label }}</p>
                 </button>
               </div>
 
               <select
                 v-if="selectedTarget?.needsPlaylist"
                 v-model="draft.target.playlistId"
-                class="mt-2.5 w-full sk-input px-3 py-2.5 text-xs text-slate-200 focus:border-sky-500/50 focus:outline-none"
+                class="mt-2.5 w-full sk-input px-3 py-2.5 text-xs text-slate-200"
                 @change="syncTargetPlaylistName"
               >
                 <option value="">Elige la playlist de destino…</option>
@@ -321,7 +321,7 @@
                 type="text"
                 maxlength="60"
                 placeholder="Nombre de la playlist nueva"
-                class="mt-2.5 w-full sk-input px-3 py-2.5 text-xs text-slate-200 placeholder:text-slate-600 focus:border-sky-500/50 focus:outline-none"
+                class="mt-2.5 w-full sk-input px-3 py-2.5 text-xs text-slate-200 placeholder:text-slate-600"
               >
             </div>
 
@@ -329,7 +329,7 @@
             <div v-else>
               <p class="sk-eyebrow">Revisa y ponle nombre</p>
 
-              <p class="mt-2.5 rounded-xl border border-white/[0.06] bg-slate-950/45 px-3.5 py-3 text-xs leading-relaxed text-slate-300">
+              <p class="mt-2.5 rounded-xl bg-black/30 px-3.5 py-3 text-xs leading-relaxed text-slate-300">
                 {{ draftSummary }}
               </p>
 
@@ -338,17 +338,17 @@
                 type="text"
                 maxlength="60"
                 placeholder="Nombre de la macro (opcional)"
-                class="mt-2.5 w-full sk-input px-3 py-2.5 text-xs text-slate-200 placeholder:text-slate-600 focus:border-brand-500/50 focus:outline-none"
+                class="mt-2.5 w-full sk-input px-3 py-2.5 text-xs text-slate-200 placeholder:text-slate-600"
               >
 
-              <p v-if="draftError" class="mt-2.5 text-[11px] text-amber-400">{{ draftError }}</p>
+              <p v-if="draftError" class="mt-2.5 text-[11px] text-amber-300">{{ draftError }}</p>
 
-              <p v-else-if="needsPremium && lacksPremium" class="mt-2.5 text-[11px] text-amber-400">
+              <p v-else-if="needsPremium && lacksPremium" class="mt-2.5 text-[11px] text-amber-300">
                 Tu cuenta de Spotify no es Premium: la cola de reproducción responderá «Forbidden»
                 al ejecutar esta macro.
               </p>
 
-              <p v-else-if="missingPermissions.length" class="mt-2.5 text-[11px] text-amber-400">
+              <p v-else-if="missingPermissions.length" class="mt-2.5 text-[11px] text-amber-300">
                 Tu sesión no incluye {{ missingPermissions.join(', ') }}. Desconecta y vuelve a
                 conectar la cuenta antes de ejecutar macros.
               </p>
@@ -401,10 +401,10 @@
       <!-- ══ 3 · Tus macros ══════════════════════════════════════════════════ -->
       <section class="space-y-4">
         <header class="flex flex-wrap items-center gap-3">
-          <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-brand-400/25 bg-brand-500/12 text-lg">📚</span>
+          <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-400/[0.18] text-lg">📚</span>
           <div class="min-w-0 flex-1">
             <div class="flex items-center gap-2">
-              <h2 class="text-xl font-bold tracking-tight text-white">Tus macros</h2>
+              <h2 class="text-xl font-extrabold tracking-tightest text-white">Tus macros</h2>
               <!-- La explicación larga ocupaba media pantalla: ahora se pide. -->
               <button
                 type="button"
@@ -430,7 +430,7 @@
         <Transition name="desplegar">
           <p
             v-if="verAyudaMacros"
-            class="rounded-xl border border-white/[0.07] bg-slate-950/45 px-3.5 py-3 text-[11px] leading-relaxed text-slate-400"
+            class="rounded-xl bg-black/30 px-3.5 py-3 text-[11px] leading-relaxed text-slate-400"
           >
             Las macros marcadas «en segundo plano» las ejecuta el servicio con la app cerrada:
             las de la canción actual en cuanto cambia la canción, y las de lista en un repaso
@@ -449,14 +449,14 @@
             :key="macro.id"
             class="overflow-hidden rounded-xl border transition-colors"
             :class="macro.enabled
-              ? 'border-white/[0.07] bg-slate-950/40'
-              : 'border-white/[0.06] bg-slate-950/20'"
+              ? 'border-white/[0.07] bg-black/30'
+              : 'border-white/[0.07] bg-black/20'"
           >
             <!-- Etiqueta plegada: lo justo para reconocer la macro de un vistazo -->
             <div class="flex items-center gap-2 p-3">
               <button
                 type="button"
-                class="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg border border-white/[0.08] bg-white/[0.03] text-[10px] text-slate-400 transition-transform"
+                class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white/[0.03] text-[10px] text-slate-400 transition-transform"
                 :class="abierta[macro.id] ? 'rotate-90' : ''"
                 :aria-expanded="!!abierta[macro.id]"
                 :aria-label="abierta[macro.id] ? 'Plegar macro' : 'Desplegar macro'"
@@ -469,18 +469,18 @@
                 :class="macro.enabled ? '' : 'opacity-60'"
                 @click="abierta[macro.id] = !abierta[macro.id]"
               >
-                <p class="truncate text-sm font-semibold text-slate-100">{{ macro.name }}</p>
+                <p class="truncate text-sm font-bold text-white">{{ macro.name }}</p>
                 <p class="truncate text-[11px] text-slate-500">{{ describeMacro(macro) }}</p>
               </button>
 
               <span
                 v-if="correEnSegundoPlano(macro)"
-                class="hidden shrink-0 items-center gap-1 rounded-md border border-brand-500/30 bg-brand-500/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-brand-300 sm:inline-flex"
+                class="hidden shrink-0 items-center gap-1 rounded-full bg-brand-400/[0.18] px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-brand-200 sm:inline-flex"
               >
                 <span class="h-1 w-1 rounded-full bg-brand-400" />segundo plano
               </span>
 
-              <span class="hidden shrink-0 font-mono text-[10px] text-slate-600 sm:inline">
+              <span class="hidden shrink-0 font-mono text-[10px] text-slate-500 sm:inline">
                 {{ ejecuciones(macro) }} ejec.
               </span>
 
@@ -490,7 +490,7 @@
                 role="switch"
                 :aria-checked="macro.enabled"
                 class="sk-switch shrink-0"
-                :class="macro.enabled ? 'border-brand-400/50 bg-brand-500' : 'border-white/10 bg-white/[0.08]'"
+                :class="macro.enabled ? 'border-transparent bg-brand-400' : 'border-transparent bg-white/[0.18]'"
                 :aria-label="macro.enabled ? 'Deshabilitar macro' : 'Habilitar macro'"
                 @click="toggleMacro(macro.id)"
               >
@@ -510,13 +510,13 @@
               <div class="flex flex-wrap items-center gap-2">
                 <button
                   type="button"
-                  class="rounded-lg border border-sky-500/35 bg-sky-500/10 px-3 py-1.5 text-[11px] font-semibold text-sky-300 transition-colors hover:bg-sky-500/20 disabled:opacity-50"
+                  class="sk-btn sk-btn-sm bg-sky-400/[0.18] text-sky-100 hover:bg-sky-400/30"
                   :disabled="running"
                   @click="onPreview(macro)"
                 >Vista previa</button>
                 <button
                   type="button"
-                  class="rounded-lg border border-brand-500/35 bg-brand-500/10 px-3 py-1.5 text-[11px] font-semibold text-brand-300 transition-colors hover:bg-brand-500/20 disabled:opacity-50"
+                  class="sk-btn sk-btn-sm bg-brand-400/[0.18] text-brand-200 hover:bg-brand-400/30"
                   :disabled="running"
                   @click="onRun(macro)"
                 >Ejecutar</button>
@@ -531,7 +531,7 @@
                   @click="deleteMacro(macro.id)"
                 >Borrar</button>
 
-                <span class="ml-auto font-mono text-[10px] text-slate-600">
+                <span class="ml-auto font-mono text-[10px] text-slate-500">
                   {{ ejecuciones(macro) }} ejec. · {{ aplicadas(macro) }} canciones
                 </span>
               </div>
@@ -543,7 +543,7 @@
               -->
               <div
                 v-if="verHistorial[macro.id]"
-                class="mt-2.5 rounded-lg border border-white/[0.07] bg-slate-900/60 p-3"
+                class="mt-2.5 rounded-md bg-black/30 p-3"
               >
                 <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
                   Últimos 7 días
@@ -566,10 +566,10 @@
                         v-for="(entrada, i) in dia.entradas"
                         :key="dia.dia + '-' + i"
                         class="flex items-baseline gap-2 text-[10px] leading-relaxed"
-                        :class="entrada.status === 2 ? 'text-rose-300/90' : (entrada.status === 0 ? 'text-slate-300' : 'text-slate-500')"
+                        :class="entrada.status === 2 ? 'text-rose-200/90' : (entrada.status === 0 ? 'text-slate-300' : 'text-slate-500')"
                       >
-                        <span class="font-mono text-slate-600">{{ hora(entrada.at) }}</span>
-                        <span class="shrink-0 text-slate-600">{{ entrada.origen === 'servicio' ? 'servicio' : 'app' }}</span>
+                        <span class="font-mono text-slate-500">{{ hora(entrada.at) }}</span>
+                        <span class="shrink-0 text-slate-500">{{ entrada.origen === 'servicio' ? 'servicio' : 'app' }}</span>
                         <span class="min-w-0 flex-1 truncate">{{ entrada.message }}</span>
                       </li>
                     </ul>
@@ -579,7 +579,7 @@
 
               <p
                 v-if="!results[macro.id] && ultimaAutomatica(macro)"
-                class="mt-2.5 rounded-lg border border-white/[0.07] bg-slate-900/60 px-3 py-2 text-[11px] text-slate-400"
+                class="mt-2.5 rounded-md bg-black/30 px-3 py-2 text-[11px] text-slate-400"
               >
                 {{ ultimaAutomatica(macro) }}
               </p>
@@ -588,8 +588,8 @@
                 v-if="results[macro.id]"
                 class="mt-2.5 rounded-lg border px-3 py-2 text-[11px]"
                 :class="results[macro.id].error
-                  ? 'border-rose-500/30 bg-rose-500/10 text-rose-300'
-                  : 'border-white/[0.07] bg-slate-900/60 text-slate-300'"
+                  ? 'border-transparent bg-rose-500/[0.16] text-rose-200'
+                  : 'sk-option text-slate-200'"
               >
                 {{ results[macro.id].message }}
               </p>

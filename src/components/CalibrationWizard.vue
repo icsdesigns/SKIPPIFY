@@ -1,10 +1,10 @@
 <template>
   <section class="sk-card sk-card-lit overflow-hidden">
     <!-- ── Cabecera con el progreso del asistente ─────────────────────────── -->
-    <header class="border-b border-white/[0.06] p-5">
+    <header class="border-b border-white/[0.07] p-5">
       <div class="flex flex-wrap items-start justify-between gap-3">
         <div class="flex items-start gap-3">
-          <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-violet-400/25 bg-violet-500/12 text-lg">🩺</span>
+          <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-violet-400/[0.18] text-lg">🩺</span>
           <div>
             <h2 class="sk-title">Asistente de calibración</h2>
             <p class="sk-subtitle">Diagnostica el salto de duplicadas con una prueba controlada</p>
@@ -19,11 +19,11 @@
         <li v-for="(label, i) in STEP_LABELS" :key="label" class="min-w-0">
           <div
             class="h-1 rounded-full transition-colors duration-300"
-            :class="i <= stepIndex ? 'bg-gradient-to-r from-brand-400 to-teal-300' : 'bg-white/[0.08]'"
+            :class="i <= stepIndex ? 'bg-brand-400' : 'bg-white/[0.08]'"
           />
           <p
             class="mt-1.5 truncate text-[10px] font-semibold uppercase tracking-wider transition-colors"
-            :class="i <= stepIndex ? 'text-brand-300' : 'text-slate-600'"
+            :class="i <= stepIndex ? 'text-brand-400' : 'text-slate-500'"
           >{{ label }}</p>
         </li>
       </ol>
@@ -39,18 +39,16 @@
 
         <!-- Copia de seguridad: es lo único que permite deshacer la calibración -->
         <div
-          class="mt-4 rounded-2xl border p-4 transition-colors"
-          :class="backupCheckpoint
-            ? 'border-brand-500/25 bg-brand-500/[0.07]'
-            : 'border-amber-400/30 bg-amber-500/[0.07]'"
+          class="mt-4 rounded-card border-l-4 bg-white/[0.05] p-4 transition-colors"
+          :class="backupCheckpoint ? 'border-brand-400' : 'border-amber-400'"
         >
           <div class="flex items-start gap-3">
-            <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-base"
-              :class="backupCheckpoint ? 'bg-brand-500/15' : 'bg-amber-500/15'"
+            <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-base"
+              :class="backupCheckpoint ? 'bg-brand-400/[0.18]' : 'bg-amber-400/[0.18]'"
             >{{ backupCheckpoint ? '✅' : '💾' }}</span>
 
             <div class="min-w-0 flex-1">
-              <p class="text-sm font-semibold" :class="backupCheckpoint ? 'text-brand-100' : 'text-amber-100'">
+              <p class="text-sm font-bold text-white">
                 {{ backupCheckpoint ? 'Configuración actual guardada' : 'Guarda tu configuración actual antes de empezar' }}
               </p>
 
@@ -84,22 +82,22 @@
           <li
             v-for="(item, i) in testChecklist"
             :key="item.id"
-            class="flex items-start gap-3 rounded-xl border border-white/[0.06] bg-white/[0.02] p-3.5"
+            class="flex items-start gap-3 rounded-card bg-white/[0.04] p-3.5"
           >
-            <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-brand-500/15 text-[11px] font-bold text-brand-300">{{ i + 1 }}</span>
+            <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-400 text-[11px] font-bold text-black">{{ i + 1 }}</span>
             <p class="text-xs leading-relaxed text-slate-300">{{ item.text }}</p>
           </li>
         </ul>
 
-        <div class="mt-4 rounded-xl border border-sky-500/20 bg-sky-500/[0.06] p-3.5">
-          <p class="text-[11px] leading-relaxed text-sky-100/80">
+        <div class="mt-4 rounded-card bg-sky-400/[0.12] p-3.5">
+          <p class="text-[11px] leading-relaxed text-sky-100">
             Al salir se restaurará tu intervalo y tu modo de escucha originales. Los parámetros
             del motor que hayas aprobado sí se conservan, y podrás guardarlos como preset.
           </p>
         </div>
 
         <!-- Aviso al intentar arrancar sin haber guardado nada -->
-        <div v-if="warnNoBackup && !backupCheckpoint" class="mt-4 rounded-xl border border-amber-400/35 bg-amber-500/10 p-3.5">
+        <div v-if="warnNoBackup && !backupCheckpoint" class="mt-4 rounded-card bg-amber-400/[0.14] p-3.5">
           <p class="text-xs font-semibold text-amber-100">Vas a empezar sin punto de restauración</p>
           <p class="mt-1 text-[11px] leading-relaxed text-slate-300">
             Si después quieres tu configuración de ahora, no habrá forma de recuperarla salvo
@@ -126,7 +124,7 @@
       <!-- ── 2. Síntomas y plan ──────────────────────────────────────────── -->
       <template v-else-if="step === 'diagnose'">
         <div class="flex flex-wrap items-center justify-between gap-2">
-          <h3 class="text-sm font-semibold text-slate-100">¿Qué está pasando exactamente?</h3>
+          <h3 class="text-sm font-bold text-white">¿Qué está pasando exactamente?</h3>
           <span class="sk-chip sk-chip-accent">Prueba activa · duplicadas en 2 semanas</span>
         </div>
         <p class="sk-subtitle">
@@ -151,18 +149,18 @@
             type="button"
             class="relative rounded-xl border p-3.5 text-left transition-all duration-150"
             :class="symptomIds.includes(item.id)
-              ? 'border-violet-400/50 bg-violet-500/10'
-              : 'border-white/[0.06] bg-white/[0.02] hover:border-white/[0.16] hover:bg-white/[0.05]'"
+              ? 'border-violet-400 bg-violet-400/[0.14]'
+              : 'sk-option'"
             @click="selectSymptom(item.id)"
           >
             <span
               class="absolute right-3 top-3 flex h-4 w-4 items-center justify-center rounded border text-[9px] font-bold transition-colors"
               :class="symptomIds.includes(item.id)
-                ? 'border-violet-300/60 bg-violet-500/40 text-white'
+                ? 'border-violet-300 bg-violet-400 text-black'
                 : 'border-white/15 text-transparent'"
               aria-hidden="true"
             >✓</span>
-            <p class="flex items-start gap-2 pr-6 text-sm font-semibold leading-snug text-slate-100">
+            <p class="flex items-start gap-2 pr-6 text-sm font-bold leading-snug text-white">
               <span>{{ item.icon }}</span>
               <span>{{ item.title }}</span>
             </p>
@@ -171,8 +169,8 @@
         </div>
 
         <!-- Plan recomendado: nunca se aplica nada sin enseñarlo antes -->
-        <div v-if="selectedSymptoms.length" class="mt-5 rounded-2xl border border-violet-400/25 bg-violet-500/[0.07] p-4">
-          <p class="sk-eyebrow text-violet-300/80">
+        <div v-if="selectedSymptoms.length" class="mt-5 rounded-shelf bg-violet-400/[0.10] p-4">
+          <p class="sk-eyebrow text-violet-200">
             {{ isPair ? 'Dos síntomas a la vez' : 'Causa habitual' }}{{ tier > 0 ? ` · intento ${tier + 1}` : '' }}
           </p>
 
@@ -183,18 +181,18 @@
             </li>
           </ul>
 
-          <p v-if="comboNote" class="mt-3 rounded-lg border border-violet-300/25 bg-violet-500/10 p-3 text-[11px] leading-relaxed text-violet-100/90">
+          <p v-if="comboNote" class="mt-3 rounded-md bg-violet-400/[0.16] p-3 text-[11px] leading-relaxed text-violet-100">
             ⚖️ {{ comboNote }}
           </p>
 
           <div class="sk-divider my-4" />
 
-          <p class="text-sm font-semibold text-violet-100">{{ remedy.summary }}</p>
+          <p class="text-sm font-bold text-white">{{ remedy.summary }}</p>
           <p class="mt-1 text-[11px] leading-relaxed text-slate-400">{{ remedy.explain }}</p>
 
           <!-- Arbitrajes: qué ajuste pedía cada síntoma y con qué se ha quedado -->
-          <div v-if="conflicts.length" class="mt-3 rounded-lg border border-amber-400/25 bg-amber-500/[0.07] p-3">
-            <p class="text-[11px] font-semibold text-amber-100">Ajustes en los que los dos síntomas no coincidían</p>
+          <div v-if="conflicts.length" class="mt-3 rounded-md bg-amber-400/[0.14] p-3">
+            <p class="text-[11px] font-bold text-amber-100">Ajustes en los que los dos síntomas no coincidían</p>
             <ul class="mt-1.5 space-y-1">
               <li v-for="item in conflicts" :key="item.key" class="text-[11px] text-slate-300">
                 <span class="text-slate-400">{{ item.label }}:</span>
@@ -205,7 +203,7 @@
             </ul>
           </div>
 
-          <p v-if="!proposedChanges.length" class="mt-3 rounded-lg border border-white/[0.07] bg-white/[0.03] p-3 text-[11px] text-slate-400">
+          <p v-if="!proposedChanges.length" class="mt-3 rounded-md bg-white/[0.05] p-3 text-[11px] text-slate-400">
             Tu configuración ya coincide con esta recomendación: no hay nada que cambiar.
             {{ hasStrongerRemedy ? 'Prueba el siguiente nivel con «Ya lo tengo así».' : 'Prueba con otro síntoma.' }}
           </p>
@@ -214,14 +212,14 @@
             <li
               v-for="change in proposedChanges"
               :key="change.key"
-              class="flex flex-wrap items-center gap-2 rounded-lg border border-white/[0.06] bg-slate-950/40 px-2.5 py-2 text-[11px]"
+              class="flex flex-wrap items-center gap-2 rounded-md bg-black/30 px-2.5 py-2 text-[11px]"
             >
               <span class="text-slate-300">{{ change.label }}</span>
               <span class="ml-auto font-mono text-slate-500">{{ change.from }}</span>
-              <span :class="change.direction === 'up' ? 'text-brand-400' : 'text-amber-400'">→</span>
+              <span :class="change.direction === 'up' ? 'text-brand-400' : 'text-amber-300'">→</span>
               <span
                 class="font-mono font-semibold"
-                :class="change.direction === 'up' ? 'text-brand-300' : 'text-amber-300'"
+                :class="change.direction === 'up' ? 'text-brand-400' : 'text-amber-300'"
               >{{ change.to }}</span>
             </li>
           </ul>
@@ -248,8 +246,8 @@
 
       <!-- ── 3. Comprobación ─────────────────────────────────────────────── -->
       <template v-else-if="step === 'verify'">
-        <div class="rounded-2xl border border-brand-500/20 bg-brand-500/[0.06] p-4">
-          <p class="text-sm font-semibold text-brand-100">Ajustes aplicados. Reproduce ahora tu playlist.</p>
+        <div class="rounded-shelf bg-brand-400/[0.12] p-4">
+          <p class="text-sm font-bold text-white">Ajustes aplicados. Reproduce ahora tu playlist.</p>
           <p class="mt-1.5 text-xs leading-relaxed text-slate-300">
             Déjala sonar entera al menos una vuelta con la repetición activada y observa el
             comportamiento en los cambios de canción. Después dinos qué ha pasado.
@@ -257,16 +255,16 @@
         </div>
 
         <div class="mt-4 grid gap-2.5">
-          <button class="rounded-xl border border-brand-400/35 bg-brand-500/10 p-4 text-left transition-colors hover:bg-brand-500/18" @click="markSolved">
-            <p class="text-sm font-semibold text-brand-100">✅ Problema solucionado</p>
+          <button class="rounded-card border border-brand-400 bg-brand-400/[0.12] p-4 text-left transition-colors hover:bg-brand-400/20" @click="markSolved">
+            <p class="text-sm font-bold text-white">✅ Problema solucionado</p>
             <p class="mt-1 text-[11px] text-slate-400">Guardaremos esta configuración como preset.</p>
           </button>
 
           <button
-            class="rounded-xl border border-amber-400/30 bg-amber-500/[0.07] p-4 text-left transition-colors hover:bg-amber-500/15"
+            class="rounded-card border border-amber-400 bg-amber-400/[0.12] p-4 text-left transition-colors hover:bg-amber-400/20"
             @click="markSameProblem"
           >
-            <p class="text-sm font-semibold text-amber-100">🔁 Sigue ocurriendo lo mismo</p>
+            <p class="text-sm font-bold text-white">🔁 Sigue ocurriendo lo mismo</p>
             <p class="mt-1 text-[11px] text-slate-400">
               {{ hasStrongerRemedy
                 ? 'Propondremos un ajuste más agresivo en la misma dirección.'
@@ -275,10 +273,10 @@
           </button>
 
           <button
-            class="rounded-xl border border-white/[0.08] bg-white/[0.02] p-4 text-left transition-colors hover:bg-white/[0.06]"
+            class="rounded-card border border-transparent bg-white/[0.05] p-4 text-left transition-colors hover:bg-white/[0.10]"
             @click="markOtherProblem"
           >
-            <p class="text-sm font-semibold text-slate-100">🔀 Ahora ocurre otro problema</p>
+            <p class="text-sm font-bold text-white">🔀 Ahora ocurre otro problema</p>
             <p class="mt-1 text-[11px] text-slate-400">
               Volveremos al listado. Si el nuevo problema convive con el anterior, márcalos los dos.
             </p>
@@ -292,13 +290,13 @@
 
       <!-- ── 4. Guardado del preset ──────────────────────────────────────── -->
       <template v-else-if="step === 'save'">
-        <h3 class="text-sm font-semibold text-slate-100">Guardar este ajuste como preset</h3>
+        <h3 class="text-sm font-bold text-white">Guardar este ajuste como preset</h3>
         <p class="sk-subtitle">
           Se guarda la configuración completa del motor junto con la fecha y el problema que
           resolvió, para que puedas volver a ella cuando quieras.
         </p>
 
-        <div class="mt-4 rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
+        <div class="mt-4 rounded-card bg-white/[0.04] p-4">
           <p class="sk-eyebrow">Resumen</p>
           <dl class="mt-2 space-y-1.5 text-[11px]">
             <div class="flex gap-2">
@@ -340,9 +338,9 @@
 
       <!-- ── Final ───────────────────────────────────────────────────────── -->
       <template v-else-if="step === 'done'">
-        <div class="rounded-2xl border border-brand-500/25 bg-brand-500/[0.07] p-5 text-center">
+        <div class="rounded-shelf bg-brand-400/[0.14] p-5 text-center">
           <p class="text-2xl">🎉</p>
-          <p class="mt-2 text-sm font-semibold text-brand-100">Preset «{{ savedPreset?.name }}» guardado</p>
+          <p class="mt-2 text-sm font-bold text-white">Preset «{{ savedPreset?.name }}» guardado</p>
           <p class="mt-1.5 text-[11px] leading-relaxed text-slate-400">
             {{ savedPreset?.fix?.symptomTitle || 'Ajuste manual' }} ·
             {{ formatDate(savedPreset?.savedAt) }}
@@ -357,9 +355,9 @@
     </div>
 
     <!-- ── Presets guardados ─────────────────────────────────────────────── -->
-    <div v-if="presets.length" class="border-t border-white/[0.06] p-5">
+    <div v-if="presets.length" class="border-t border-white/[0.07] p-5">
       <div class="flex flex-wrap items-center justify-between gap-2">
-        <h3 class="text-sm font-semibold text-slate-100">Presets guardados</h3>
+        <h3 class="text-sm font-bold text-white">Presets guardados</h3>
         <span class="sk-chip">{{ presets.length }}</span>
       </div>
 
@@ -367,10 +365,10 @@
         <li
           v-for="preset in presets"
           :key="preset.id"
-          class="flex flex-wrap items-center gap-2 rounded-xl border border-white/[0.06] bg-white/[0.02] p-3"
+          class="flex flex-wrap items-center gap-2 rounded-card bg-white/[0.04] p-3"
         >
           <div class="min-w-0 flex-1">
-            <p class="truncate text-sm font-medium text-slate-200">{{ preset.name }}</p>
+            <p class="truncate text-sm font-bold text-white">{{ preset.name }}</p>
             <p class="mt-0.5 text-[10px] text-slate-500">
               {{ formatDate(preset.savedAt) }}
               <template v-if="preset.fix"> · arregló: {{ preset.fix.symptomTitle }} ({{ preset.fix.remedy }})</template>

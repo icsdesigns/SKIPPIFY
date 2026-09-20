@@ -31,6 +31,13 @@ import {
   Legend
 } from 'chart.js'
 import { useAnalytics } from '@/composables/useAnalytics'
+import {
+ CHART_ACCENT,
+ CHART_SURFACE,
+ accentAreaFill,
+ chartScales,
+ chartTooltip
+} from '@/lib/chartTheme'
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Filler, Tooltip, Legend)
 
@@ -43,23 +50,16 @@ const data = computed(() => ({
   datasets: [{
     label: 'Escuchas',
     data: chartData.value.data,
-    borderColor: '#34d399',
+    borderColor: CHART_ACCENT,
     borderWidth: 2.5,
     // Degradado vertical: el relleno plano aplanaba visualmente los picos.
-    backgroundColor: (ctx) => {
-      const { chart } = ctx
-      if (!chart.chartArea) return 'rgba(52, 211, 153, 0.16)'
-      const g = chart.ctx.createLinearGradient(0, chart.chartArea.top, 0, chart.chartArea.bottom)
-      g.addColorStop(0, 'rgba(52, 211, 153, 0.34)')
-      g.addColorStop(1, 'rgba(52, 211, 153, 0)')
-      return g
-    },
+    backgroundColor: accentAreaFill,
     fill: true,
     tension: 0.38,
     pointRadius: 3,
     pointHoverRadius: 6,
-    pointBackgroundColor: '#050b14',
-    pointBorderColor: '#34d399',
+    pointBackgroundColor: CHART_SURFACE,
+    pointBorderColor: CHART_ACCENT,
     pointBorderWidth: 2
   }]
 }))
@@ -70,28 +70,8 @@ const options = {
   interaction: { mode: 'index', intersect: false },
   plugins: {
     legend: { display: false },
-    tooltip: {
-      backgroundColor: 'rgba(5, 11, 20, 0.95)',
-      borderColor: 'rgba(52, 211, 153, 0.3)',
-      borderWidth: 1,
-      titleColor: '#e2e8f0',
-      bodyColor: '#a7f3d0',
-      padding: 10,
-      displayColors: false
-    }
+    tooltip: chartTooltip
   },
-  scales: {
-    x: {
-      ticks: { color: '#64748b', font: { size: 11 } },
-      grid: { display: false },
-      border: { display: false }
-    },
-    y: {
-      min: 0,
-      ticks: { color: '#64748b', precision: 0, font: { size: 11 }, maxTicksLimit: 5 },
-      grid: { color: 'rgba(148,163,184,0.08)' },
-      border: { display: false }
-    }
-  }
+  scales: chartScales({ yMaxTicks: 5 })
 }
 </script>

@@ -32,12 +32,12 @@
           <li
             v-for="(item, i) in board.items.value"
             :key="item.name"
-            class="relative overflow-hidden rounded-xl border border-white/[0.05] bg-white/[0.02]"
-            :class="board.expandable ? 'transition-colors hover:border-white/[0.12]' : ''"
+            class="relative overflow-hidden rounded-md bg-white/[0.04]"
+            :class="board.expandable ? 'transition-colors hover:bg-white/[0.09]' : ''"
           >
             <!-- Barra proporcional al líder: da escala sin añadir un gráfico -->
             <div
-              class="absolute inset-y-0 left-0 bg-gradient-to-r from-brand-500/16 to-transparent"
+              class="absolute inset-y-0 left-0 bg-gradient-to-r from-brand-400/[0.22] to-transparent"
               :style="{ width: `${leadShare(board.items.value, item)}%` }"
             />
             <component
@@ -49,9 +49,9 @@
             >
               <span
                 class="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg text-[11px] font-bold"
-                :class="i === 0 ? 'bg-brand-500/22 text-brand-200' : 'bg-white/[0.05] text-slate-400'"
+                :class="i === 0 ? 'bg-brand-400 text-black' : 'bg-white/[0.08] text-slate-300'"
               >{{ i + 1 }}</span>
-              <span class="min-w-0 flex-1 truncate text-sm text-slate-100">{{ item.name }}</span>
+              <span class="min-w-0 flex-1 truncate text-sm font-semibold text-white">{{ item.name }}</span>
               <!-- Sólo en «Top canciones»: avisa de que la fila se despliega -->
               <svg
                 v-if="board.expandable && item.sub"
@@ -60,7 +60,7 @@
                 viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"
               ><polyline points="6 9 12 15 18 9" /></svg>
-              <span class="shrink-0 font-mono text-sm font-semibold text-brand-300">{{ item.count }}</span>
+              <span class="shrink-0 font-mono text-sm font-bold tabular-nums text-brand-400">{{ item.count }}</span>
             </component>
 
             <Transition
@@ -71,14 +71,14 @@
             >
               <p
                 v-if="board.expandable && openTrack === item.name"
-                class="relative flex items-center gap-1.5 border-t border-white/[0.05] px-3 py-2 text-xs text-slate-400"
+                class="relative flex items-center gap-1.5 border-t border-white/[0.07] px-3 py-2 text-xs text-slate-400"
               >
                 <span class="text-slate-500">🎤</span>
                 <span class="truncate">{{ item.sub || 'Artista desconocido' }}</span>
               </p>
             </Transition>
           </li>
-          <li v-if="!board.items.value.length" class="rounded-xl border border-dashed border-white/[0.08] px-3 py-6 text-center text-xs text-slate-500">
+          <li v-if="!board.items.value.length" class="rounded-md border border-dashed border-white/[0.14] px-3 py-6 text-center text-xs text-slate-400">
             Sin datos en este período
           </li>
         </ul>
@@ -99,12 +99,12 @@
         <div
           v-for="streak in streakCards"
           :key="streak.label"
-          class="rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-3.5"
+          class="rounded-card bg-white/[0.04] px-4 py-3.5"
         >
           <p class="sk-eyebrow">{{ streak.label }}</p>
           <p class="mt-1.5 flex items-baseline gap-1.5">
-            <span class="text-3xl font-bold leading-none text-brand-300">{{ streak.value }}</span>
-            <span class="text-xs text-slate-500">días</span>
+            <span class="text-3xl font-extrabold leading-none tracking-tightest text-brand-400">{{ streak.value }}</span>
+            <span class="text-xs font-semibold text-slate-400">días</span>
           </p>
           <p class="sk-stat-hint">{{ streak.hint }}</p>
         </div>
@@ -169,7 +169,7 @@
               <!-- La etiqueta de la hora se enciende si es una de las punta -->
               <div
                 class="flex h-5 items-center justify-end pr-0.5 text-[9px] tabular-nums transition-colors"
-                :class="row.isPeak ? 'font-bold text-brand-300' : 'text-slate-500'"
+                :class="row.isPeak ? 'font-bold text-brand-400' : 'text-slate-500'"
               >{{ row.hourLabel }}</div>
               <div
                 v-for="(cell, dayIdx) in row.cells"
@@ -181,7 +181,7 @@
               <!-- Columna global: el total de esa hora en toda la semana -->
               <div
                 class="relative h-5 overflow-hidden rounded-[4px] border"
-                :class="row.isPeak ? 'border-brand-400/45' : 'border-white/[0.06]'"
+                :class="row.isPeak ? 'border-brand-400/45' : 'border-white/[0.07]'"
                 :title="`Total ${row.hourLabel}:00 — ${row.totalHours} h`"
               >
                 <div
@@ -199,7 +199,7 @@
         <span
           v-for="step in [0, 0.25, 0.5, 0.75, 1]"
           :key="`legend-${step}`"
-          class="h-3 w-5 rounded-[3px] border border-white/[0.05]"
+          class="h-3 w-5 rounded-[3px] border border-white/[0.07]"
           :style="{ backgroundColor: heatColor(step) }"
         />
         <span class="text-[10px] text-slate-500">Más</span>
@@ -220,6 +220,13 @@ import {
   Legend
 } from 'chart.js'
 import { useEventStore } from '@/stores/events'
+import {
+  CHART_ACCENT_SOFT,
+  CHART_ACCENT_STRONG,
+  accentAlpha,
+  chartScales,
+  chartTooltip
+} from '@/lib/chartTheme'
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Tooltip, Legend)
 
@@ -508,8 +515,8 @@ const monthlyHoursData = computed(() => {
     datasets: [{
       label: 'Horas',
       data: totals.map(totalMs => Math.round(totalMs / MS_IN_HOUR)),
-      backgroundColor: 'rgba(16, 185, 129, 0.55)',
-      hoverBackgroundColor: 'rgba(52, 211, 153, 0.85)',
+      backgroundColor: CHART_ACCENT_SOFT,
+      hoverBackgroundColor: CHART_ACCENT_STRONG,
       borderWidth: 0,
       borderRadius: 6,
       categoryPercentage: 0.9,
@@ -523,29 +530,9 @@ const monthlyHoursOptions = {
   maintainAspectRatio: false,
   plugins: {
     legend: { display: false },
-    tooltip: {
-      backgroundColor: 'rgba(5, 11, 20, 0.95)',
-      borderColor: 'rgba(52, 211, 153, 0.3)',
-      borderWidth: 1,
-      titleColor: '#e2e8f0',
-      bodyColor: '#a7f3d0',
-      padding: 10,
-      displayColors: false
-    }
+    tooltip: chartTooltip
   },
-  scales: {
-    x: {
-      ticks: { color: '#64748b', font: { size: 11 } },
-      grid: { display: false },
-      border: { display: false }
-    },
-    y: {
-      beginAtZero: true,
-      ticks: { color: '#64748b', precision: 0, font: { size: 11 }, maxTicksLimit: 6 },
-      grid: { color: 'rgba(148,163,184,0.08)' },
-      border: { display: false }
-    }
-  }
+  scales: chartScales({ yMaxTicks: 6 })
 }
 
 /**
@@ -627,7 +614,7 @@ function heatColor (level) {
   // concentradas, una escala lineal dejaba el resto de la rejilla casi negra.
   const eased = Math.sqrt(Math.min(1, Math.max(0, level)))
   const alpha = 0.08 + (eased * 0.84)
-  return `rgba(16, 185, 129, ${alpha})`
+  return accentAlpha(alpha)
 }
 </script>
 

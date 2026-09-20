@@ -5,7 +5,7 @@
       :value="valorIniciadas"
       badge="Semana"
       :hint="hintIniciadas"
-      :tone="hasData ? 'text-violet-200' : 'text-slate-600'"
+      :tone="hasData ? 'text-violet-200' : 'text-slate-500'"
       glow="from-violet-500/12"
     />
     <StatTile
@@ -13,7 +13,7 @@
       :value="valorSaltadas"
       badge="Semana"
       :hint="hintSaltadas"
-      :tone="hasData ? 'text-amber-200' : 'text-slate-600'"
+      :tone="hasData ? 'text-amber-200' : 'text-slate-500'"
       glow="from-amber-500/12"
     />
   </section>

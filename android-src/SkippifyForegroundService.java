@@ -174,6 +174,14 @@ public class SkippifyForegroundService extends Service {
         } catch (Throwable ignored) {
         }
 
+        // Mismo razonamiento para la comprobación de actualizaciones: toca una
+        // vez al día, así que casi todos los latidos sólo miran el reloj. Sin
+        // esto, la app sólo se enteraba de una versión nueva al abrirla.
+        try {
+            UpdateChecker.latido(getApplicationContext());
+        } catch (Throwable ignored) {
+        }
+
         // START_STICKY: if Android kills us, it will re-create and re-deliver
         // a null intent, which is fine – we'll call startForeground() again.
         return START_STICKY;

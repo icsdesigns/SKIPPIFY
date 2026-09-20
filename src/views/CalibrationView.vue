@@ -1,8 +1,8 @@
 <template>
   <div class="sk-stagger space-y-5">
     <!-- Sin motor nativo no hay nada que calibrar -->
-    <div v-if="!available" class="sk-card border-amber-500/25 p-5">
-      <p class="text-sm font-semibold text-amber-200">El motor sólo existe en la app de Android</p>
+    <div v-if="!available" class="sk-card p-5">
+      <p class="text-sm font-bold text-amber-200">El motor sólo existe en la app de Android</p>
       <p class="mt-1 text-xs text-amber-200/70">
         En el navegador no hay MediaSession al que engancharse, así que esta pantalla
         no tiene nada que medir ni que ajustar.
@@ -17,7 +17,7 @@
           class="sk-card sk-card-hover group p-5 text-left"
           @click="mode = 'wizard'"
         >
-          <span class="flex h-11 w-11 items-center justify-center rounded-2xl border border-violet-400/25 bg-violet-500/12 text-xl">🩺</span>
+          <span class="flex h-11 w-11 items-center justify-center rounded-full bg-violet-400/[0.18] text-xl">🩺</span>
           <h2 class="sk-title mt-3.5">Asistente de calibración</h2>
           <p class="sk-subtitle">
             Guiado paso a paso: guardas tu configuración, preparas una playlist de prueba, eliges
@@ -32,7 +32,7 @@
           class="sk-card sk-card-hover group p-5 text-left"
           @click="mode = 'manual'"
         >
-          <span class="flex h-11 w-11 items-center justify-center rounded-2xl border border-brand-400/25 bg-brand-500/12 text-xl">🎛️</span>
+          <span class="flex h-11 w-11 items-center justify-center rounded-full bg-brand-400/[0.18] text-xl">🎛️</span>
           <h2 class="sk-title mt-3.5">Ajuste manual</h2>
           <p class="sk-subtitle">
             Control directo de cada parámetro del motor, con la explicación de qué implica subirlo
@@ -53,11 +53,11 @@
         </div>
 
         <!-- Protocolo de prueba -->
-        <section class="sk-card border-sky-500/20 p-5">
+        <section class="sk-card p-5">
           <div class="flex items-start gap-3">
-            <span class="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-sky-500/12 text-base">🧪</span>
+            <span class="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-sky-400/[0.18] text-base">🧪</span>
             <div class="min-w-0">
-              <h3 class="text-sm font-semibold text-sky-100">Cómo probar cada cambio</h3>
+              <h3 class="text-sm font-bold text-white">Cómo probar cada cambio</h3>
               <p class="mt-1.5 text-sm leading-relaxed text-slate-300">
                 Pon en cola <strong class="text-sky-200">al menos 10 canciones ya escuchadas</strong>
                 dentro del periodo configurado para saltar ({{ intervalLabel }}) y reprodúcelas
@@ -75,7 +75,7 @@
         <!-- ── Parámetros: una tarjeta por ajuste ──────────────────────────── -->
         <section class="space-y-3">
           <header class="flex flex-wrap items-center gap-2">
-            <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-500/12 text-sm">🎛️</span>
+            <span class="flex h-8 w-8 items-center justify-center rounded-full bg-brand-400/[0.18] text-sm">🎛️</span>
             <h3 class="sk-title">Parámetros del motor</h3>
             <button class="sk-btn sk-btn-ghost sk-btn-sm ml-auto" :disabled="busy" @click="resetConfig">
               Valores por defecto
@@ -85,11 +85,11 @@
           <article v-for="param in params" :key="param.key" class="sk-card p-5">
             <div class="flex flex-wrap items-start justify-between gap-3">
               <div class="min-w-0">
-                <h4 class="text-base font-semibold text-slate-100">{{ param.label }}</h4>
+                <h4 class="text-base font-bold text-white">{{ param.label }}</h4>
                 <p class="mt-1 text-xs leading-relaxed text-slate-400">{{ param.summary }}</p>
               </div>
               <p class="shrink-0 text-right">
-                <span class="font-mono text-2xl font-bold leading-none text-brand-300">{{ config[param.key] }}</span>
+                <span class="font-mono text-2xl font-extrabold leading-none tracking-tightest text-brand-400">{{ config[param.key] }}</span>
                 <span class="ml-1 text-xs text-slate-500">{{ param.unit }}</span>
               </p>
             </div>
@@ -97,7 +97,7 @@
             <div class="mt-4 flex items-center gap-3">
               <button
                 type="button"
-                class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.04] text-2xl font-semibold leading-none text-slate-300 transition-colors hover:border-amber-400/45 hover:bg-amber-500/15 hover:text-amber-200 disabled:opacity-40"
+                class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/[0.04] text-2xl font-semibold leading-none text-slate-300 transition-colors hover:bg-amber-400/20 hover:text-amber-200 disabled:opacity-40"
                 :disabled="busy || config[param.key] <= param.min"
                 :aria-label="`Bajar ${stepOf(param)} ${param.unit}`"
                 @click="nudge(param, -1)"
@@ -109,7 +109,7 @@
                 :max="param.max"
                 :step="param.step"
                 :value="config[param.key]"
-                class="h-2 w-full accent-brand-500"
+                class="sk-range h-1.5 w-full"
                 :disabled="busy"
                 :aria-label="param.label"
                 @change="apply({ [param.key]: Number($event.target.value) })"
@@ -117,14 +117,14 @@
 
               <button
                 type="button"
-                class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.04] text-2xl font-semibold leading-none text-slate-300 transition-colors hover:border-brand-400/45 hover:bg-brand-500/15 hover:text-brand-200 disabled:opacity-40"
+                class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/[0.04] text-2xl font-semibold leading-none text-slate-300 transition-colors hover:bg-brand-400/20 hover:text-brand-400 disabled:opacity-40"
                 :disabled="busy || config[param.key] >= param.max"
                 :aria-label="`Subir ${stepOf(param)} ${param.unit}`"
                 @click="nudge(param, 1)"
               >+</button>
             </div>
 
-            <div class="mt-1.5 flex justify-between font-mono text-[10px] text-slate-600">
+            <div class="mt-1.5 flex justify-between font-mono text-[10px] text-slate-500">
               <span>{{ param.min }}</span>
               <span>paso de {{ stepOf(param) }} {{ param.unit }}</span>
               <span>{{ param.max }}</span>
@@ -133,7 +133,7 @@
             <!-- El detalle largo, sólo si se pide: era lo que saturaba la pantalla -->
             <button
               type="button"
-              class="mt-3 flex w-full items-center gap-2 rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2 text-xs font-medium text-slate-300 transition-colors hover:bg-white/[0.05]"
+              class="mt-3 flex w-full items-center gap-2 rounded-md bg-white/[0.04] px-3 py-2 text-xs font-medium text-slate-300 transition-colors hover:bg-white/[0.05]"
               :aria-expanded="openParam === param.key"
               @click="toggleParam(param.key)"
             >
@@ -148,11 +148,11 @@
 
             <Transition name="detail">
               <div v-if="openParam === param.key" class="mt-2 space-y-2">
-                <p class="rounded-lg border border-brand-500/18 bg-brand-500/[0.06] px-3 py-2.5 text-xs leading-relaxed text-brand-100/85">
-                  <span class="font-semibold text-brand-300">Subirlo (+{{ stepOf(param) }} {{ param.unit }}) · </span>{{ param.up }}
+                <p class="rounded-md bg-brand-400/[0.12] px-3 py-2.5 text-xs leading-relaxed text-brand-100">
+                  <span class="font-bold text-brand-400">Subirlo (+{{ stepOf(param) }} {{ param.unit }}) · </span>{{ param.up }}
                 </p>
-                <p class="rounded-lg border border-amber-500/18 bg-amber-500/[0.06] px-3 py-2.5 text-xs leading-relaxed text-amber-100/85">
-                  <span class="font-semibold text-amber-300">Bajarlo (−{{ stepOf(param) }} {{ param.unit }}) · </span>{{ param.down }}
+                <p class="rounded-md bg-amber-400/[0.12] px-3 py-2.5 text-xs leading-relaxed text-amber-100">
+                  <span class="font-bold text-amber-300">Bajarlo (−{{ stepOf(param) }} {{ param.unit }}) · </span>{{ param.down }}
                 </p>
               </div>
             </Transition>
@@ -162,7 +162,7 @@
         <!-- ── Interruptores ───────────────────────────────────────────────── -->
         <section class="sk-card p-5">
           <header class="flex flex-wrap items-center gap-2">
-            <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-500/12 text-sm">🔀</span>
+            <span class="flex h-8 w-8 items-center justify-center rounded-full bg-brand-400/[0.18] text-sm">🔀</span>
             <h3 class="sk-title">Comportamiento</h3>
           </header>
 
@@ -172,26 +172,26 @@
               :key="toggle.key"
               class="flex cursor-pointer items-start gap-3 rounded-xl border p-4 transition-colors"
               :class="config[toggle.key]
-                ? 'border-brand-500/25 bg-brand-500/[0.06]'
-                : 'border-white/[0.06] bg-white/[0.02] hover:border-white/[0.14]'"
+                ? 'sk-option-active'
+                : 'sk-option'"
             >
               <input
                 type="checkbox"
-                class="mt-1 h-4 w-4 shrink-0 accent-brand-500"
+                class="mt-1 h-4 w-4 shrink-0 accent-brand-400"
                 :checked="config[toggle.key]"
                 :disabled="busy"
                 @change="apply({ [toggle.key]: $event.target.checked })"
               >
               <span class="min-w-0">
                 <span class="flex flex-wrap items-center gap-2">
-                  <span class="text-sm font-semibold text-slate-100">{{ toggle.label }}</span>
+                  <span class="text-sm font-bold text-white">{{ toggle.label }}</span>
                   <span
                     v-if="toggle.legacy"
-                    class="rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-amber-400"
+                    class="rounded-full bg-amber-400/[0.18] px-2 py-0.5 text-[10px] font-bold uppercase text-amber-200"
                   >heredado</span>
                   <span
                     v-else-if="toggle.recommended"
-                    class="rounded bg-brand-500/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-brand-400"
+                    class="rounded-full bg-brand-400/[0.18] px-2 py-0.5 text-[10px] font-bold uppercase text-brand-200"
                   >recomendado</span>
                 </span>
                 <span class="mt-1 block text-xs leading-relaxed text-slate-400">{{ toggle.summary }}</span>
@@ -203,7 +203,7 @@
         <!-- ── Puntos de restauración ──────────────────────────────────────── -->
         <section class="sk-card p-5">
           <header class="flex flex-wrap items-center gap-2">
-            <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-sky-500/12 text-sm">💾</span>
+            <span class="flex h-8 w-8 items-center justify-center rounded-full bg-sky-400/[0.18] text-sm">💾</span>
             <h3 class="sk-title">Puntos de restauración</h3>
             <span class="ml-auto text-[11px] text-slate-500">{{ checkpoints.length }} / 8 guardados</span>
           </header>
@@ -232,10 +232,10 @@
             <li
               v-for="point in checkpoints"
               :key="point.id"
-              class="flex flex-wrap items-center gap-2 rounded-xl border border-white/[0.06] bg-white/[0.02] p-3"
+              class="flex flex-wrap items-center gap-2 rounded-card bg-white/[0.04] p-3"
             >
               <div class="min-w-0 flex-1">
-                <p class="truncate text-sm font-medium text-slate-200">{{ point.name }}</p>
+                <p class="truncate text-sm font-bold text-white">{{ point.name }}</p>
                 <p class="mt-0.5 font-mono text-[10px] text-slate-500">{{ formatCheckpoint(point) }}</p>
               </div>
               <button class="sk-btn sk-btn-ghost sk-btn-sm" :disabled="busy" @click="onRestoreCheckpoint(point)">Restaurar</button>
@@ -243,19 +243,19 @@
             </li>
           </ul>
 
-          <p v-if="checkpointMessage" class="mt-3 text-[11px] text-brand-300">{{ checkpointMessage }}</p>
+          <p v-if="checkpointMessage" class="mt-3 text-[11px] font-semibold text-brand-400">{{ checkpointMessage }}</p>
         </section>
 
         <!-- ── Reproducción en curso ───────────────────────────────────────── -->
         <section v-if="session.key" class="sk-card p-5">
           <h3 class="sk-title">Reproducción en curso</h3>
-          <p class="mt-2 truncate text-base text-slate-100">{{ session.track || '—' }}</p>
+          <p class="mt-2 truncate text-base font-bold text-white">{{ session.track || '—' }}</p>
           <p class="truncate text-sm text-slate-400">{{ session.artist || '—' }}</p>
 
           <div class="mt-3 flex flex-wrap gap-2">
             <span class="sk-chip">decisión: {{ session.decided ? 'cerrada' : 'pendiente' }}</span>
             <span class="sk-chip">registrada: {{ session.committed ? 'sí' : 'todavía no' }}</span>
-            <span v-if="session.muted" class="sk-chip border-amber-400/30 bg-amber-500/10 text-amber-300">
+            <span v-if="session.muted" class="sk-chip bg-amber-400/[0.18] text-amber-200">
               🔇 silenciada mientras decide
             </span>
             <span class="sk-chip">
@@ -267,12 +267,12 @@
         <!-- ── Registro compacto ───────────────────────────────────────────── -->
         <section class="sk-card p-4">
           <header class="flex flex-wrap items-center justify-between gap-2">
-            <h3 class="text-sm font-semibold text-slate-100">
+            <h3 class="text-sm font-bold text-white">
               Últimas decisiones <span class="text-slate-500">({{ log.length }})</span>
             </h3>
             <div class="flex items-center gap-2">
               <label class="flex items-center gap-1.5 text-[11px] text-slate-400">
-                <input type="checkbox" v-model="autoRefresh" class="accent-brand-500">
+                <input type="checkbox" v-model="autoRefresh" class="accent-brand-400">
                 Auto
               </label>
               <button class="sk-btn sk-btn-ghost sk-btn-sm" @click="refresh">Actualizar</button>
@@ -290,7 +290,7 @@
             <li
               v-for="(entry, i) in log"
               :key="i"
-              class="rounded-lg border border-white/[0.05] bg-slate-950/40 px-2.5 py-1.5"
+              class="rounded-md bg-black/30 px-2.5 py-1.5"
             >
               <button
                 type="button"
@@ -304,16 +304,16 @@
                 <span class="min-w-0 flex-1 truncate text-[11px] text-slate-300">
                   {{ entry.track || reasonLabel(entry.reason) }}
                 </span>
-                <span class="shrink-0 font-mono text-[10px] text-slate-600">{{ fmtTime(entry.at) }}</span>
+                <span class="shrink-0 font-mono text-[10px] text-slate-500">{{ fmtTime(entry.at) }}</span>
               </button>
 
               <Transition name="detail">
-                <div v-if="openEntry === i" class="mt-1.5 border-t border-white/[0.05] pt-1.5">
+                <div v-if="openEntry === i" class="mt-1.5 border-t border-white/[0.07] pt-1.5">
                   <p v-if="entry.track" class="truncate text-[11px] text-slate-400">
                     {{ entry.artist || '—' }}
                   </p>
                   <p class="text-[11px] text-slate-400">{{ reasonLabel(entry.reason) }}</p>
-                  <div class="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 font-mono text-[10px] text-slate-600">
+                  <div class="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 font-mono text-[10px] text-slate-500">
                     <span>fuente={{ entry.source }}</span>
                     <span v-if="entry.positionMs >= 0">pos={{ entry.positionMs }}ms</span>
                     <span v-if="entry.sessionAgeMs != null">edad={{ entry.sessionAgeMs }}ms</span>
@@ -326,8 +326,8 @@
         </section>
 
         <!-- ── Zona destructiva ────────────────────────────────────────────── -->
-        <section class="sk-card border-rose-900/40 bg-rose-950/10 p-5">
-          <h3 class="text-sm font-semibold text-rose-300">Zona de riesgo</h3>
+        <section class="sk-card border-l-4 border-rose-500 p-5">
+          <h3 class="text-sm font-semibold text-rose-200">Zona de riesgo</h3>
           <p class="mt-1 text-[11px] text-slate-500">
             Borra el historial que el motor usa para decidir si una canción es duplicada.
             No afecta a tus estadísticas, pero durante un tiempo no se saltará nada.
@@ -462,12 +462,12 @@ function formatCheckpoint (point) {
 }
 
 function actionClass (action) {
-  if (action === 'saltada') return 'bg-rose-500/15 text-rose-300'
-  if (action === 'salto_abortado') return 'bg-amber-500/15 text-amber-300'
-  if (action === 'silenciada') return 'bg-violet-500/15 text-violet-300'
-  if (action === 'pista_reiniciada') return 'bg-sky-500/15 text-sky-300'
-  if (action === 'sonido_restaurado') return 'bg-brand-500/15 text-brand-300'
-  return 'bg-white/[0.06] text-slate-300'
+  if (action === 'saltada') return 'bg-rose-500/[0.20] text-rose-200'
+  if (action === 'salto_abortado') return 'bg-amber-400/[0.20] text-amber-200'
+  if (action === 'silenciada') return 'bg-violet-400/[0.20] text-violet-200'
+  if (action === 'pista_reiniciada') return 'bg-sky-400/[0.20] text-sky-200'
+  if (action === 'sonido_restaurado') return 'bg-brand-400/[0.20] text-brand-200'
+  return 'bg-white/[0.10] text-slate-300'
 }
 
 function reasonLabel (reason) {

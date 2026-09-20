@@ -2,14 +2,14 @@
   <Transition name="modal">
     <div
       v-if="update.shouldPrompt.value"
-      class="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
+      class="fixed inset-0 z-[60] flex items-center justify-center overflow-y-auto bg-black/80 p-4 backdrop-blur-sm"
     >
-      <div class="sk-card sk-card-lit w-full max-w-md border-brand-400/30 p-6">
+      <div class="sk-card sk-card-lit my-auto w-full max-w-md p-6">
         <div class="mb-4 flex items-center gap-3">
-          <span class="flex h-11 w-11 items-center justify-center rounded-2xl border border-brand-400/30 bg-brand-500/12 text-xl">⬆️</span>
-          <div>
-            <h2 class="text-base font-semibold text-brand-100">Actualización disponible</h2>
-            <p class="text-[11px] text-brand-200/60">Skippify {{ update.latest.value?.version }}</p>
+          <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-brand-400 text-xl shadow-glow">⬆️</span>
+          <div class="min-w-0">
+            <h2 class="truncate text-lg font-extrabold tracking-tight text-white">Actualización disponible</h2>
+            <p class="truncate text-[11px] font-bold text-brand-400">Skippify {{ update.latest.value?.version }}</p>
           </div>
         </div>
 
@@ -24,21 +24,21 @@
         </p>
         <p v-else class="mb-5 text-sm leading-relaxed text-slate-300">
           Al instalar, Android avisará de que la aplicación procede de una fuente
-          desconocida. Pulsa <span class="font-semibold text-slate-100">«Instalar de todos modos»</span>:
+          desconocida. Pulsa <span class="font-bold text-white">«Instalar de todos modos»</span>:
           es segura, va firmada con la misma clave que la versión que ya tienes.
         </p>
 
         <div class="flex flex-wrap gap-2">
           <button
             v-if="needsInstallPermission"
-            class="sk-btn flex-1 border-amber-400/40 bg-amber-500/20 text-amber-100 hover:bg-amber-500/30"
+            class="sk-btn min-w-0 flex-1 bg-amber-400 text-black hover:bg-amber-300"
             @click="update.openInstallSettings()"
           >
             Conceder permiso
           </button>
           <button
             v-else
-            class="sk-btn flex-1 border-brand-400/40 bg-brand-500/20 text-brand-100 hover:bg-brand-500/30"
+            class="sk-btn sk-btn-primary min-w-0 flex-1"
             :disabled="update.status.value === 'downloading'"
             @click="run"
           >
@@ -46,12 +46,18 @@
           </button>
 
           <button
-            class="sk-btn sk-btn-ghost sk-btn-sm"
+            class="sk-btn sk-btn-ghost sk-btn-sm shrink-0"
             :disabled="update.status.value === 'downloading'"
             @click="update.dismiss()"
           >
             Ahora no
           </button>
+        </div>
+
+        <div v-if="update.status.value === 'downloading'" class="mt-4">
+          <div class="h-1.5 w-full overflow-hidden rounded-full bg-white/[0.14]">
+            <div class="h-full rounded-full bg-brand-400 transition-[width] duration-300" :style="{ width: update.progress.value + '%' }" />
+          </div>
         </div>
 
         <!--
@@ -60,7 +66,7 @@
         -->
         <p
           v-if="update.status.value === 'error'"
-          class="mt-3 text-xs text-rose-300"
+          class="mt-3 text-xs font-semibold text-rose-200"
         >{{ update.error.value }}</p>
       </div>
     </div>

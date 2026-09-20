@@ -34,15 +34,18 @@ const {
 } = useAnalytics()
 
 /**
- * La pista aclara contra qué se compara la pastilla de porcentaje. Sin semana
- * anterior no hay comparación posible y se dice, en vez de fingir un +100 %.
+ * La pista da la variación respecto a la semana anterior y, entre paréntesis,
+ * el total con el que se compara. Sin semana anterior no hay porcentaje posible
+ * y se dice, en vez de fingir un +100 %.
  */
-function pista (previo, adjetivo) {
-  return previo
-    ? `${previo} ${adjetivo} la semana anterior`
-    : 'Aún no hay semana anterior con la que comparar'
+function pista (variacion, previo) {
+  if (!previo || variacion === null || variacion === undefined) {
+    return 'Aún no hay semana anterior con la que comparar'
+  }
+  const signo = variacion >= 0 ? '+' : ''
+  return `${signo}${variacion} % respecto a la semana anterior (${previo})`
 }
 
-const hintCanciones = computed(() => pista(kpiTracksPrevWeek.value, 'distintas'))
-const hintArtistas = computed(() => pista(kpiArtistsPrevWeek.value, 'distintos'))
+const hintCanciones = computed(() => pista(kpiTracksChangePct.value, kpiTracksPrevWeek.value))
+const hintArtistas = computed(() => pista(kpiArtistsChangePct.value, kpiArtistsPrevWeek.value))
 </script>
