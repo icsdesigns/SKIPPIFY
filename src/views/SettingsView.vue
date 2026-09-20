@@ -57,28 +57,34 @@
             </button>
           </div>
 
-          <div v-if="card.action && isCapacitor" class="mt-3">
+          <div v-if="!card.granted && isCapacitor" class="mt-3">
             <button
               class="sk-btn sk-btn-sm w-full bg-amber-400/[0.18] text-amber-100 hover:bg-amber-400/30 sm:w-auto"
               :disabled="checkingPermissions"
-              @click="card.action"
+              @click="activarPermiso(card.id)"
             >
-              {{ checkingPermissions ? 'Verificando…' : card.actionLabel }}
+              {{ checkingPermissions
+                ? 'Verificando…'
+                : (permisoIntentado(card.id) ? 'Reintentar' : card.actionLabel) }}
             </button>
           </div>
+
+          <!-- Instrucciones manuales: sólo tras pulsar el botón y seguir sin
+               concederse. Android puede negarse a abrir el ajuste, o dejar de
+               preguntar tras dos negativas; hasta ahora, en esos casos el botón
+               parecía no hacer nada. -->
+          <p
+            v-if="ayudaManual(card.id, card.granted)"
+            class="mt-3 rounded-md bg-amber-400/[0.14] px-3 py-2.5 text-[11px] leading-relaxed text-amber-100"
+          >
+            ✋ {{ ayudaManual(card.id, card.granted) }}
+          </p>
 
           <div v-if="expandedPermissionId === card.id" class="sk-well mt-2.5 px-3 py-2.5">
             <p class="text-[11px] leading-relaxed text-slate-400">{{ card.description }}</p>
             <p class="mt-1 text-[11px] text-slate-500">{{ card.meta }}</p>
           </div>
         </article>
-
-        <p
-          v-if="batteryHint"
-          class="rounded-card bg-amber-400/[0.14] px-3.5 py-2.5 text-[11px] leading-relaxed text-amber-100"
-        >
-          {{ batteryHint }}
-        </p>
 
         <p
           v-if="notifError"
@@ -262,12 +268,13 @@ const {
   notifEnabled,
   notifError,
   isCapacitor,
-  promptPermission,
   recheckPermission,
-  getPlugin,
   postNotifGranted,
   batteryOptimizationIgnored,
-  refreshSystemPermissions
+  refreshSystemPermissions,
+  activarPermiso,
+  permisoIntentado,
+  ayudaManual
 } = useNotifListener()
 
 const eventStore = useEventStore()
@@ -346,8 +353,6 @@ const BACKUP_SCHEMA = 'skippify-backup-v1'
 const BACKUP_VERSION = 1
 const SUPPORTED_SCHEMAS = new Set([BACKUP_SCHEMA])
 
-/** Qué hacer a mano cuando el diálogo directo no estaba disponible. */
-const batteryHint = ref('')
 const checkingPermissions = ref(false)
 
 const orderedPermissionCards = computed(() => [
@@ -358,7 +363,6 @@ const orderedPermissionCards = computed(() => [
     description: 'Permite detectar automáticamente las canciones reproducidas en Spotify mediante NotificationListenerService.',
     meta: 'Requerido · Todas las versiones de Android',
     granted: notifEnabled.value,
-    action: !notifEnabled.value ? promptPermission : null,
     actionLabel: 'Activar permiso'
   },
   {
@@ -368,17 +372,15 @@ const orderedPermissionCards = computed(() => [
     description: 'Necesario para mostrar notificaciones y mantener operativo el servicio de detección en primer plano.',
     meta: 'Requerido en Android 13+ (API 33)',
     granted: postNotifGranted.value,
-    action: !postNotifGranted.value ? requestPostNotificationsPermission : null,
     actionLabel: 'Solicitar permiso'
   },
   {
-    id: 'battery-optimization',
+    id: 'battery',
     icon: '🔋',
     title: 'Optimización de batería',
     description: 'Excluir Skippify evita pausas agresivas del sistema y mejora la captura cuando la app está en segundo plano.',
     meta: 'Recomendado · Android 6+ · Crítico en capas OEM restrictivas',
     granted: batteryOptimizationIgnored.value,
-    action: !batteryOptimizationIgnored.value ? requestBatteryOptimizationExclusion : null,
     actionLabel: 'Excluir de optimización'
   }
 ])
@@ -402,68 +404,20 @@ function togglePermissionInfo (cardId) {
   expandedPermissionId.value = expandedPermissionId.value === cardId ? null : cardId
 }
 
-async function checkAllPermissions () {
-  await refreshSystemPermissions()
-  if (batteryOptimizationIgnored.value) batteryHint.value = ''
-}
-
-async function requestPostNotificationsPermission () {
-  const NL = getPlugin()
-  if (!NL || checkingPermissions.value) return
-  checkingPermissions.value = true
-  try {
-    await NL.ensureAllPermissions()
-    await recheckPermission()
-    await checkAllPermissions()
-  } catch { /* ignored */ } finally {
-    checkingPermissions.value = false
-  }
-}
-
+/**
+ * Relee el estado de los tres permisos. La activación en sí vive en
+ * `useNotifListener`, compartida con la guía rápida: tenerla por duplicado ya
+ * había hecho que sólo el permiso de batería explicara qué hacer al fallar.
+ */
 async function refreshAllStatuses () {
   if (!isCapacitor.value || checkingPermissions.value) return
   checkingPermissions.value = true
   try {
     await recheckPermission()
-    await checkAllPermissions()
+    await refreshSystemPermissions()
   } finally {
     checkingPermissions.value = false
   }
-}
-
-/**
- * La exclusión de batería no se puede conceder sin el usuario: lo más directo
- * que permite Android es el diálogo del sistema, que la aplica de un toque. El
- * lado nativo va probando —diálogo, lista de optimización, ficha de la app— y
- * dice por cuál entró, para poder guiar cuando toca hacerlo a mano.
- */
-async function requestBatteryOptimizationExclusion () {
-  const NL = getPlugin()
-  if (!NL) return
-  batteryHint.value = ''
-  try {
-    const res = await NL.requestIgnoreBatteryOptimization()
-
-    if (res?.granted) {
-      batteryOptimizationIgnored.value = true
-      return
-    }
-
-    if (!res?.opened) {
-      batteryHint.value = 'Android no ha dejado abrir el ajuste. Búscalo en Ajustes → Batería → '
-        + 'Optimización de batería y marca Skippify como «Sin restricciones».'
-      return
-    }
-
-    if (res.via === 'battery-list') {
-      batteryHint.value = 'Se ha abierto la lista de optimización de batería: elige Skippify y marca «No optimizar».'
-    } else if (res.via === 'app-details') {
-      batteryHint.value = 'Se ha abierto la ficha de la app: entra en Batería y marca «Sin restricciones».'
-    }
-
-    // Android tarda un instante en persistir el cambio al volver.
-    setTimeout(() => { refreshAllStatuses() }, 800)
-  } catch { /* ignored */ }
 }
 
 function summarizeStats (events) {

@@ -149,7 +149,7 @@
               </p>
 
               <!-- Repertorio, variedad y hora punta. Se ocultan por separado: un
-                   resultado publicado antes de la v4.1 no los trae, y más vale
+                   resultado publicado antes de la v4.0.1 no los trae, y más vale
                    enseñar la ficha de siempre que una fila de guiones. -->
               <p v-if="hasNewStats(item)" class="mt-1 flex flex-wrap gap-x-2 gap-y-0.5 text-[11px] text-slate-500">
                 <span v-if="getDistinct(item)">🎚️ {{ getDistinct(item) }}</span>
@@ -463,7 +463,7 @@ function getTopTrack (item) {
 
 // ── Repertorio, variedad y hora punta ────────────────────────────────────────
 //
-// Las tres llegan desde la v4.1. Un grupo cuyo último resultado se publicó
+// Las tres llegan desde la v4.0.1. Un grupo cuyo último resultado se publicó
 // antes no las trae, así que cada una comprueba su propio dato y la fila entera
 // desaparece si no hay ninguna: la ficha se queda como estaba en vez de
 // enseñar huecos.

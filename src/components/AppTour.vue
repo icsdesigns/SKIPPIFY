@@ -89,15 +89,26 @@
                       v-if="!permiso.granted"
                       type="button"
                       class="sk-btn sk-btn-primary sk-btn-sm shrink-0 self-center"
-                      @click="activarPermiso(permiso)"
+                      @click="onActivarPermiso(permiso)"
                     >
-                      Activar
+                      {{ permisoIntentado(permiso.id) ? 'Reintentar' : 'Activar' }}
                     </button>
                     <span
                       v-else
                       class="sk-badge sk-badge-ok shrink-0 self-center uppercase"
                     >Concedido</span>
                   </div>
+
+                  <!-- Qué hacer a mano. Sólo aparece tras pulsar «Activar» y
+                       seguir sin concederse: antes de intentarlo no hay nada
+                       que explicar, y salir a los ajustes del sistema es
+                       justamente lo que se quiere evitar si el botón basta. -->
+                  <p
+                    v-if="ayudaManual(permiso.id, permiso.granted)"
+                    class="mt-2.5 rounded-md bg-amber-400/[0.14] px-3 py-2 text-[11px] leading-relaxed text-amber-100"
+                  >
+                    ✋ {{ ayudaManual(permiso.id, permiso.granted) }}
+                  </p>
                 </li>
               </ul>
 
@@ -106,43 +117,30 @@
                 En la app de Android este paso te obliga a activarlos antes de terminar.
               </p>
 
-              <p v-if="pistaBateria" class="mt-2.5 text-[11px] leading-relaxed text-amber-300">
-                {{ pistaBateria }}
+              <!-- Qué falta para poder terminar. El texto cambia según si aún
+                   hay permisos sin intentar o si ya se intentaron todos y
+                   simplemente Android no los concedió. -->
+              <p v-if="!puedeAvanzar" class="mt-2.5 text-[11px] leading-relaxed text-amber-300">
+                Pulsa «Activar» en los que falten para terminar la guía.
               </p>
-
-              <p v-if="faltanPermisos" class="mt-2.5 text-[11px] leading-relaxed text-amber-300">
-                Actívalos todos para terminar la guía.
+              <p v-else-if="faltanPermisos" class="mt-2.5 text-[11px] leading-relaxed text-slate-400">
+                Puedes terminar: los que sigan pendientes te los recordará el aviso de
+                Configuración, con las instrucciones para activarlos a mano.
               </p>
             </template>
           </div>
 
-          <div class="mt-4 flex items-center justify-between gap-2">
-            <!-- Salida de emergencia: sólo después de haber intentado conceder
-                 lo que falta. Algunas capas de Android no dejan aplicar la
-                 exclusión de batería desde la app, y encerrar al usuario en la
-                 guía sería peor que dejarle entrar con un permiso pendiente:
-                 el banner de Configuración se lo seguirá recordando. -->
-            <button
-              v-if="mostrarSalida"
-              class="px-2 py-1 text-xs text-slate-400 transition-colors hover:text-slate-200"
-              @click="handleSkip"
-            >
-              No puedo activarlo ahora
+          <div class="mt-4 flex items-center justify-end gap-2">
+            <button class="sk-btn sk-btn-ghost sk-btn-sm" :disabled="stepIndex === 0" @click="prevStep">
+              Atrás
             </button>
-            <span v-else />
-
-            <div class="flex items-center gap-2">
-              <button class="sk-btn sk-btn-ghost sk-btn-sm" :disabled="stepIndex === 0" @click="prevStep">
-                Atrás
-              </button>
-              <button
-                class="sk-btn sk-btn-primary sk-btn-sm disabled:opacity-40"
-                :disabled="!puedeAvanzar"
-                @click="nextStep"
-              >
-                {{ isLastStep ? 'Finalizar' : 'Siguiente' }}
-              </button>
-            </div>
+            <button
+              class="sk-btn sk-btn-primary sk-btn-sm"
+              :disabled="!puedeAvanzar"
+              @click="nextStep"
+            >
+              {{ isLastStep ? 'Finalizar' : 'Siguiente' }}
+            </button>
           </div>
         </div>
       </div>
@@ -178,10 +176,12 @@ const {
   postNotifGranted,
   batteryOptimizationIgnored,
   isCapacitor,
-  promptPermission,
   recheckPermission,
   refreshSystemPermissions,
-  getPlugin
+  activarPermiso,
+  permisoIntentado,
+  permisosResueltos,
+  ayudaManual
 } = useNotifListener()
 const { state: features, setListeningMode } = useFeatures()
 
@@ -265,11 +265,6 @@ const stepIndex = ref(0)
 const currentStep = computed(() => steps.value[stepIndex.value] || steps.value[0])
 const isLastStep = computed(() => stepIndex.value === steps.value.length - 1)
 
-/** Qué hacer a mano cuando Android no deja abrir el ajuste de batería. */
-const pistaBateria = ref('')
-/** Permisos en los que el usuario ya ha pulsado «Activar». */
-const intentados = ref(new Set())
-
 const permisos = computed(() => [
   {
     id: 'notif-access',
@@ -294,54 +289,36 @@ const permisos = computed(() => [
 const faltanPermisos = computed(() => isCapacitor.value && permisos.value.some(p => !p.granted))
 
 /**
- * Los dos pasos obligatorios bloquean el botón de avanzar: el de Funciones
- * hasta elegir modo, el de Configuración hasta tener los tres permisos.
+ * Los dos pasos obligatorios bloquean el botón de avanzar, pero con criterios
+ * distintos a propósito:
+ *
+ *  · Funciones exige HABER ELEGIDO modo. Depende sólo del usuario, así que se
+ *    puede exigir el resultado.
+ *  · Configuración exige HABER INTENTADO cada permiso que falte, no tenerlos
+ *    concedidos. Conceder no siempre está en manos del usuario: hay capas de
+ *    Android que no dejan abrir el ajuste de batería desde la app, y el permiso
+ *    de notificaciones deja de preguntarse tras dos negativas. Exigir el
+ *    resultado encerraba al usuario en la guía sin salida posible; en su lugar
+ *    se le enseñan las instrucciones manuales y se le deja terminar, que para
+ *    eso el banner de Configuración seguirá recordándole lo que queda.
  */
 const puedeAvanzar = computed(() => {
   if (currentStep.value?.requiereModo) return !!modoElegido.value
-  if (currentStep.value?.permisos) return !faltanPermisos.value
+  if (currentStep.value?.permisos) return permisosResueltos(permisos.value)
   return true
 })
 
-/** La salida de emergencia sólo aparece tras intentar lo que falta. */
-const mostrarSalida = computed(() => {
-  if (!currentStep.value?.permisos || !faltanPermisos.value) return false
-  return permisos.value.every(p => p.granted || intentados.value.has(p.id))
-})
-
-async function activarPermiso (permiso) {
-  intentados.value = new Set(intentados.value).add(permiso.id)
-  const NL = getPlugin()
-  if (!NL) return
-  try {
-    if (permiso.id === 'notif-access') {
-      await promptPermission()
-    } else if (permiso.id === 'post-notifications') {
-      await NL.ensureAllPermissions()
-    } else if (permiso.id === 'battery') {
-      pistaBateria.value = ''
-      const res = await NL.requestIgnoreBatteryOptimization()
-      if (res?.granted) {
-        batteryOptimizationIgnored.value = true
-      } else if (!res?.opened) {
-        pistaBateria.value = 'Android no ha dejado abrir el ajuste. Búscalo en Ajustes → Batería → '
-          + 'Optimización de batería y marca Skippify como «Sin restricciones».'
-      } else if (res.via === 'battery-list') {
-        pistaBateria.value = 'Se ha abierto la lista de optimización de batería: elige Skippify y marca «No optimizar».'
-      } else if (res.via === 'app-details') {
-        pistaBateria.value = 'Se ha abierto la ficha de la app: entra en Batería y marca «Sin restricciones».'
-      }
-    }
-  } catch { /* ignored */ }
-  // Android tarda un instante en persistir el cambio al volver de los ajustes.
-  setTimeout(() => { refrescarPermisos() }, 800)
+// La activación y las instrucciones manuales viven en `useNotifListener`: son
+// las mismas que usa Configuración, y tenerlas por duplicado ya había hecho que
+// sólo el permiso de batería explicara qué hacer cuando fallaba.
+function onActivarPermiso (permiso) {
+  return activarPermiso(permiso.id)
 }
 
 async function refrescarPermisos () {
   if (!isCapacitor.value) return
   await recheckPermission()
   await refreshSystemPermissions()
-  if (batteryOptimizationIgnored.value) pistaBateria.value = ''
 }
 
 /**
@@ -377,11 +354,6 @@ async function nextStep () {
 async function prevStep () {
   if (stepIndex.value === 0) return
   await irAPaso(stepIndex.value - 1)
-}
-
-function handleSkip () {
-  emit('complete')
-  emit('update:modelValue', false)
 }
 
 watch(() => props.modelValue, async (open) => {

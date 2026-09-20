@@ -6,7 +6,7 @@
  * Auto-prompts the user on first launch if permission is not granted.
  * Listens for `permissionChanged` events when user returns from settings.
  */
-import { computed, ref } from 'vue'
+import { computed, reactive, ref } from 'vue'
 import { useEventStore } from '@/stores/events'
 import { usePlayback } from '@/composables/usePlayback'
 import { useFeatures } from '@/composables/useFeatures'
@@ -47,6 +47,42 @@ const missingSystemSettings = computed(() => {
 // Controls the first-launch permissions modal.
 // True = modal visible. Persisted via localStorage so it only shows once,
 // but reappears if permissions are later revoked.
+/* ── Activación de permisos y ayuda manual ──────────────────────────────────
+ *
+ * Pulsar «Activar» no garantiza nada: Android puede negarse a abrir el ajuste,
+ * dejar de preguntar por un permiso tras dos negativas, o abrir una pantalla
+ * distinta según la capa del fabricante. Hasta ahora eso quedaba en nada —el
+ * botón parecía no hacer efecto— salvo en el de batería, que sí explicaba qué
+ * hacer a mano, con el texto duplicado en la guía y en Configuración.
+ *
+ * Aquí vive una sola vez: qué permisos se han intentado, cómo se piden y qué
+ * decirle al usuario cuando sigue sin concederse.
+ */
+
+/** Permisos en los que el usuario ya ha pulsado «Activar», en esta sesión. */
+const permisosIntentados = ref(new Set())
+
+/**
+ * Pista concreta devuelta por el lado nativo (por qué pantalla entró, o que no
+ * pudo abrir ninguna). Afina el texto por defecto cuando se sabe algo más.
+ */
+const pistasPermiso = reactive({})
+
+/**
+ * Qué hacer a mano con cada permiso. Las rutas varían entre fabricantes, así
+ * que se nombra el camino de Android puro y se añade dónde suele estar el
+ * mismo ajuste en las capas que lo mueven.
+ */
+const INSTRUCCIONES_MANUALES = {
+  'notif-access': 'Ajustes → Aplicaciones → Acceso especial de aplicaciones → '
+    + 'Acceso a notificaciones → activa Skippify. En algunas capas está en '
+    + 'Ajustes → Notificaciones → Acceso a notificaciones.',
+  'post-notifications': 'Android deja de preguntar tras dos negativas. Actívalo en '
+    + 'Ajustes → Aplicaciones → Skippify → Notificaciones → «Permitir notificaciones».',
+  battery: 'Ajustes → Batería → Optimización de batería → busca Skippify y marca '
+    + '«No optimizar» o «Sin restricciones».'
+}
+
 const SEEN_KEY = 'skippify-notif-seen'
 const showPermissionsModal = ref(false)
 
@@ -347,6 +383,93 @@ export function useNotifListener () {
     } catch { /* ignored */ }
   }
 
+  /**
+   * Pide un permiso y deja constancia del intento.
+   *
+   * Los tres se piden de forma distinta —diálogo propio, permiso en tiempo de
+   * ejecución y diálogo del sistema con dos pantallas de reserva— pero desde
+   * fuera se activan igual, que es lo que permite que la guía y Configuración
+   * compartan comportamiento en vez de llevar cada una el suyo.
+   *
+   * No devuelve si se concedió: para el acceso a notificaciones y la batería,
+   * la respuesta llega cuando el usuario vuelve de los ajustes del sistema, no
+   * aquí. Quien pregunte debe mirar el estado (`necesitaAyudaManual`).
+   */
+  async function activarPermiso (id) {
+    permisosIntentados.value = new Set(permisosIntentados.value).add(id)
+    delete pistasPermiso[id]
+
+    const NL = getPlugin()
+    if (!NL) return
+
+    try {
+      if (id === 'notif-access') {
+        await promptPermission()
+      } else if (id === 'post-notifications') {
+        await NL.ensureAllPermissions()
+      } else if (id === 'battery') {
+        const res = await NL.requestIgnoreBatteryOptimization()
+        if (res?.granted) {
+          batteryOptimizationIgnored.value = true
+        } else if (!res?.opened) {
+          pistasPermiso[id] = 'Android no ha dejado abrir el ajuste desde la app.'
+        } else if (res.via === 'battery-list') {
+          pistasPermiso[id] = 'Se ha abierto la lista de optimización de batería: elige Skippify y marca «No optimizar».'
+        } else if (res.via === 'app-details') {
+          pistasPermiso[id] = 'Se ha abierto la ficha de la app: entra en Batería y marca «Sin restricciones».'
+        }
+      }
+    } catch { /* el estado manda; un fallo aquí se resuelve al releer */ }
+
+    await recheckPermission()
+    await refreshSystemPermissions()
+    // Android tarda un instante en persistir el cambio al volver de los
+    // ajustes: sin esta segunda lectura, un permiso recién concedido seguiría
+    // saliendo como pendiente hasta el siguiente cambio de pestaña.
+    setTimeout(() => {
+      recheckPermission()
+      refreshSystemPermissions()
+    }, 800)
+  }
+
+  /** ¿Se pulsó «Activar» en este permiso durante esta sesión? */
+  function permisoIntentado (id) {
+    return permisosIntentados.value.has(id)
+  }
+
+  /**
+   * ¿Se puede dar por cerrado el paso de permisos de la guía?
+   *
+   * La condición es haber INTENTADO cada permiso que falte, no tenerlos
+   * concedidos. Conceder no siempre está en manos del usuario: hay capas de
+   * Android que no dejan abrir el ajuste de batería desde la app, y el permiso
+   * de notificaciones deja de preguntarse tras dos negativas. Exigir el
+   * resultado encerraba al usuario en la guía sin salida; lo que procede es
+   * enseñarle las instrucciones manuales y dejarle terminar, que el banner de
+   * Configuración seguirá recordándole lo que queda.
+   *
+   * En el navegador se da por resuelto: allí no se pinta ni un botón de permiso
+   * porque no hay nada que conceder.
+   *
+   * @param permisos [{ id, granted }]
+   */
+  function permisosResueltos (permisos, enCapacitor = isCapacitor.value) {
+    if (!enCapacitor) return true
+    return permisos.every(p => p.granted || permisoIntentado(p.id))
+  }
+
+  /**
+   * Instrucciones manuales para un permiso: sólo tienen sentido después de
+   * haberlo intentado, porque antes de pulsar no hay nada que explicar.
+   * Devuelve cadena vacía si no procede.
+   */
+  function ayudaManual (id, concedido) {
+    if (concedido || !permisoIntentado(id)) return ''
+    const pista = pistasPermiso[id]
+    const manual = INSTRUCCIONES_MANUALES[id] || ''
+    return pista ? `${pista} ${manual}` : manual
+  }
+
   function dismissPrompt () {
     promptDismissed.value = true
   }
@@ -472,6 +595,11 @@ export function useNotifListener () {
     missingSystemSettings,
     systemPermsChecked,
     refreshSystemPermissions,
+    activarPermiso,
+    permisoIntentado,
+    permisosIntentados,
+    permisosResueltos,
+    ayudaManual,
     dismissPrompt,
     dismissPermissionsModal,
     setPermissionsPromptSuppressed,

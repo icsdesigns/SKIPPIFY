@@ -17,6 +17,7 @@ import { createRouter, createMemoryHistory } from 'vue-router'
 import { routes } from '../src/router/routes.js'
 import AppTour from '../src/components/AppTour.vue'
 import { useFeatures, sanitizeListeningMode } from '../src/composables/useFeatures.js'
+import { useNotifListener } from '../src/composables/useNotifListener.js'
 
 const failures = []
 const FEATURES_KEY = 'skippify-features'
@@ -28,6 +29,11 @@ function check (label, condition, extra = '') {
     failures.push(label)
     console.error(`  ✗ ${label} ${extra}`)
   }
+}
+
+function contiene (label, real, fragmento) {
+  check(`${label}`, typeof real === 'string' && real.includes(fragmento),
+    `(recibido: ${JSON.stringify(real).slice(0, 80)})`)
 }
 
 function installBrowserGlobals () {
@@ -52,6 +58,23 @@ function installBrowserGlobals () {
     removeEventListener () {},
     matchMedia: () => ({ matches: false, addEventListener () {}, removeEventListener () {} })
   }
+}
+
+/**
+ * Renderiza el panel de la guía. AppTour cambia de pestaña en cada paso, así
+ * que necesita un router; sin `isReady()` el render espera a la primera
+ * navegación y no termina nunca.
+ */
+async function renderizarGuia () {
+  const app = createSSRApp({
+    components: { AppTour },
+    template: '<AppTour :model-value="true" />'
+  })
+  const router = createRouter({ history: createMemoryHistory(), routes })
+  app.use(router)
+  await router.push('/')
+  await router.isReady()
+  return renderToString(app)
 }
 
 async function main () {
@@ -92,17 +115,7 @@ async function main () {
 
   console.log('\nEl panel de la guía se renderiza')
 
-  const app = createSSRApp({
-    components: { AppTour },
-    template: '<AppTour :model-value="true" />'
-  })
-  // AppTour cambia de pestaña en cada paso, así que necesita un router. Sin
-  // `isReady()` el render se queda esperando a la primera navegación.
-  const router = createRouter({ history: createMemoryHistory(), routes })
-  app.use(router)
-  await router.push('/')
-  await router.isReady()
-  const html = await renderToString(app)
+  const html = await renderizarGuia()
 
   check('el panel se pinta', html.includes('Guía rápida de Skippify'))
   check('empieza por la pestaña Inicio', html.includes('>Inicio</h3>'))
@@ -113,6 +126,61 @@ async function main () {
   // Los permisos sólo se nombran en el último paso: pedirlos antes saca al
   // usuario a los ajustes del sistema y la guía se queda a medias.
   check('el primer paso no habla de permisos', !html.toLowerCase().includes('permiso'))
+
+  // ── Permisos: intento, ayuda manual y regla para poder terminar ───────────
+  //
+  // Las dos reglas de la guía son distintas a propósito. Funciones exige haber
+  // ELEGIDO modo, que depende sólo del usuario. Configuración exige haber
+  // INTENTADO cada permiso que falte, no tenerlo concedido: hay capas de Android
+  // que no dejan abrir el ajuste de batería desde la app, y el permiso de
+  // notificaciones deja de preguntarse tras dos negativas, así que exigir el
+  // resultado encerraba al usuario en la guía.
+
+  console.log('\nAyuda manual de los permisos')
+
+  const { activarPermiso, permisoIntentado, permisosResueltos, ayudaManual } = useNotifListener()
+
+  check('sin intentarlo no se explica nada', ayudaManual('battery', false) === '')
+  check('ni consta como intentado', permisoIntentado('battery') === false)
+
+  await activarPermiso('battery')
+  check('pulsar «Activar» deja constancia', permisoIntentado('battery') === true)
+  const ayuda = ayudaManual('battery', false)
+  check('y si sigue sin concederse, se explica cómo hacerlo a mano', ayuda.length > 0)
+  check('nombrando dónde está el ajuste', ayuda.includes('Optimización de batería'))
+
+  check('un permiso concedido no necesita instrucciones', ayudaManual('battery', true) === '')
+
+  await activarPermiso('notif-access')
+  contiene('el acceso a notificaciones tiene su propia ruta',
+    ayudaManual('notif-access', false), 'Acceso a notificaciones')
+
+  await activarPermiso('post-notifications')
+  contiene('y el de mostrar notificaciones avisa de que Android deja de preguntar',
+    ayudaManual('post-notifications', false), 'deja de preguntar')
+
+  console.log('\nCuándo se deja terminar la guía')
+
+  // `battery`, `notif-access` y `post-notifications` ya constan como intentados
+  // por las comprobaciones de arriba; `sin-tocar` no.
+  const ninguno = [{ id: 'sin-tocar', granted: false }]
+  const intentado = [{ id: 'battery', granted: false }]
+  const concedido = [{ id: 'sin-tocar', granted: true }]
+
+  check('en el navegador se puede terminar siempre',
+    permisosResueltos(ninguno, false) === true)
+  check('en la app, un permiso sin conceder ni intentar bloquea',
+    permisosResueltos(ninguno, true) === false)
+  check('haberlo intentado basta, aunque Android no lo concediera',
+    permisosResueltos(intentado, true) === true)
+  check('y un permiso concedido no hace falta intentarlo',
+    permisosResueltos(concedido, true) === true)
+  check('basta con que UNO quede sin tocar para seguir bloqueando',
+    permisosResueltos([...intentado, ...ninguno], true) === false)
+
+  const htmlFinal = await renderizarGuia()
+  check('sigue sin haber salida de emergencia',
+    !htmlFinal.includes('No puedo activarlo ahora'))
 
   console.log(`\nGuía rápida: ${failures.length ? `${failures.length} fallo(s)` : 'todo correcto'}.`)
   // Salida explícita: montar la app deja temporizadores vivos (el reloj de
