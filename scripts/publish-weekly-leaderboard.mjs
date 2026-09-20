@@ -1,5 +1,6 @@
 import { initializeApp, cert, getApps } from 'firebase-admin/app'
 import { getFirestore, FieldValue } from 'firebase-admin/firestore'
+import { pathToFileURL } from 'node:url'
 
 function getServiceAccountFromEnv () {
   const raw = process.env.FIREBASE_SERVICE_ACCOUNT_JSON || ''
@@ -50,6 +51,31 @@ function getRollingWindow () {
   }
 }
 
+/**
+ * Hora del día en la que se oyó algo, en la zona horaria del usuario.
+ *
+ * `playedAt` viaja en UTC, así que leerlo con `getHours()` daría una hora
+ * corrida: en verano, lo que aquí son las 00:30 se guarda como las 22:30 del día
+ * anterior, y la «hora punta» de media España saldría desplazada dos horas. El
+ * formateador se crea UNA vez porque construir un Intl.DateTimeFormat por cada
+ * evento es lo bastante caro como para notarse con miles de escuchas.
+ *
+ * `hourCycle: 'h23'` y no `hour12: false`: con este último, algunas versiones de
+ * ICU devuelven «24» para la medianoche en vez de «00».
+ */
+const FORMATO_HORA_MADRID = new Intl.DateTimeFormat('en-GB', {
+  timeZone: 'Europe/Madrid',
+  hour: '2-digit',
+  hourCycle: 'h23'
+})
+
+function horaLocalDeEscucha (playedAt) {
+  const d = new Date(playedAt || 0)
+  if (!Number.isFinite(d.getTime())) return null
+  const hora = Number(FORMATO_HORA_MADRID.format(d))
+  return Number.isInteger(hora) && hora >= 0 && hora <= 23 ? hora : null
+}
+
 function scoreMember (events) {
   let validMinutes = 0
   let completedTracks = 0
@@ -57,6 +83,8 @@ function scoreMember (events) {
   const days = new Set()
   const artistPlays = new Map()
   const trackPlays = new Map()
+  /** Escuchas por hora del día (0-23), para la hora punta. */
+  const horas = new Array(24).fill(0)
 
   const addPlay = (map, rawKey) => {
     const key = (rawKey || '').toString().trim()
@@ -90,6 +118,8 @@ function scoreMember (events) {
       totalTracks += 1
       addPlay(artistPlays, e.artist)
       addPlay(trackPlays, e.track)
+      const hora = horaLocalDeEscucha(e.playedAt)
+      if (hora !== null) horas[hora] += 1
     }
 
     if (ratio >= 0.8 && msPlayed > 0) {
@@ -105,6 +135,33 @@ function scoreMember (events) {
   const topArtist = getTop(artistPlays)
   const topTrack = getTop(trackPlays)
 
+  // Repertorio distinto. Se cuenta sobre las mismas escuchas que `totalTracks`
+  // —las que superaron el umbral de registro—, para que el índice de variedad
+  // divida dos cifras comparables.
+  const distinctArtists = artistPlays.size
+  const distinctTracks = trackPlays.size
+
+  /**
+   * Índice de variedad: canciones distintas entre escuchas totales.
+   *
+   * 1 significa que no se repitió ni una; 0,2 que cada tema sonó cinco veces de
+   * media. Va como razón y no como porcentaje para que la app decida cómo
+   * presentarlo.
+   */
+  const varietyIndex = totalTracks > 0 ? distinctTracks / totalTracks : 0
+
+  // Hora punta: la de más escuchas. En caso de empate gana la más temprana, que
+  // es lo que da el recorrido ascendente, para que el resultado sea estable
+  // entre semanas en vez de depender del orden de los eventos.
+  let peakHour = null
+  let peakHourPlays = 0
+  for (let h = 0; h < 24; h += 1) {
+    if (horas[h] > peakHourPlays) {
+      peakHour = h
+      peakHourPlays = horas[h]
+    }
+  }
+
   return {
     totalMinutes: Number(validMinutes.toFixed(2)),
     completedTracks,
@@ -113,6 +170,11 @@ function scoreMember (events) {
     topArtistPlays: topArtist.plays,
     topTrack: topTrack.name,
     topTrackPlays: topTrack.plays,
+    distinctArtists,
+    distinctTracks,
+    varietyIndex: Number(varietyIndex.toFixed(3)),
+    peakHour,
+    peakHourPlays,
     activeDays,
     score: Number(score.toFixed(2))
   }
@@ -200,6 +262,11 @@ async function run () {
         topArtistPlays: memberResult.topArtistPlays,
         topTrack: memberResult.topTrack,
         topTrackPlays: memberResult.topTrackPlays,
+        distinctArtists: memberResult.distinctArtists,
+        distinctTracks: memberResult.distinctTracks,
+        varietyIndex: memberResult.varietyIndex,
+        peakHour: memberResult.peakHour,
+        peakHourPlays: memberResult.peakHourPlays,
         publishedAt: FieldValue.serverTimestamp()
       }, { merge: true })
 
@@ -216,6 +283,11 @@ async function run () {
           topArtistPlays: memberResult.topArtistPlays,
           topTrack: memberResult.topTrack,
           topTrackPlays: memberResult.topTrackPlays,
+          distinctArtists: memberResult.distinctArtists,
+          distinctTracks: memberResult.distinctTracks,
+          varietyIndex: memberResult.varietyIndex,
+          peakHour: memberResult.peakHour,
+          peakHourPlays: memberResult.peakHourPlays,
           publishedAt: FieldValue.serverTimestamp()
         }
       }, { merge: true })
@@ -266,7 +338,21 @@ async function run () {
   console.log('[weekly] Done')
 }
 
-run().catch((err) => {
-  console.error('[weekly] Failed:', err)
-  process.exit(1)
-})
+/**
+ * Sólo se publica cuando el fichero se ejecuta a propósito.
+ *
+ * Sin esta guarda, importar el módulo para probar `scoreMember` arrancaría la
+ * publicación entera: pediría el secreto del service account y, con él, se
+ * pondría a escribir en la base de datos de producción.
+ */
+const ejecucionDirecta = process.argv[1] &&
+  import.meta.url === pathToFileURL(process.argv[1]).href
+
+if (ejecucionDirecta) {
+  run().catch((err) => {
+    console.error('[weekly] Failed:', err)
+    process.exit(1)
+  })
+}
+
+export { scoreMember, horaLocalDeEscucha }

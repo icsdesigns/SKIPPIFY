@@ -147,6 +147,15 @@
               <p class="mt-0.5 text-[11px] text-slate-500">
                 🎤 {{ getTopArtist(item) }} · 🎵 {{ getTopTrack(item) }}
               </p>
+
+              <!-- Repertorio, variedad y hora punta. Se ocultan por separado: un
+                   resultado publicado antes de la v4.1 no los trae, y más vale
+                   enseñar la ficha de siempre que una fila de guiones. -->
+              <p v-if="hasNewStats(item)" class="mt-1 flex flex-wrap gap-x-2 gap-y-0.5 text-[11px] text-slate-500">
+                <span v-if="getDistinct(item)">🎚️ {{ getDistinct(item) }}</span>
+                <span v-if="getVariety(item)" :title="VARIETY_HINT">🔀 {{ getVariety(item) }}</span>
+                <span v-if="getPeakHour(item)">🕒 {{ getPeakHour(item) }}</span>
+              </p>
             </div>
             <span class="shrink-0 font-mono text-sm font-bold tabular-nums text-brand-400">{{ formatScore(item.score) }}</span>
           </li>
@@ -450,6 +459,58 @@ function getTopArtist (item) {
 
 function getTopTrack (item) {
   return (item?.topTrack || '').toString().trim() || 'sin datos'
+}
+
+// ── Repertorio, variedad y hora punta ────────────────────────────────────────
+//
+// Las tres llegan desde la v4.1. Un grupo cuyo último resultado se publicó
+// antes no las trae, así que cada una comprueba su propio dato y la fila entera
+// desaparece si no hay ninguna: la ficha se queda como estaba en vez de
+// enseñar huecos.
+
+const VARIETY_HINT = 'Canciones distintas sobre el total de escuchas: 100 % es no repetir ninguna.'
+
+function numeroValido (value) {
+  const n = Number(value)
+  return Number.isFinite(n) ? n : null
+}
+
+function hasNewStats (item) {
+  return !!(getDistinct(item) || getVariety(item) || getPeakHour(item))
+}
+
+/** «12 artistas · 34 temas», o cadena vacía si el resultado es anterior. */
+function getDistinct (item) {
+  const artistas = numeroValido(item?.distinctArtists)
+  const temas = numeroValido(item?.distinctTracks)
+  const partes = []
+  if (artistas !== null) partes.push(`${artistas} ${artistas === 1 ? 'artista' : 'artistas'}`)
+  if (temas !== null) partes.push(`${temas} ${temas === 1 ? 'tema' : 'temas'}`)
+  return partes.join(' · ')
+}
+
+/**
+ * El índice se publica como razón (0-1) y aquí se enseña en porcentaje, que es
+ * como se lee de un vistazo. Se redondea sin decimales a propósito: la
+ * precisión no aporta nada y alarga la línea.
+ */
+function getVariety (item) {
+  const ratio = numeroValido(item?.varietyIndex)
+  if (ratio === null) return ''
+  return `${Math.round(Math.max(0, Math.min(1, ratio)) * 100)} % variedad`
+}
+
+/**
+ * Franja horaria, no un instante: «21–22 h» dice mejor que «21:00» que se trata
+ * de la hora en la que más se escuchó. `peakHour` vale null cuando no hubo
+ * ninguna escucha, y 0 es la medianoche, así que no sirve comprobar el valor
+ * por verdadero/falso.
+ */
+function getPeakHour (item) {
+  const hora = numeroValido(item?.peakHour)
+  if (hora === null || hora < 0 || hora > 23) return ''
+  const siguiente = (hora + 1) % 24
+  return `${hora}–${siguiente} h`
 }
 
 async function handleCreateGroup () {
