@@ -2,6 +2,15 @@ import { initializeApp, cert, getApps } from 'firebase-admin/app'
 import { getFirestore, FieldValue } from 'firebase-admin/firestore'
 import { pathToFileURL } from 'node:url'
 
+// La puntuación y el reparto por grupo viven en firebase/functions/scoring.js:
+// es el único directorio que empaqueta «firebase deploy --only functions», así
+// que es el único sitio desde el que pueden leerlo tanto la función programada
+// como esta acción. Tener dos copias fue lo que dejó el ranking sin las cifras
+// añadidas en la v4.0.1 según cuál de las dos publicara.
+import scoring from '../firebase/functions/scoring.js'
+
+const { scoreMember, horaLocalDeEscucha, belongsToGroup } = scoring
+
 function getServiceAccountFromEnv () {
   const raw = process.env.FIREBASE_SERVICE_ACCOUNT_JSON || ''
   if (!raw.trim()) {
@@ -35,8 +44,18 @@ function madridNowParts (date = new Date()) {
   }
 }
 
+/**
+ * Publicar fuera de la ventana del domingo.
+ *
+ * Además de la variable de entorno que usa la acción de GitHub, se acepta
+ * `--ahora` en la línea de órdenes: exportar una variable de entorno se escribe
+ * de forma distinta en cmd, PowerShell y bash, y esto es justo lo que hay que
+ * ejecutar a mano cuando un grupo recién creado no tiene todavía ningún ranking
+ * que enseñar.
+ */
 function shouldRunPublishNow () {
   if ((process.env.FORCE_WEEKLY_PUBLISH || '').toLowerCase() === 'true') return true
+  if (process.argv.slice(2).some(a => a === '--ahora' || a === '--force')) return true
   const now = madridNowParts()
   return now.weekday === 'Sun' && now.hour === 15
 }
@@ -49,147 +68,6 @@ function getRollingWindow () {
     endIso: end.toISOString(),
     weekKey: start.toISOString().slice(0, 10)
   }
-}
-
-/**
- * Hora del día en la que se oyó algo, en la zona horaria del usuario.
- *
- * `playedAt` viaja en UTC, así que leerlo con `getHours()` daría una hora
- * corrida: en verano, lo que aquí son las 00:30 se guarda como las 22:30 del día
- * anterior, y la «hora punta» de media España saldría desplazada dos horas. El
- * formateador se crea UNA vez porque construir un Intl.DateTimeFormat por cada
- * evento es lo bastante caro como para notarse con miles de escuchas.
- *
- * `hourCycle: 'h23'` y no `hour12: false`: con este último, algunas versiones de
- * ICU devuelven «24» para la medianoche en vez de «00».
- */
-const FORMATO_HORA_MADRID = new Intl.DateTimeFormat('en-GB', {
-  timeZone: 'Europe/Madrid',
-  hour: '2-digit',
-  hourCycle: 'h23'
-})
-
-function horaLocalDeEscucha (playedAt) {
-  const d = new Date(playedAt || 0)
-  if (!Number.isFinite(d.getTime())) return null
-  const hora = Number(FORMATO_HORA_MADRID.format(d))
-  return Number.isInteger(hora) && hora >= 0 && hora <= 23 ? hora : null
-}
-
-function scoreMember (events) {
-  let validMinutes = 0
-  let completedTracks = 0
-  let totalTracks = 0
-  const days = new Set()
-  const artistPlays = new Map()
-  const trackPlays = new Map()
-  /** Escuchas por hora del día (0-23), para la hora punta. */
-  const horas = new Array(24).fill(0)
-
-  const addPlay = (map, rawKey) => {
-    const key = (rawKey || '').toString().trim()
-    if (!key) return
-    map.set(key, (map.get(key) || 0) + 1)
-  }
-
-  const getTop = (map) => {
-    let bestKey = ''
-    let bestCount = 0
-    for (const [key, count] of map.entries()) {
-      if (count > bestCount) {
-        bestKey = key
-        bestCount = count
-      }
-    }
-    return { name: bestKey, plays: bestCount }
-  }
-
-  for (const e of events) {
-    const duration = Number(e.durationMs || 0)
-    const msPlayed = Number(e.msPlayed || 0)
-    // Por debajo del 80 % la app guarda msPlayed = 0; `measuredMs` conserva el
-    // avance real, que es lo que sirve para saber si la canción llegó a contar.
-    const measuredMs = Math.max(msPlayed, Number(e.measuredMs || 0))
-    const ratio = duration > 0 ? msPlayed / duration : 0
-    const measuredRatio = duration > 0 ? measuredMs / duration : 0
-    const countedForRegister = e.countedForRegister === true || measuredRatio >= 0.25
-
-    if (countedForRegister) {
-      totalTracks += 1
-      addPlay(artistPlays, e.artist)
-      addPlay(trackPlays, e.track)
-      const hora = horaLocalDeEscucha(e.playedAt)
-      if (hora !== null) horas[hora] += 1
-    }
-
-    if (ratio >= 0.8 && msPlayed > 0) {
-      validMinutes += msPlayed / 60000
-      completedTracks += 1
-      const d = new Date(e.playedAt || 0)
-      if (Number.isFinite(d.getTime())) days.add(d.toISOString().slice(0, 10))
-    }
-  }
-
-  const activeDays = days.size
-  const score = validMinutes + (activeDays * 2) + (completedTracks * 0.5)
-  const topArtist = getTop(artistPlays)
-  const topTrack = getTop(trackPlays)
-
-  // Repertorio distinto. Se cuenta sobre las mismas escuchas que `totalTracks`
-  // —las que superaron el umbral de registro—, para que el índice de variedad
-  // divida dos cifras comparables.
-  const distinctArtists = artistPlays.size
-  const distinctTracks = trackPlays.size
-
-  /**
-   * Índice de variedad: canciones distintas entre escuchas totales.
-   *
-   * 1 significa que no se repitió ni una; 0,2 que cada tema sonó cinco veces de
-   * media. Va como razón y no como porcentaje para que la app decida cómo
-   * presentarlo.
-   */
-  const varietyIndex = totalTracks > 0 ? distinctTracks / totalTracks : 0
-
-  // Hora punta: la de más escuchas. En caso de empate gana la más temprana, que
-  // es lo que da el recorrido ascendente, para que el resultado sea estable
-  // entre semanas en vez de depender del orden de los eventos.
-  let peakHour = null
-  let peakHourPlays = 0
-  for (let h = 0; h < 24; h += 1) {
-    if (horas[h] > peakHourPlays) {
-      peakHour = h
-      peakHourPlays = horas[h]
-    }
-  }
-
-  return {
-    totalMinutes: Number(validMinutes.toFixed(2)),
-    completedTracks,
-    totalTracks,
-    topArtist: topArtist.name,
-    topArtistPlays: topArtist.plays,
-    topTrack: topTrack.name,
-    topTrackPlays: topTrack.plays,
-    distinctArtists,
-    distinctTracks,
-    varietyIndex: Number(varietyIndex.toFixed(3)),
-    peakHour,
-    peakHourPlays,
-    activeDays,
-    score: Number(score.toFixed(2))
-  }
-}
-
-/**
- * Un usuario puede estar en varios grupos, así que sus reproducciones llevan la
- * lista `groupIds`. `groupId` (una sola) se mantiene por los eventos subidos con
- * versiones anteriores de la app.
- */
-function belongsToGroup (event, groupId) {
-  if (Array.isArray(event?.groupIds) && event.groupIds.length) {
-    return event.groupIds.includes(groupId)
-  }
-  return (event?.groupId || '') === groupId
 }
 
 async function fetchMemberEventsForWindow (db, uid, startIso, endIso) {

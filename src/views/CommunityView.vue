@@ -137,15 +137,29 @@
               : 'bg-white/[0.05] hover:bg-white/[0.09]'"
           >
             <div class="min-w-0">
-              <p class="truncate text-sm font-semibold text-white">
+              <!-- Dos líneas en vez de recorte: un nombre de 24 caracteres
+                   —el máximo que admite el formulario— no cabe en una sola a
+                   ancho de móvil, y cortarlo dejaba a medio grupo sin saber
+                   quién era quién. -->
+              <p class="sk-clamp-2 text-sm font-semibold text-white">
                 {{ rankLabel(idx) }} {{ item.displayName || shortenUid(item.uid) }}
                 <span v-if="item.uid === state.uid" class="ml-1 text-[10px] uppercase tracking-wider text-brand-400">tú</span>
               </p>
               <p class="mt-0.5 text-[11px] text-slate-400">
                 {{ formatHours(item.totalMinutes) }} · {{ getTrackCount(item) }} canciones
               </p>
-              <p class="mt-0.5 text-[11px] text-slate-500">
-                🎤 {{ getTopArtist(item) }} · 🎵 {{ getTopTrack(item) }}
+              <!-- Artista y canción top, cada uno en su línea y recortado.
+                   Iban juntos en una sola línea sin recorte: un título como
+                   «Everything Is Embarrassing (Sky Ferreira Extended Remix
+                   Version)» se partía en tres renglones y, con el punto medio
+                   de separación en mitad del texto, no se sabía dónde acababa
+                   el artista y empezaba la canción. El `title` deja leer el
+                   nombre entero al pasar por encima. -->
+              <p v-if="getTopArtist(item)" class="mt-0.5 truncate text-[11px] text-slate-500" :title="getTopArtist(item)">
+                🎤 {{ getTopArtist(item) }}
+              </p>
+              <p v-if="getTopTrack(item)" class="mt-0.5 truncate text-[11px] text-slate-500" :title="getTopTrack(item)">
+                🎵 {{ getTopTrack(item) }}
               </p>
 
               <!-- Repertorio, variedad y hora punta. Se ocultan por separado: un
@@ -453,12 +467,17 @@ function getTrackCount (item) {
   return 0
 }
 
+/**
+ * Devuelven cadena vacía cuando no hay dato, y la línea entera desaparece. El
+ * relleno «sin datos» ocupaba dos renglones para decir que no había nada que
+ * decir, justo en la ficha de quien menos ha escuchado.
+ */
 function getTopArtist (item) {
-  return (item?.topArtist || '').toString().trim() || 'sin datos'
+  return (item?.topArtist || '').toString().trim()
 }
 
 function getTopTrack (item) {
-  return (item?.topTrack || '').toString().trim() || 'sin datos'
+  return (item?.topTrack || '').toString().trim()
 }
 
 // ── Repertorio, variedad y hora punta ────────────────────────────────────────

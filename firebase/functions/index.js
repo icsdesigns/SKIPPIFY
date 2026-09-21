@@ -1,6 +1,9 @@
 const { onSchedule } = require('firebase-functions/v2/scheduler')
 const { onCall, HttpsError } = require('firebase-functions/v2/https')
 const admin = require('firebase-admin')
+// Puntuación compartida con la acción de GitHub: una sola implementación, en
+// scoring.js, para que las dos publiquen exactamente las mismas cifras.
+const { scoreMember, belongsToGroup } = require('./scoring')
 
 admin.initializeApp()
 const db = admin.firestore()
@@ -11,86 +14,6 @@ function getWeekKeyFromDate (date) {
   d.setUTCDate(d.getUTCDate() - day)
   d.setUTCHours(0, 0, 0, 0)
   return d.toISOString().slice(0, 10)
-}
-
-/**
- * Un usuario puede pertenecer a varios grupos: sus reproducciones llevan la
- * lista `groupIds`. `groupId` se conserva por los eventos de versiones previas.
- */
-function belongsToGroup (event, groupId) {
-  if (Array.isArray(event?.groupIds) && event.groupIds.length) {
-    return event.groupIds.includes(groupId)
-  }
-  return (event?.groupId || '') === groupId
-}
-
-function topOf (map) {
-  let name = ''
-  let plays = 0
-  for (const [key, count] of map.entries()) {
-    if (count > plays) {
-      name = key
-      plays = count
-    }
-  }
-  return { name, plays }
-}
-
-function scoreMember (events) {
-  let validMinutes = 0
-  let completedTracks = 0
-  let totalTracks = 0
-  const days = new Set()
-  const artistPlays = new Map()
-  const trackPlays = new Map()
-
-  const addPlay = (map, rawKey) => {
-    const key = (rawKey || '').toString().trim()
-    if (!key) return
-    map.set(key, (map.get(key) || 0) + 1)
-  }
-
-  for (const e of events) {
-    const playedAt = new Date(e.playedAt || 0)
-    if (!Number.isFinite(playedAt.getTime())) continue
-
-    const duration = Number(e.durationMs || 0)
-    const msPlayed = Number(e.msPlayed || 0)
-    // Por debajo del 80 % la app guarda msPlayed = 0; `measuredMs` conserva el
-    // avance realmente medido de la reproducción.
-    const measuredMs = Math.max(msPlayed, Number(e.measuredMs || 0))
-    const ratio = duration > 0 ? msPlayed / duration : 0
-    const measuredRatio = duration > 0 ? measuredMs / duration : 0
-
-    if (e.countedForRegister === true || measuredRatio >= 0.25) {
-      totalTracks += 1
-      addPlay(artistPlays, e.artist)
-      addPlay(trackPlays, e.track)
-    }
-
-    if (ratio >= 0.8 && msPlayed > 0) {
-      validMinutes += msPlayed / 60000
-      completedTracks += 1
-      days.add(playedAt.toISOString().slice(0, 10))
-    }
-  }
-
-  const activeDays = days.size
-  const score = validMinutes + (activeDays * 2) + (completedTracks * 0.5)
-  const topArtist = topOf(artistPlays)
-  const topTrack = topOf(trackPlays)
-
-  return {
-    totalMinutes: Number(validMinutes.toFixed(2)),
-    completedTracks,
-    totalTracks,
-    topArtist: topArtist.name,
-    topArtistPlays: topArtist.plays,
-    topTrack: topTrack.name,
-    topTrackPlays: topTrack.plays,
-    activeDays,
-    score: Number(score.toFixed(2))
-  }
 }
 
 async function fetchMemberEventsForWindow (uid, startIso, endIso) {
@@ -105,6 +28,96 @@ async function fetchMemberEventsForWindow (uid, startIso, endIso) {
   return snap.docs.map(d => d.data())
 }
 
+/**
+ * Publica el ranking de un grupo para una ventana concreta.
+ *
+ * Es el cuerpo que comparten la publicación programada y la manual: antes sólo
+ * existía dentro del bucle de la programada, así que «publicar ahora» no tenía
+ * forma de hacer el mismo trabajo y se quedó en un endpoint que respondía
+ * `ok: true` sin escribir nada.
+ *
+ * @returns {Promise<number>} miembros puntuados; 0 si el grupo está vacío.
+ */
+async function publicarRankingDeGrupo (groupId, { weekKey, weekStartIso, weekEndIso }) {
+  const membersSnap = await db.collection('friend_groups').doc(groupId).collection('members').get()
+  const members = membersSnap.docs.map(d => ({ uid: d.id, ...d.data() }))
+  if (!members.length) return 0
+
+  const results = []
+  for (const member of members) {
+    const events = await fetchMemberEventsForWindow(member.uid, weekStartIso, weekEndIso)
+    const stats = scoreMember(events.filter(e => belongsToGroup(e, groupId)))
+
+    results.push({
+      uid: member.uid,
+      displayName: member.displayName || member.uid,
+      ...stats
+    })
+  }
+
+  results.sort((a, b) => b.score - a.score)
+
+  const payload = {
+    weekKey,
+    weekStart: weekStartIso,
+    weekEnd: weekEndIso,
+    publishedAt: admin.firestore.FieldValue.serverTimestamp(),
+    members: results,
+    algorithm: {
+      minutesWeight: 1,
+      activeDaysWeight: 2,
+      completedTracksWeight: 0.5,
+      minCompletionRatioForMinutes: 0.8
+    }
+  }
+
+  const resultsCollection = db
+    .collection('friend_groups')
+    .doc(groupId)
+    .collection('weekly_results')
+
+  // Se escriben las dos: el histórico por semana y el alias `current`, que
+  // es el que lee la app cuando no puede listar la colección.
+  const batch = db.batch()
+  batch.set(resultsCollection.doc(weekKey), payload, { merge: true })
+  batch.set(resultsCollection.doc('current'), payload, { merge: true })
+  await batch.commit()
+
+  return results.length
+}
+
+/** Semana natural cerrada anterior (lunes a lunes), en UTC. */
+function ventanaSemanaAnterior (now = new Date()) {
+  const currentWeekStart = new Date(now)
+  const weekDay = (currentWeekStart.getUTCDay() + 6) % 7
+  currentWeekStart.setUTCDate(currentWeekStart.getUTCDate() - weekDay)
+  currentWeekStart.setUTCHours(0, 0, 0, 0)
+
+  const prevWeekStart = new Date(currentWeekStart)
+  prevWeekStart.setUTCDate(prevWeekStart.getUTCDate() - 7)
+
+  return {
+    weekStartIso: prevWeekStart.toISOString(),
+    weekEndIso: currentWeekStart.toISOString(),
+    weekKey: getWeekKeyFromDate(prevWeekStart)
+  }
+}
+
+/**
+ * Últimos siete días hasta este instante. Es la ventana de la publicación
+ * manual, y la misma que usa `scripts/publish-weekly-leaderboard.mjs`: quien
+ * pide «publicar ahora» quiere ver lo que ha escuchado esta semana, no la
+ * anterior ya cerrada.
+ */
+function ventanaUltimos7Dias (now = new Date()) {
+  const start = new Date(now.getTime() - (7 * 24 * 60 * 60 * 1000))
+  return {
+    weekStartIso: start.toISOString(),
+    weekEndIso: now.toISOString(),
+    weekKey: start.toISOString().slice(0, 10)
+  }
+}
+
 exports.computeWeeklyLeaderboards = onSchedule(
   {
     schedule: '0 15 * * 0',
@@ -112,71 +125,23 @@ exports.computeWeeklyLeaderboards = onSchedule(
     region: 'europe-west1'
   },
   async () => {
-    const now = new Date()
-    const currentWeekStart = new Date(now)
-    const weekDay = (currentWeekStart.getUTCDay() + 6) % 7
-    currentWeekStart.setUTCDate(currentWeekStart.getUTCDate() - weekDay)
-    currentWeekStart.setUTCHours(0, 0, 0, 0)
-
-    const prevWeekStart = new Date(currentWeekStart)
-    prevWeekStart.setUTCDate(prevWeekStart.getUTCDate() - 7)
-
-    const weekStartIso = prevWeekStart.toISOString()
-    const weekEndIso = currentWeekStart.toISOString()
-    const weekKey = getWeekKeyFromDate(prevWeekStart)
-
+    const ventana = ventanaSemanaAnterior()
     const groupsSnap = await db.collection('friend_groups').get()
 
     for (const groupDoc of groupsSnap.docs) {
-      const groupId = groupDoc.id
-      const membersSnap = await db.collection('friend_groups').doc(groupId).collection('members').get()
-      const members = membersSnap.docs.map(d => ({ uid: d.id, ...d.data() }))
-
-      if (!members.length) continue
-
-      const results = []
-      for (const member of members) {
-        const events = await fetchMemberEventsForWindow(member.uid, weekStartIso, weekEndIso)
-        const stats = scoreMember(events.filter(e => belongsToGroup(e, groupId)))
-
-        results.push({
-          uid: member.uid,
-          displayName: member.displayName || member.uid,
-          ...stats
-        })
-      }
-
-      results.sort((a, b) => b.score - a.score)
-
-      const payload = {
-        weekKey,
-        weekStart: weekStartIso,
-        weekEnd: weekEndIso,
-        publishedAt: admin.firestore.FieldValue.serverTimestamp(),
-        members: results,
-        algorithm: {
-          minutesWeight: 1,
-          activeDaysWeight: 2,
-          completedTracksWeight: 0.5,
-          minCompletionRatioForMinutes: 0.8
-        }
-      }
-
-      const resultsCollection = db
-        .collection('friend_groups')
-        .doc(groupId)
-        .collection('weekly_results')
-
-      // Se escriben las dos: el histórico por semana y el alias `current`, que
-      // es el que lee la app cuando no puede listar la colección.
-      const batch = db.batch()
-      batch.set(resultsCollection.doc(weekKey), payload, { merge: true })
-      batch.set(resultsCollection.doc('current'), payload, { merge: true })
-      await batch.commit()
+      await publicarRankingDeGrupo(groupDoc.id, ventana)
     }
   }
 )
 
+/**
+ * Publicación a petición, para un solo grupo y sólo por quien pertenece a él.
+ *
+ * Existe porque el ranking es la única parte de Comunidad que el cliente no
+ * puede calcularse: las reglas dejan leer las escuchas de cada uno únicamente a
+ * su dueño, y `weekly_results` es de sólo lectura. Sin esto, un grupo recién
+ * creado no enseña ni una cifra hasta el domingo siguiente.
+ */
 exports.publishWeeklyResultNow = onCall({ region: 'europe-west1' }, async (request) => {
   if (!request.auth) {
     throw new HttpsError('unauthenticated', 'Authentication required.')
@@ -192,5 +157,9 @@ exports.publishWeeklyResultNow = onCall({ region: 'europe-west1' }, async (reque
     throw new HttpsError('permission-denied', 'You are not a member of this group.')
   }
 
-  return { ok: true, message: 'Use scheduler for production publication. Manual publish endpoint is enabled.' }
+  const ventana = ventanaUltimos7Dias()
+  const scored = await publicarRankingDeGrupo(groupId, ventana)
+
+  return { ok: true, weekKey: ventana.weekKey, members: scored }
 })
+

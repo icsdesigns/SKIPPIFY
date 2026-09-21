@@ -161,6 +161,34 @@ titulo('Las cifras anteriores no cambian')
   check('minutos válidos', r.totalMinutes, 7.2)
 }
 
+// ── Una sola implementación ──────────────────────────────────────────────────
+//
+// El ranking lo puede escribir la acción de GitHub (este script) o la función
+// programada de Firebase. Durante un tiempo cada una tenía su copia del
+// cálculo y sólo se actualizó la de aquí: según cuál publicara, el grupo se
+// quedaba sin repertorio, variedad ni hora punta, y la app —que oculta lo que
+// no viene— dejaba de enseñar las estadísticas de cada miembro. Ahora las dos
+// leen `firebase/functions/scoring.js`, y esto lo comprueba.
+
+titulo('Las dos publicaciones comparten el cálculo')
+{
+  const { readFileSync } = await import('node:fs')
+  const { fileURLToPath } = await import('node:url')
+  const raizDe = (rel) => fileURLToPath(new URL(rel, import.meta.url))
+
+  const compartido = await import('../firebase/functions/scoring.js')
+  check('este script usa el módulo compartido',
+    scoreMember, (compartido.default || compartido).scoreMember)
+  check('y la misma hora local',
+    horaLocalDeEscucha, (compartido.default || compartido).horaLocalDeEscucha)
+
+  const funcion = readFileSync(raizDe('../firebase/functions/index.js'), 'utf8')
+  check('la función programada también lo requiere',
+    /require\(['"]\.\/scoring['"]\)/.test(funcion), true)
+  check('y no vuelve a declarar scoreMember por su cuenta',
+    /\bfunction scoreMember\b/.test(funcion), false)
+}
+
 console.log()
 if (fallos > 0) {
   console.log(`Fallos: ${fallos} de ${total}`)

@@ -6,7 +6,7 @@
     <div class="pointer-events-none absolute inset-0" :class="tone.wash" />
 
     <div class="relative p-5 sm:p-6">
-      <div class="flex items-center gap-2">
+      <div class="flex items-center justify-center gap-2">
         <span class="relative flex h-2 w-2" role="img" :aria-label="tone.label">
           <span v-if="isPlaying" class="absolute inline-flex h-full w-full animate-ping rounded-full opacity-75" :class="tone.dot" />
           <span class="relative inline-flex h-2 w-2 rounded-full" :class="tone.dot" />
@@ -15,10 +15,14 @@
       </div>
 
       <!-- En móvil el disco y el texto van en columna: a 320 px de ancho, uno al
-           lado del otro deja el título en dos letras por línea. -->
-      <div class="mt-4 flex flex-col gap-4 sm:mt-5 sm:flex-row sm:items-center sm:gap-6">
+           lado del otro deja el título en dos letras por línea.
+           Todo el bloque va centrado —disco, título, artista y fichas— para que
+           el cartel tenga un único eje en vez de empezar cada cosa en el borde
+           izquierdo; el grupo entero se centra también en horizontal, así que a
+           partir de `sm` no queda un hueco a la derecha del texto corto. -->
+      <div class="mt-4 flex flex-col items-center gap-4 text-center sm:mt-5 sm:flex-row sm:justify-center sm:gap-6">
         <!-- Disco con anillo de progreso: dice estado y avance sin ocupar sitio -->
-        <div class="relative flex h-24 w-24 shrink-0 items-center justify-center self-start rounded-full bg-black/40 shadow-lift sm:h-28 sm:w-28 sm:self-auto">
+        <div class="relative flex h-24 w-24 shrink-0 items-center justify-center rounded-full bg-black/40 shadow-lift sm:h-28 sm:w-28">
           <svg class="absolute inset-0 h-full w-full -rotate-90" viewBox="0 0 80 80">
             <circle cx="40" cy="40" r="34" fill="none" stroke="rgba(255,255,255,0.10)" stroke-width="5" />
             <circle
@@ -55,7 +59,7 @@
           </p>
           <p class="mt-1.5 truncate text-sm font-semibold text-slate-400">{{ artistLabel }}</p>
 
-          <div class="mt-3 flex flex-wrap items-center gap-1.5">
+          <div class="mt-3 flex flex-wrap items-center justify-center gap-1.5">
             <span v-if="state.album" class="sk-chip min-w-0"><span class="truncate">💿 {{ state.album }}</span></span>
             <span v-if="durationLabel" class="sk-chip">⏱ {{ durationLabel }}</span>
             <span v-if="meta" class="sk-chip min-w-0"><span class="truncate">{{ meta }}</span></span>
