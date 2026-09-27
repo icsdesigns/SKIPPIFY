@@ -2,9 +2,11 @@ name: Weekly League Publish
 
 on:
   schedule:
-    # Cada hora domingo y lunes: GitHub retrasa y salta muchas ejecuciones. El
-    # script publica una sola vez por grupo el corte del domingo 15:00 (Madrid).
-    - cron: '0 * * * 0,1'
+    # Dos veces por hora domingo y lunes, lejos del minuto 0: GitHub retrasa y
+    # salta muchas ejecuciones, sobre todo las de en punto (el 27-09-2026 no
+    # corrió ninguna entre las 17:00 y las 22:00 UTC). El script publica una
+    # sola vez por grupo el corte del domingo 15:00 (Madrid).
+    - cron: '17,47 * * * 0,1'
   workflow_dispatch:
     inputs:
       force_publish:
