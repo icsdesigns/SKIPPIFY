@@ -601,6 +601,8 @@ async function leaveGroup (groupId) {
     }, { merge: true })
   } catch { /* el borrado ya surtió efecto: no se bloquea al usuario por esto */ }
 
+  void publicarSesionNativa()
+
   message.value = `Has salido de ${group.name || 'el grupo'}.`
   return true
 }
@@ -701,6 +703,29 @@ async function loadGroupMembers (groupId = state.value.activeGroupId, options = 
 
 // ── Sincronización de escuchas ───────────────────────────────────────────────
 
+/**
+ * Deja al servicio nativo lo que necesita para subir las escuchas con la app
+ * cerrada (LigaBackground.java): la sesión anónima y los grupos. Sin grupos se
+ * borra. Fuera de Android no hay plugin y no hace nada.
+ */
+async function publicarSesionNativa () {
+  const NL = typeof window !== 'undefined' ? window.Capacitor?.Plugins?.NotifListener : null
+  if (!NL?.setLeagueSync || !ctx.enabled) return
+  const diag = getFirebaseDiagnostics()
+  const user = ctx.auth?.currentUser
+  try {
+    await NL.setLeagueSync({
+      uid: state.value.uid,
+      refreshToken: user?.uid === state.value.uid ? (user?.refreshToken || '') : '',
+      apiKey: ctx.app?.options?.apiKey || '',
+      projectId: diag.projectId || '',
+      groupIds: state.value.groups.map(item => item.groupId),
+      activeGroupId: state.value.activeGroupId,
+      origin: window.location?.origin ? `${window.location.origin}/` : ''
+    })
+  } catch { /* versiones nativas sin este método: se queda como antes */ }
+}
+
 async function syncLocalEvents (options = {}) {
   // Evita solapes entre el auto-sync de 30 min y una pulsación manual.
   if (syncPromise) return syncPromise
@@ -736,6 +761,8 @@ async function _syncLocalEvents (options = {}) {
     if (!silent) error.value = 'Primero crea un grupo o únete a uno.'
     return 0
   }
+
+  void publicarSesionNativa()
 
   syncing.value = true
   const { state: eventState } = useEventStore()

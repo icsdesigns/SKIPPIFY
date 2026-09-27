@@ -674,6 +674,11 @@ public class SpotifyNotificationListener extends NotificationListenerService
 
     // ── Ciclo de vida del servicio ────────────────────────────────────────────
 
+    /** Suelta el listener sólo si sigue siendo ése (una actividad nueva ya pudo poner el suyo). */
+    public static void clearListener(TrackListener l) {
+        if (sListener == l) sListener = null;
+    }
+
     public static void setListener(TrackListener l) {
         sListener = l;
 
@@ -1014,6 +1019,9 @@ public class SpotifyNotificationListener extends NotificationListenerService
             obj.put("event", event);
             obj.put("played_at", toIso8601(snap.capturedAtEpochMs));
             obj.put("source", source == null ? "notification" : source);
+            // ¿Había una app viva recibiendo esto en directo? Lo que sí la tenía
+            // lo registra JS y lo sube él; LigaBackground sólo sube el resto.
+            obj.put("js", sListener != null);
 
             appendJsonLine(getApplicationContext(), obj);
         } catch (Throwable ignored) {

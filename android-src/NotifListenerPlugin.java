@@ -62,6 +62,17 @@ public class NotifListenerPlugin extends Plugin
         requestPostNotificationsIfNeeded();
     }
 
+    /**
+     * Sin actividad no hay JS que reciba nada. Soltar el listener hace que el log
+     * marque lo que llega a partir de aquí como captado con la app cerrada, que
+     * es lo que LigaBackground sube por su cuenta.
+     */
+    @Override
+    protected void handleOnDestroy() {
+        SpotifyNotificationListener.clearListener(this);
+        super.handleOnDestroy();
+    }
+
     // ── TrackListener callback (called from service thread) ───────────────────
     @Override
     public void onTrack(String track, String artist, String album, long durationMs, boolean isPlaying) {
@@ -448,6 +459,30 @@ public class NotifListenerPlugin extends Plugin
     public void clearSpotifySession(PluginCall call) {
         MacroBackground.borrarSesion(getContext());
         call.resolve();
+    }
+
+    /**
+     * Sesión anónima de Firebase y grupos de Comunidad, para que el servicio
+     * suba las escuchas aunque nadie abra la app. Sin grupos se borra.
+     */
+    @PluginMethod
+    public void setLeagueSync(PluginCall call) {
+        JSArray grupos = call.getArray("groupIds");
+        if (grupos == null || grupos.length() == 0) {
+            LigaBackground.borrar(getContext());
+        } else {
+            LigaBackground.guardar(
+                    getContext(),
+                    call.getString("uid"),
+                    call.getString("refreshToken"),
+                    call.getString("apiKey"),
+                    call.getString("projectId"),
+                    grupos,
+                    call.getString("activeGroupId"),
+                    call.getString("origin")
+            );
+        }
+        call.resolve(aJS(LigaBackground.estado(getContext())));
     }
 
     /** La app sincroniza aquí sus macros cada vez que cambian. */

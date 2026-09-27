@@ -182,6 +182,14 @@ public class SkippifyForegroundService extends Service {
         } catch (Throwable ignored) {
         }
 
+        // Y para las escuchas de Comunidad: sin esto sólo se subían al abrir la
+        // app, y quien no la abría en toda la semana salía a cero en su grupo.
+        // El freno de una subida por hora vive en EscuchasNube.
+        try {
+            LigaBackground.latido(getApplicationContext());
+        } catch (Throwable ignored) {
+        }
+
         // START_STICKY: if Android kills us, it will re-create and re-deliver
         // a null intent, which is fine – we'll call startForeground() again.
         return START_STICKY;

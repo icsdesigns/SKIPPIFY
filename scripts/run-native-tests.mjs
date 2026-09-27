@@ -23,7 +23,10 @@ const FUENTES = [
   join(raiz, 'scripts', 'native-tests', 'PruebasMacros.java'),
   // El temporizador de escucha aparta igual su decisión en una clase sin Android.
   join(raiz, 'android-src', 'SleepTimerDecision.java'),
-  join(raiz, 'scripts', 'native-tests', 'PruebasTemporizador.java')
+  join(raiz, 'scripts', 'native-tests', 'PruebasTemporizador.java'),
+  // Y la subida de escuchas de Comunidad: la parte que decide, sin Android.
+  join(raiz, 'android-src', 'EscuchasNube.java'),
+  join(raiz, 'scripts', 'native-tests', 'PruebasLiga.java')
 ]
 
 for (const f of FUENTES) {
@@ -55,6 +58,7 @@ try {
   execFileSync('javac', ['-nowarn', '-d', salida, ...FUENTES], { stdio: 'inherit' })
   execFileSync('java', ['-Dfile.encoding=UTF-8', '-cp', salida, 'com.skippify.app.PruebasMacros'], { stdio: 'inherit' })
   execFileSync('java', ['-Dfile.encoding=UTF-8', '-cp', salida, 'com.skippify.app.PruebasTemporizador'], { stdio: 'inherit' })
+  execFileSync('java', ['-Dfile.encoding=UTF-8', '-cp', salida, 'com.skippify.app.PruebasLiga'], { stdio: 'inherit' })
 } finally {
   rmSync(salida, { recursive: true, force: true })
 }
