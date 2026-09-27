@@ -4,8 +4,7 @@
  * La cuenta atrás y el cierre viven en el motor nativo (SleepTimer.java): con
  * la pantalla apagada la WebView no corre, así que aquí sólo se refleja el
  * estado y se mandan las órdenes. Al agotarse el tiempo el motor espera a que
- * acabe la canción, pausa, hace sonar el aviso si se pidió y, por último,
- * apaga el Bluetooth si el sistema lo permite.
+ * acabe la canción, pausa y hace sonar el aviso si se pidió.
  *
  * En el navegador no hay motor nativo: la cuenta atrás se simula en memoria
  * para poder probar la pantalla, y al terminar sólo suena el aviso.
@@ -63,11 +62,10 @@ function loadOptions () {
     const raw = JSON.parse(localStorage.getItem(OPTIONS_KEY) || '{}')
     return {
       sound: !!raw.sound,
-      bluetoothOff: !!raw.bluetoothOff,
       ultimaDuracion: Number(raw.ultimaDuracion) > 0 ? Number(raw.ultimaDuracion) : 30
     }
   } catch {
-    return { sound: false, bluetoothOff: false, ultimaDuracion: 30 }
+    return { sound: false, ultimaDuracion: 30 }
   }
 }
 
@@ -75,14 +73,13 @@ function saveOptions () {
   try {
     localStorage.setItem(OPTIONS_KEY, JSON.stringify({
       sound: state.sound,
-      bluetoothOff: state.bluetoothOff,
       ultimaDuracion: state.ultimaDuracion
     }))
   } catch { /* ignored */ }
 }
 
 const opciones = typeof localStorage === 'undefined'
-  ? { sound: false, bluetoothOff: false, ultimaDuracion: 30 }
+  ? { sound: false, ultimaDuracion: 30 }
   : loadOptions()
 
 const state = reactive({
@@ -90,22 +87,13 @@ const state = reactive({
   phase: 'idle',
   endAt: 0,
   sound: opciones.sound,
-  bluetoothOff: opciones.bluetoothOff,
   /** Última duración usada, en minutos: se propone la próxima vez. */
   ultimaDuracion: opciones.ultimaDuracion,
   lastResult: '',
   lastFinishedAt: 0,
   /** Reloj local para la cuenta atrás; se mueve cada segundo con la vista abierta. */
   now: Date.now(),
-  nativo: false,
-  bluetooth: {
-    supported: false,
-    enabled: false,
-    canDisable: false,
-    needsPermission: false,
-    connectedDevices: [],
-    androidVersion: ''
-  }
+  nativo: false
 })
 
 function plugin () {
@@ -118,7 +106,6 @@ function aplicar (s) {
   state.phase = s.phase || 'idle'
   state.endAt = Number(s.endAt) || 0
   if (typeof s.sound === 'boolean') state.sound = s.sound
-  if (typeof s.bluetoothOff === 'boolean') state.bluetoothOff = s.bluetoothOff
   state.lastResult = s.lastResult || ''
   state.lastFinishedAt = Number(s.lastFinishedAt) || 0
 }
@@ -143,19 +130,6 @@ async function refrescar () {
   const NL = plugin()
   if (!NL?.getSleepTimer) return
   try { aplicar(await NL.getSleepTimer()) } catch { /* ignored */ }
-  try {
-    const info = await NL.getBluetoothInfo()
-    state.bluetooth = {
-      ...state.bluetooth,
-      ...info,
-      connectedDevices: Array.isArray(info?.connectedDevices) ? info.connectedDevices : []
-    }
-    // Si el sistema ya no deja apagarlo, la opción no puede quedarse marcada.
-    if (!state.bluetooth.canDisable && state.bluetoothOff) {
-      state.bluetoothOff = false
-      saveOptions()
-    }
-  } catch { /* ignored */ }
 }
 
 async function iniciar (minutos) {
@@ -166,7 +140,7 @@ async function iniciar (minutos) {
 
   const NL = plugin()
   if (NL?.startSleepTimer) {
-    aplicar(await NL.startSleepTimer({ durationMs: ms, sound: state.sound, bluetoothOff: state.bluetoothOff }))
+    aplicar(await NL.startSleepTimer({ durationMs: ms, sound: state.sound }))
     return
   }
 
@@ -209,23 +183,15 @@ async function cancelar () {
   state.endAt = 0
 }
 
-async function setOpciones ({ sound = state.sound, bluetoothOff = state.bluetoothOff } = {}) {
+async function setOpciones ({ sound = state.sound } = {}) {
   state.sound = !!sound
-  state.bluetoothOff = !!bluetoothOff && (!state.nativo || state.bluetooth.canDisable)
   saveOptions()
   const NL = plugin()
   if (NL?.setSleepTimerOptions) {
     try {
-      aplicar(await NL.setSleepTimerOptions({ sound: state.sound, bluetoothOff: state.bluetoothOff }))
+      aplicar(await NL.setSleepTimerOptions({ sound: state.sound }))
     } catch { /* ignored */ }
   }
-}
-
-/** Android 12: pide «Dispositivos cercanos» y activa la opción si se concede. */
-async function pedirPermisoBluetooth () {
-  const NL = plugin()
-  if (!NL?.requestBluetoothPermission) return
-  try { await NL.requestBluetoothPermission() } catch { /* ignored */ }
 }
 
 async function probarSonido () {
@@ -274,7 +240,6 @@ export function useSleepTimer () {
     alargar,
     cancelar,
     setOpciones,
-    pedirPermisoBluetooth,
     probarSonido
   }
 }

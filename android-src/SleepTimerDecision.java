@@ -28,7 +28,7 @@ final class SleepTimerDecision {
     enum Action {
         /** Seguir esperando: volver a mirar dentro de {@link Step#delayMs}. */
         WAIT,
-        /** Pausar ya y terminar (sonido y Bluetooth después). */
+        /** Pausar ya y terminar (con el aviso después, si se pidió). */
         PAUSE,
         /** No suena nada: no hay que pausar, sólo terminar. */
         FINISH

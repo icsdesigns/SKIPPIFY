@@ -1,16 +1,11 @@
 package com.skippify.app;
 
-import android.Manifest;
 import android.app.AlarmManager;
 import android.app.PendingIntent;
-import android.bluetooth.BluetoothAdapter;
-import android.bluetooth.BluetoothManager;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
-import android.content.pm.PackageManager;
 import android.media.AudioAttributes;
-import android.media.AudioDeviceInfo;
 import android.media.AudioFormat;
 import android.media.AudioManager;
 import android.media.AudioTrack;
@@ -21,33 +16,20 @@ import android.os.PowerManager;
 import android.util.Log;
 
 import androidx.annotation.Nullable;
-import androidx.core.content.ContextCompat;
 
-import org.json.JSONArray;
 import org.json.JSONObject;
-
-import java.util.ArrayList;
-import java.util.List;
 
 /**
  * Temporizador de escucha.
  *
  * Al agotarse el tiempo no corta en seco: espera a que termine la canción que
  * suena y pausa justo antes de que empiece la siguiente. Después, si se pidió,
- * suena un aviso corto y, por último, se apaga el Bluetooth.
+ * suena un aviso corto.
  *
  * El estado vive en SharedPreferences para sobrevivir a que Android mate el
  * proceso: la cuenta atrás corre con un Handler (preciso mientras la música
  * mantiene la CPU despierta) y, de respaldo, con una alarma que vuelve a
  * levantar el proceso aunque el móvil esté en reposo.
- *
- * Bluetooth, según lo que permite Android:
- *  - Detectar si hay auriculares o altavoz conectado: sí, sin permisos, por las
- *    salidas de audio del AudioManager.
- *  - Apagar el Bluetooth: sólo hasta Android 12. Desde Android 13
- *    BluetoothAdapter.disable() siempre devuelve false para apps normales.
- *  - Desconectar un dispositivo concreto: no. BluetoothA2dp.disconnect() es API
- *    de sistema (BLUETOOTH_PRIVILEGED) y está fuera del alcance de una app.
  */
 final class SleepTimer {
 
@@ -59,7 +41,6 @@ final class SleepTimer {
     private static final String KEY_PHASE = "phase";
     private static final String KEY_END_AT = "endAt";
     private static final String KEY_SOUND = "sound";
-    private static final String KEY_BLUETOOTH_OFF = "bluetoothOff";
     private static final String KEY_WAITING_TRACK = "waitingTrack";
     private static final String KEY_LAST_RESULT = "lastResult";
     private static final String KEY_LAST_FINISHED_AT = "lastFinishedAt";
@@ -69,7 +50,7 @@ final class SleepTimer {
     static final String PHASE_COUNTING = "counting";
     /** Tiempo agotado: se espera a que termine la canción. */
     static final String PHASE_WAITING = "waiting";
-    /** Pausado; sonando el aviso o apagando el Bluetooth. */
+    /** Pausado; sonando el aviso. */
     static final String PHASE_FINISHING = "finishing";
 
     static final String ACTION_ALARM = "com.skippify.app.action.SLEEP_TIMER";
@@ -84,7 +65,7 @@ final class SleepTimer {
     private static final Runnable sTick = SleepTimer::tickNow;
     private static volatile Context sAppContext;
     @Nullable private static PowerManager.WakeLock sWakeLock;
-    /** Hay un hilo de cierre (aviso + Bluetooth) en curso. */
+    /** Hay un hilo de cierre (el aviso) en curso. */
     private static volatile boolean sFinishing = false;
     /** Latidos seguidos sin el listener de Spotify enganchado. */
     private static int sNoServiceTicks = 0;
@@ -97,14 +78,13 @@ final class SleepTimer {
 
     // ── API para el plugin ────────────────────────────────────────────────────
 
-    static synchronized void start(Context context, long durationMs, boolean sound, boolean bluetoothOff) {
+    static synchronized void start(Context context, long durationMs, boolean sound) {
         Context app = remember(context);
         long endAt = System.currentTimeMillis() + Math.max(60_000L, durationMs);
         prefs(app).edit()
                 .putString(KEY_PHASE, PHASE_COUNTING)
                 .putLong(KEY_END_AT, endAt)
                 .putBoolean(KEY_SOUND, sound)
-                .putBoolean(KEY_BLUETOOTH_OFF, bluetoothOff)
                 .remove(KEY_WAITING_TRACK)
                 .apply();
         scheduleAlarm(app, endAt);
@@ -126,11 +106,10 @@ final class SleepTimer {
     }
 
     /** Cambia las opciones sin tocar la cuenta atrás. */
-    static synchronized void setOptions(Context context, boolean sound, boolean bluetoothOff) {
+    static synchronized void setOptions(Context context, boolean sound) {
         Context app = remember(context);
         prefs(app).edit()
                 .putBoolean(KEY_SOUND, sound)
-                .putBoolean(KEY_BLUETOOTH_OFF, bluetoothOff)
                 .apply();
         notifyChanged();
     }
@@ -165,7 +144,6 @@ final class SleepTimer {
             out.put("phase", p.getString(KEY_PHASE, PHASE_IDLE));
             out.put("endAt", p.getLong(KEY_END_AT, 0L));
             out.put("sound", p.getBoolean(KEY_SOUND, false));
-            out.put("bluetoothOff", p.getBoolean(KEY_BLUETOOTH_OFF, false));
             out.put("waitingTrack", p.getString(KEY_WAITING_TRACK, ""));
             out.put("lastResult", p.getString(KEY_LAST_RESULT, ""));
             out.put("lastFinishedAt", p.getLong(KEY_LAST_FINISHED_AT, 0L));
@@ -257,32 +235,27 @@ final class SleepTimer {
     }
 
     /**
-     * Pausa hecha (o innecesaria): aviso y Bluetooth, en ese orden. Va en un
-     * hilo propio porque el aviso se espera entero antes de cortar el Bluetooth:
-     * si no, el sonido no llegaría a los auriculares.
+     * Pausa hecha (o innecesaria): suena el aviso, si se pidió. Va en un hilo
+     * propio porque el aviso se espera entero antes de dar el temporizador por
+     * terminado.
      */
     private static void finish(Context app, boolean paused) {
         boolean sound;
-        boolean bluetoothOff;
         synchronized (SleepTimer.class) {
             SharedPreferences p = prefs(app);
             sound = p.getBoolean(KEY_SOUND, false);
-            bluetoothOff = p.getBoolean(KEY_BLUETOOTH_OFF, false);
             p.edit().putString(KEY_PHASE, PHASE_FINISHING).apply();
         }
         notifyChanged();
 
         sFinishing = true;
         new Thread(() -> {
-            StringBuilder result = new StringBuilder(paused ? "paused" : "not_playing");
+            String result = paused ? "paused" : "not_playing";
             try {
                 if (sound) {
                     // Un respiro para que Spotify suelte el audio antes del aviso.
                     sleepQuietly(400L);
                     playChime(app);
-                }
-                if (bluetoothOff) {
-                    result.append(disableBluetooth(app) ? ",bluetooth_off" : ",bluetooth_failed");
                 }
             } catch (Throwable t) {
                 Log.w(TAG, "cierre del temporizador incompleto", t);
@@ -301,7 +274,7 @@ final class SleepTimer {
                             .putString(KEY_PHASE, PHASE_IDLE)
                             .remove(KEY_END_AT)
                             .remove(KEY_WAITING_TRACK)
-                            .putString(KEY_LAST_RESULT, result.toString())
+                            .putString(KEY_LAST_RESULT, result)
                             .putLong(KEY_LAST_FINISHED_AT, System.currentTimeMillis())
                             .apply();
                 }
@@ -371,114 +344,12 @@ final class SleepTimer {
         }
     }
 
-    // ── Bluetooth ─────────────────────────────────────────────────────────────
-
-    /** Android 13 (API 33) cerró BluetoothAdapter.disable() a las apps normales. */
-    static boolean platformAllowsDisable() {
-        return Build.VERSION.SDK_INT < 33;
-    }
-
-    /** En Android 12 apagarlo exige el permiso «Dispositivos cercanos». */
-    static boolean needsConnectPermission(Context context) {
-        if (Build.VERSION.SDK_INT < 31 || Build.VERSION.SDK_INT >= 33) return false;
-        return ContextCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_CONNECT)
-                != PackageManager.PERMISSION_GRANTED;
-    }
-
-    static JSONObject bluetoothInfo(Context context) {
-        Context app = remember(context);
-        JSONObject out = new JSONObject();
-        try {
-            BluetoothAdapter adapter = adapter(app);
-            out.put("supported", adapter != null);
-            out.put("androidVersion", Build.VERSION.RELEASE);
-            out.put("sdk", Build.VERSION.SDK_INT);
-            out.put("enabled", isEnabled(adapter));
-            out.put("canDisable", adapter != null && platformAllowsDisable());
-            out.put("needsPermission", needsConnectPermission(app));
-            // Desconectar un dispositivo concreto no lo permite ninguna versión.
-            out.put("canDisconnectDevice", false);
-
-            JSONArray devices = new JSONArray();
-            for (String name : connectedAudioDevices(app)) devices.put(name);
-            out.put("connectedDevices", devices);
-        } catch (Throwable ignored) {
-        }
-        return out;
-    }
-
-    private static boolean isEnabled(@Nullable BluetoothAdapter adapter) {
-        try {
-            return adapter != null && adapter.isEnabled();
-        } catch (Throwable ignored) {
-            return false;
-        }
-    }
-
-    /**
-     * Auriculares o altavoces Bluetooth por los que puede salir el audio ahora
-     * mismo. Se miran las salidas del AudioManager y no el BluetoothManager
-     * porque así no hace falta ningún permiso y cuenta justo lo que importa:
-     * dónde suena la música.
-     */
-    static List<String> connectedAudioDevices(Context context) {
-        List<String> names = new ArrayList<>();
-        if (Build.VERSION.SDK_INT < 23) return names;
-        try {
-            AudioManager am = (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
-            if (am == null) return names;
-            for (AudioDeviceInfo d : am.getDevices(AudioManager.GET_DEVICES_OUTPUTS)) {
-                int type = d.getType();
-                boolean bluetooth = type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP
-                        || type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO
-                        || type == 26  // TYPE_BLE_HEADSET (API 31)
-                        || type == 27; // TYPE_BLE_SPEAKER (API 31)
-                if (!bluetooth) continue;
-                CharSequence product = d.getProductName();
-                String name = product == null ? "" : product.toString().trim();
-                if (name.isEmpty()) name = "Dispositivo Bluetooth";
-                // A2DP y SCO del mismo auricular salen como dos salidas.
-                if (!names.contains(name)) names.add(name);
-            }
-        } catch (Throwable ignored) {
-        }
-        return names;
-    }
-
-    @SuppressWarnings("deprecation")
-    private static boolean disableBluetooth(Context context) {
-        if (!platformAllowsDisable() || needsConnectPermission(context)) return false;
-        try {
-            BluetoothAdapter adapter = adapter(context);
-            if (adapter == null) return false;
-            if (!adapter.isEnabled()) return true;
-            return adapter.disable();
-        } catch (Throwable t) {
-            Log.w(TAG, "no se pudo apagar el Bluetooth", t);
-            return false;
-        }
-    }
-
-    @Nullable
-    @SuppressWarnings("deprecation")
-    private static BluetoothAdapter adapter(Context context) {
-        try {
-            if (Build.VERSION.SDK_INT >= 18) {
-                BluetoothManager bm = (BluetoothManager) context.getSystemService(Context.BLUETOOTH_SERVICE);
-                if (bm != null) return bm.getAdapter();
-            }
-            return BluetoothAdapter.getDefaultAdapter();
-        } catch (Throwable ignored) {
-            return null;
-        }
-    }
-
     // ── Alarma de respaldo ────────────────────────────────────────────────────
 
     /**
      * Alarma inexacta pero permitida en reposo: no pide el permiso de alarmas
-     * exactas. Si el móvil duerme es que no suena música, y unos minutos de
-     * retraso sólo afectan a cuándo se apaga el Bluetooth.
+     * exactas. Si el móvil duerme es que no suena música, así que unos minutos
+     * de retraso no cortan nada a destiempo.
      */
     private static void scheduleAlarm(Context context, long endAt) {
         try {

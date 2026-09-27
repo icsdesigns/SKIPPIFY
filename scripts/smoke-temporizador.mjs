@@ -42,8 +42,8 @@ async function main () {
 
   const parado = await pintar()
   check('parado ofrece los presets', parado.includes('1 h 30 min') && parado.includes('Iniciar temporizador'))
-  check('explica el orden del cierre', parado.includes('Pausar al acabar la canción') && parado.includes('Sonido de aviso') && parado.includes('Apagar el Bluetooth'))
-  check('dice que desconectar un dispositivo concreto no es posible', parado.includes('Desconectar solo un dispositivo concreto no es posible'))
+  check('explica el orden del cierre', parado.includes('Pausar al acabar la canción') && parado.includes('Sonido de aviso'))
+  check('ya no ofrece nada de Bluetooth', !/bluetooth/i.test(parado))
 
   const { state } = useSleepTimer()
   state.phase = 'counting'

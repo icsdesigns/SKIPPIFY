@@ -99,7 +99,7 @@
 
     <!-- ── Qué pasa al terminar ──────────────────────────────────────────── -->
     <div class="mt-5 border-t border-white/[0.07] pt-5">
-      <p class="sk-eyebrow">Al terminar, por este orden</p>
+      <p class="sk-eyebrow">Al terminar</p>
 
       <ol class="mt-3 space-y-3">
         <li class="flex items-start gap-3">
@@ -117,7 +117,7 @@
           <div class="min-w-0 flex-1">
             <p class="text-sm font-semibold text-white">Sonido de aviso</p>
             <p class="mt-0.5 text-[11px] leading-relaxed text-slate-400">
-              Dos notas suaves al volumen de la música, antes de desconectar nada.
+              Dos notas suaves al volumen de la música, justo después de la pausa.
               <button type="button" class="font-semibold text-brand-300 hover:text-brand-200" @click="probarSonido">Escuchar</button>
             </p>
           </div>
@@ -132,36 +132,6 @@
             <span class="sk-switch-knob" :class="timer.sound ? 'translate-x-6' : 'translate-x-1'" />
           </button>
         </li>
-
-        <li class="flex items-start gap-3">
-          <span class="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white/[0.08] text-[10px] font-bold text-slate-300" aria-hidden="true">3</span>
-          <div class="min-w-0 flex-1">
-            <p class="text-sm font-semibold text-white" :class="bluetoothBloqueado ? 'text-slate-400' : ''">Apagar el Bluetooth</p>
-            <p class="mt-0.5 flex items-center gap-1.5 text-[11px] text-slate-300">
-              <span
-                class="h-1.5 w-1.5 shrink-0 rounded-full"
-                :class="dispositivos.length ? 'bg-brand-400' : 'bg-slate-500'"
-                aria-hidden="true"
-              />
-              {{ estadoBluetooth }}
-            </p>
-            <p v-if="avisoBluetooth" class="mt-1 text-[11px] leading-relaxed text-amber-200/90">{{ avisoBluetooth }}</p>
-            <p class="mt-1 text-[11px] leading-relaxed text-slate-500">
-              Desconectar solo un dispositivo concreto no es posible: Android lo reserva a las apps del sistema.
-            </p>
-          </div>
-          <button
-            role="switch"
-            :aria-checked="timer.bluetoothOff"
-            aria-label="Apagar el Bluetooth"
-            class="sk-switch mt-0.5 disabled:cursor-not-allowed disabled:opacity-40"
-            :class="timer.bluetoothOff ? 'border-transparent bg-brand-400' : 'border-transparent bg-white/[0.18]'"
-            :disabled="bluetoothBloqueado"
-            @click="alternarBluetooth"
-          >
-            <span class="sk-switch-knob" :class="timer.bluetoothOff ? 'translate-x-6' : 'translate-x-1'" />
-          </button>
-        </li>
       </ol>
     </div>
   </div>
@@ -172,11 +142,11 @@
  * Contenido del panel «Temporizador» de Funciones.
  *
  * La duración se elige con un preset o escribiéndola en hh:mm; mientras corre
- * se ve la cuenta atrás y la hora aproximada de parada. Las opciones de cierre
- * (sonido y Bluetooth) se pueden cambiar en cualquier momento, también con el
- * temporizador en marcha.
+ * se ve la cuenta atrás y la hora aproximada de parada. El sonido de aviso se
+ * puede activar o quitar en cualquier momento, también con el temporizador
+ * en marcha.
  */
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import {
   useSleepTimer,
   PRESETS_MINUTOS,
@@ -196,7 +166,6 @@ const {
   alargar,
   cancelar,
   setOpciones,
-  pedirPermisoBluetooth,
   probarSonido
 } = useSleepTimer()
 
@@ -219,53 +188,6 @@ function empezar () {
   iniciar(minutosElegidos.value)
 }
 
-// ── Bluetooth ────────────────────────────────────────────────────────────────
-
-const dispositivos = computed(() => timer.bluetooth.connectedDevices || [])
-
-/** En el navegador se deja probar el interruptor; en el móvil manda Android. */
-const bluetoothBloqueado = computed(() => timer.nativo && !timer.bluetooth.canDisable)
-
-const estadoBluetooth = computed(() => {
-  if (!timer.nativo) return 'En el navegador no se puede consultar el Bluetooth'
-  if (!timer.bluetooth.supported) return 'Este móvil no tiene Bluetooth'
-  if (dispositivos.value.length) return `Conectado ahora: ${dispositivos.value.join(', ')}`
-  if (timer.bluetooth.enabled) return 'Encendido, sin auriculares ni altavoz conectados'
-  return 'Bluetooth apagado'
-})
-
-const avisoBluetooth = computed(() => {
-  if (!timer.nativo || !timer.bluetooth.supported) return ''
-  if (!timer.bluetooth.canDisable) {
-    const version = timer.bluetooth.androidVersion ? `Android ${timer.bluetooth.androidVersion}` : 'Tu versión de Android'
-    return `${version} no deja a ninguna app apagar el Bluetooth; solo era posible hasta Android 12.`
-  }
-  if (timer.bluetooth.needsPermission) {
-    return 'Hace falta el permiso «Dispositivos cercanos»: se pedirá al activarlo.'
-  }
-  return ''
-})
-
-async function alternarBluetooth () {
-  if (bluetoothBloqueado.value) return
-  const activar = !timer.bluetoothOff
-  if (activar && timer.bluetooth.needsPermission) {
-    await pedirPermisoBluetooth()
-    permisoPedido = true
-    return
-  }
-  setOpciones({ bluetoothOff: activar })
-}
-
-// Al volver del diálogo de permiso se activa sola la opción que se pidió.
-let permisoPedido = false
-watch(() => timer.bluetooth.needsPermission, (necesita) => {
-  if (!necesita && permisoPedido) {
-    permisoPedido = false
-    setOpciones({ bluetoothOff: true })
-  }
-})
-
 // ── Último cierre ────────────────────────────────────────────────────────────
 
 const ultimoCierre = computed(() => {
@@ -273,8 +195,6 @@ const ultimoCierre = computed(() => {
   if (!at || timer.now - at > 12 * 3600_000) return ''
   const partes = timer.lastResult.split(',')
   const hechos = [partes.includes('paused') ? 'música pausada' : 'no sonaba nada']
-  if (partes.includes('bluetooth_off')) hechos.push('Bluetooth apagado')
-  if (partes.includes('bluetooth_failed')) hechos.push('no se pudo apagar el Bluetooth')
   return `Último temporizador: terminó a las ${horaDeReloj(at)} · ${hechos.join(' · ')}.`
 })
 
@@ -288,8 +208,8 @@ onMounted(() => {
   timer.now = Date.now()
   reloj = setInterval(() => {
     timer.now = Date.now()
-    // El Bluetooth y el estado nativo se releen cada pocos segundos: cubre
-    // conectar unos auriculares o volver del diálogo de permisos.
+    // El estado nativo se relee cada pocos segundos por si el temporizador
+    // terminó mientras la pantalla estaba abierta y se perdió el aviso.
     if (++latidos % 4 === 0) refrescar()
   }, 1000)
 })
