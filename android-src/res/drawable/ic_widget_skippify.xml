@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Monograma de los widgets: el mismo trazo de la «S» que ic_stat_skippify, pero
+  en el verde de la marca, porque aquí Android sí respeta el color.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:pathData="M12.922,2.892 A4.659,4.659 0 0 0 12,12 M12,12 A4.659,4.659 0 0 1 11.078,21.108"
+        android:strokeWidth="4.345"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:strokeColor="#FF1ED760" />
+</vector>

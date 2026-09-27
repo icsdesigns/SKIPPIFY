@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="widget_modo_nombre">Modo de escucha</string>
+    <string name="widget_modo_descripcion">Cambia de modo y mira las duplicadas y saltadas de hoy</string>
+    <string name="widget_semana_nombre">Tu semana</string>
+    <string name="widget_semana_descripcion">Escuchas, tiempo, saltadas y tu artista más escuchado de la semana</string>
+
+    <!-- Letra de cada día bajo el gráfico de «Tu semana». -->
+    <style name="SkippifyWidgetDia">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_weight">1</item>
+        <item name="android:gravity">center</item>
+        <item name="android:textColor">#FFB3B3B3</item>
+        <item name="android:textSize">11sp</item>
+        <item name="android:textStyle">bold</item>
+    </style>
+</resources>

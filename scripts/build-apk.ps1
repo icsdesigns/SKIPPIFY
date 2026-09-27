@@ -346,6 +346,43 @@ if ($manifestContent -notmatch 'android.permission.REQUEST_INSTALL_PACKAGES') {
     Write-Step "AndroidManifest.xml: permiso REQUEST_INSTALL_PACKAGES añadido"
 }
 
+# Widgets de la pantalla de inicio: «Modo de escucha» y «Tu semana». El
+# receptor de modo no se exporta con acción propia: sus botones le llegan por
+# PendingIntent explícito, así que sólo escucha la acción estándar de widgets.
+if ($manifestContent -notmatch "WidgetModoProvider") {
+    $widgetsXml = @'
+
+        <!-- Skippify: widgets de la pantalla de inicio -->
+        <receiver
+            android:name=".WidgetModoProvider"
+            android:label="@string/widget_modo_nombre"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_modo_info" />
+        </receiver>
+        <receiver
+            android:name=".WidgetSemanaProvider"
+            android:label="@string/widget_semana_nombre"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_semana_info" />
+        </receiver>
+'@
+    $manifestContent = $manifestContent -replace '</application>', "$widgetsXml`n    </application>"
+    $manifestChanged = $true
+    Write-Step "AndroidManifest.xml parcheado con los widgets"
+} else {
+    Write-Step "AndroidManifest.xml ya contiene los widgets"
+}
+
 if ($manifestChanged) {
     $utf8NoBom2 = New-Object System.Text.UTF8Encoding($false)
     [System.IO.File]::WriteAllText($manifestPath, $manifestContent, $utf8NoBom2)

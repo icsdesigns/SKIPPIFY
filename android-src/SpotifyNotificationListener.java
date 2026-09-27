@@ -441,6 +441,7 @@ public class SpotifyNotificationListener extends NotificationListenerService
         }
 
         if (!silenceAds) restoreMediaVolumeIfNeeded(context);
+        WidgetsSkippify.actualizarModo(context);
         SkippifyForegroundService.start(context, true);
     }
 
@@ -1024,6 +1025,10 @@ public class SpotifyNotificationListener extends NotificationListenerService
             obj.put("js", sListener != null);
 
             appendJsonLine(getApplicationContext(), obj);
+            // El log de arriba lo vacía la app al abrirse; el widget «Tu semana»
+            // necesita la semana entera, así que lleva su propia copia.
+            RegistroSemanal.anotar(getApplicationContext(), obj);
+            WidgetsSkippify.actualizarSemana(getApplicationContext());
         } catch (Throwable ignored) {
         }
     }

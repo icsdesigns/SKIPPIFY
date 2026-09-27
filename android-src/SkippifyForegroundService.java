@@ -95,6 +95,8 @@ public class SkippifyForegroundService extends Service {
      */
     public static void refresh(@Nullable Context context) {
         if (context == null) return;
+        // Los widgets enseñan los mismos contadores que la notificación.
+        WidgetsSkippify.actualizar(context);
         if (!sRunning) {
             start(context, false);
             return;
@@ -189,6 +191,9 @@ public class SkippifyForegroundService extends Service {
             LigaBackground.latido(getApplicationContext());
         } catch (Throwable ignored) {
         }
+
+        // Los widgets: el modo puede haber cambiado y, con el latido, el día.
+        WidgetsSkippify.actualizar(getApplicationContext());
 
         // START_STICKY: if Android kills us, it will re-create and re-deliver
         // a null intent, which is fine – we'll call startForeground() again.
