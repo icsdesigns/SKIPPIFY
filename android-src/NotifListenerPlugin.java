@@ -767,7 +767,7 @@ public class NotifListenerPlugin extends Plugin
 
     // ── Temporizador de escucha ───────────────────────────────────────────────
 
-    /** Estado del temporizador: { phase, endAt, sound, bluetoothOff, ... }. */
+    /** Estado del temporizador: { phase, endAt, sound, ... }. */
     @PluginMethod
     public void getSleepTimer(PluginCall call) {
         call.resolve(toJSObject(SleepTimer.state(getContext())));
@@ -783,8 +783,7 @@ public class NotifListenerPlugin extends Plugin
         SleepTimer.start(
                 getContext(),
                 durationMs,
-                call.getBoolean("sound", false),
-                call.getBoolean("bluetoothOff", false)
+                call.getBoolean("sound", false)
         );
         call.resolve(toJSObject(SleepTimer.state(getContext())));
     }
@@ -797,11 +796,7 @@ public class NotifListenerPlugin extends Plugin
 
     @PluginMethod
     public void setSleepTimerOptions(PluginCall call) {
-        SleepTimer.setOptions(
-                getContext(),
-                call.getBoolean("sound", false),
-                call.getBoolean("bluetoothOff", false)
-        );
+        SleepTimer.setOptions(getContext(), call.getBoolean("sound", false));
         call.resolve(toJSObject(SleepTimer.state(getContext())));
     }
 
@@ -817,28 +812,6 @@ public class NotifListenerPlugin extends Plugin
         final android.content.Context app = getContext().getApplicationContext();
         new Thread(() -> SleepTimer.playChime(app), "skippify-chime").start();
         call.resolve();
-    }
-
-    /** Qué deja hacer el sistema con el Bluetooth y qué hay conectado. */
-    @PluginMethod
-    public void getBluetoothInfo(PluginCall call) {
-        call.resolve(toJSObject(SleepTimer.bluetoothInfo(getContext())));
-    }
-
-    /** Android 12 pide «Dispositivos cercanos» para poder apagar el Bluetooth. */
-    @PluginMethod
-    public void requestBluetoothPermission(PluginCall call) {
-        if (SleepTimer.needsConnectPermission(getContext())) {
-            try {
-                ActivityCompat.requestPermissions(
-                        getActivity(),
-                        new String[] { Manifest.permission.BLUETOOTH_CONNECT },
-                        9002
-                );
-            } catch (Throwable ignored) {
-            }
-        }
-        call.resolve(toJSObject(SleepTimer.bluetoothInfo(getContext())));
     }
 
     static void notifySleepTimerChanged(JSONObject state) {

@@ -346,21 +346,6 @@ if ($manifestContent -notmatch 'android.permission.REQUEST_INSTALL_PACKAGES') {
     Write-Step "AndroidManifest.xml: permiso REQUEST_INSTALL_PACKAGES añadido"
 }
 
-# Bluetooth del temporizador de escucha. Apagarlo sólo es posible hasta
-# Android 12: hasta la 11 bastan BLUETOOTH/BLUETOOTH_ADMIN (sin diálogo) y en la
-# 12 hace falta BLUETOOTH_CONNECT («Dispositivos cercanos»). Desde Android 13 el
-# sistema no deja a ninguna app normal apagarlo, así que ni se declara.
-if ($manifestContent -notmatch 'android.permission.BLUETOOTH_CONNECT') {
-    $btPerms = @(
-        '<uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />',
-        '<uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />',
-        '<uses-permission android:name="android.permission.BLUETOOTH_CONNECT" android:maxSdkVersion="32" />'
-    ) -join "`n    "
-    $manifestContent = $manifestContent -replace '(<uses-permission android:name="android.permission.INTERNET" />)', "`$1`n    $btPerms"
-    $manifestChanged = $true
-    Write-Step "AndroidManifest.xml: permisos de Bluetooth del temporizador añadidos"
-}
-
 if ($manifestChanged) {
     $utf8NoBom2 = New-Object System.Text.UTF8Encoding($false)
     [System.IO.File]::WriteAllText($manifestPath, $manifestContent, $utf8NoBom2)
