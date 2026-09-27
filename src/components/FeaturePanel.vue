@@ -8,7 +8,7 @@
       class="flex w-full items-center gap-3 px-4 py-3.5 text-left transition-colors duration-200 hover:bg-white/[0.03]"
       :aria-expanded="abierto"
       :aria-controls="`${idBase}-cuerpo`"
-      @click="abierto = !abierto"
+      @click="alternar"
     >
       <span
         class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-base"
@@ -63,8 +63,12 @@
  * Cada automatización de la pestaña Funciones va dentro de uno: la cabecera
  * (icono, nombre, resumen y estado) se ve siempre y el contenido sólo al
  * desplegarlo. Añadir una función nueva es añadir otro <FeaturePanel>.
+ *
+ * Si la vista padre provee un grupo (provide('grupoPaneles', ref(null))), los
+ * paneles de ese grupo funcionan como acordeón: sólo uno desplegado a la vez y
+ * abrir otro pliega el anterior. Sin grupo, cada panel va por su cuenta.
  */
-import { ref, useId } from 'vue'
+import { computed, inject, ref, useId } from 'vue'
 
 const props = defineProps({
   icon: { type: String, required: true },
@@ -77,5 +81,16 @@ const props = defineProps({
 })
 
 const idBase = `panel-${useId()}`
-const abierto = ref(props.defaultOpen)
+
+/** Id del panel desplegado del grupo, o null si están todos plegados. */
+const grupo = inject('grupoPaneles', null)
+const local = ref(props.defaultOpen)
+if (grupo && props.defaultOpen && grupo.value == null) grupo.value = idBase
+
+const abierto = computed(() => (grupo ? grupo.value === idBase : local.value))
+
+function alternar() {
+  if (grupo) grupo.value = abierto.value ? null : idBase
+  else local.value = !local.value
+}
 </script>

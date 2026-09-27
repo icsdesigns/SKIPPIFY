@@ -1,6 +1,7 @@
 <template>
   <!-- Cada función va en su propio panel plegable (FeaturePanel). Para añadir
-       una función nueva basta con otro <FeaturePanel> en esta lista. -->
+       una función nueva basta con otro <FeaturePanel> en esta lista. Sólo uno
+       está desplegado a la vez: abrir otro pliega el anterior. -->
   <div class="sk-stagger space-y-3">
 
     <!-- ══ 1 · Salto de duplicadas ═══════════════════════════════════════════ -->
@@ -208,7 +209,7 @@
  * frecuencias y se cierra al elegir una, para que la tarjeta sólo crezca
  * mientras hace falta.
  */
-import { computed, ref } from 'vue'
+import { computed, provide, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useFeatures } from '@/composables/useFeatures'
 import FeaturePanel from '@/components/FeaturePanel.vue'
@@ -219,6 +220,9 @@ const router = useRouter()
 const { state: features, setListeningMode } = useFeatures()
 
 const temporizador = useSleepTimer()
+
+// Acordeón: los paneles de esta vista comparten cuál está desplegado.
+provide('grupoPaneles', ref(null))
 
 /** Lo que enseña la cabecera del temporizador con el panel plegado. */
 const resumenTemporizador = computed(() => {
