@@ -6,11 +6,13 @@
 
     <!-- ══ 1 · Salto de duplicadas ═══════════════════════════════════════════ -->
     <FeaturePanel
-      icon="🔁"
       icon-class="bg-brand-400/[0.18]"
       title="Salto de duplicadas"
       subtitle="Cuánto tiempo tiene que pasar para volver a oír la misma canción"
     >
+      <template #icono>
+        <FeatureIcon name="salto" class="h-5 w-5 text-brand-400" />
+      </template>
       <template #estado>
         <span class="sk-chip sk-chip-accent">{{ resumenActivo }}</span>
       </template>
@@ -114,11 +116,13 @@
 
     <!-- ══ 2 · Silenciamiento de anuncios ════════════════════════════════════ -->
     <FeaturePanel
-      icon="🔇"
       icon-class="bg-amber-400/[0.18]"
       title="Silenciamiento de anuncios"
       subtitle="Solo tiene efecto en cuentas gratuitas de Spotify"
     >
+      <template #icono>
+        <FeatureIcon name="silencio" class="h-5 w-5 text-amber-300" />
+      </template>
       <template #estado>
         <span class="sk-chip" :class="features.silenceAds ? 'sk-chip-accent' : ''">
           {{ features.silenceAds ? 'Activado' : 'Desactivado' }}
@@ -184,11 +188,13 @@
 
     <!-- ══ 3 · Temporizador ══════════════════════════════════════════════════ -->
     <FeaturePanel
-      icon="🌙"
       icon-class="bg-sky-400/[0.18]"
       title="Temporizador"
       subtitle="Pausa la música al acabar la canción cuando se agote el tiempo"
     >
+      <template #icono>
+        <FeatureIcon name="luna" class="h-5 w-5 text-sky-300" />
+      </template>
       <template #estado>
         <span class="sk-chip" :class="temporizador.activo.value ? 'sk-chip-accent' : ''">{{ resumenTemporizador }}</span>
       </template>
@@ -213,6 +219,7 @@ import { computed, provide, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useFeatures } from '@/composables/useFeatures'
 import FeaturePanel from '@/components/FeaturePanel.vue'
+import FeatureIcon from '@/components/FeatureIcon.vue'
 import SleepTimerSettings from '@/components/SleepTimerSettings.vue'
 import { useSleepTimer, formatoCuenta } from '@/composables/useSleepTimer'
 
