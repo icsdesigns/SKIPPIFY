@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Botón del modo activo: el verde del botón principal (brand-400). -->
+<!-- Tarjeta de una cifra, un punto más clara que el lienzo (ink-600), como .sk-card. -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
-    <solid android:color="#FF1ED760" />
+    <solid android:color="#FF1F1F1F" />
     <corners android:radius="16dp" />
 </shape>

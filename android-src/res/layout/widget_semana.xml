@@ -1,151 +1,186 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Widget «Tu semana». Las cifras, el gráfico y el día de hoy los pone WidgetsSkippify. -->
+<!--
+  Widget «Tu semana». Cuatro tarjetas de cifras, el gráfico por día en su
+  propia tarjeta y el artista top en otra. Las cifras, el gráfico y el día de
+  hoy los pone WidgetsSkippify.
+-->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widget_semana_raiz"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@drawable/widget_fondo"
     android:orientation="vertical"
-    android:padding="14dp">
+    android:padding="12dp">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:gravity="center_vertical"
-        android:orientation="horizontal">
+        android:orientation="horizontal"
+        android:paddingStart="4dp"
+        android:paddingEnd="4dp">
 
         <ImageView
-            android:layout_width="20dp"
-            android:layout_height="20dp"
+            android:layout_width="18dp"
+            android:layout_height="18dp"
             android:contentDescription="@null"
             android:src="@drawable/ic_widget_skippify" />
 
         <TextView
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="10dp"
-            android:layout_weight="1"
-            android:text="Tu semana"
-            android:textColor="#FFFFFFFF"
-            android:textSize="14sp"
-            android:textStyle="bold" />
+            style="@style/SkippifyWidgetTitulo"
+            android:text="Tu semana" />
 
         <TextView
             android:id="@+id/widget_semana_rango"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:textColor="#FFB3B3B3"
-            android:textSize="11sp" />
+            android:background="@drawable/widget_chip"
+            android:paddingStart="8dp"
+            android:paddingTop="2dp"
+            android:paddingEnd="8dp"
+            android:paddingBottom="2dp"
+            android:textColor="#FFE4E4E4"
+            android:textSize="11sp"
+            android:textStyle="bold" />
     </LinearLayout>
 
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_height="52dp"
         android:layout_marginTop="8dp"
         android:orientation="horizontal">
 
         <LinearLayout
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="0.8"
-            android:orientation="vertical">
+            style="@style/SkippifyWidgetTarjeta"
+            android:layout_weight="0.9">
+
+            <TextView
+                style="@style/SkippifyWidgetRotulo"
+                android:text="Escuchas" />
 
             <TextView
                 android:id="@+id/widget_semana_escuchas"
                 style="@style/SkippifyWidgetCifra"
-                android:text="0"
-                android:textColor="#FFFFFFFF" />
-
-            <TextView
-                style="@style/SkippifyWidgetEtiqueta"
-                android:text="escuchas" />
+                android:text="0" />
         </LinearLayout>
 
         <LinearLayout
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1.3"
-            android:orientation="vertical">
+            style="@style/SkippifyWidgetTarjeta"
+            android:layout_marginStart="6dp"
+            android:layout_weight="1.2">
+
+            <TextView
+                style="@style/SkippifyWidgetRotulo"
+                android:text="Tiempo" />
 
             <TextView
                 android:id="@+id/widget_semana_tiempo"
                 style="@style/SkippifyWidgetCifra"
-                android:text="0 min"
-                android:textColor="#FFFFFFFF" />
-
-            <TextView
-                style="@style/SkippifyWidgetEtiqueta"
-                android:text="escuchado" />
+                android:text="0 min" />
         </LinearLayout>
 
         <LinearLayout
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1.1"
-            android:orientation="vertical">
+            style="@style/SkippifyWidgetTarjeta"
+            android:layout_marginStart="6dp"
+            android:layout_weight="1.1">
+
+            <TextView
+                style="@style/SkippifyWidgetRotulo"
+                android:text="Al día" />
 
             <TextView
                 android:id="@+id/widget_semana_media"
                 style="@style/SkippifyWidgetCifra"
-                android:text="0 min"
-                android:textColor="#FFFFFFFF" />
-
-            <TextView
-                style="@style/SkippifyWidgetEtiqueta"
-                android:text="al día" />
+                android:text="0 min" />
         </LinearLayout>
 
         <LinearLayout
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="0.9"
-            android:orientation="vertical">
+            style="@style/SkippifyWidgetTarjeta"
+            android:layout_marginStart="6dp"
+            android:layout_weight="0.9">
+
+            <TextView
+                style="@style/SkippifyWidgetRotulo"
+                android:text="Saltadas" />
 
             <TextView
                 android:id="@+id/widget_semana_saltadas"
                 style="@style/SkippifyWidgetCifra"
                 android:text="0"
                 android:textColor="#FF1ED760" />
-
-            <TextView
-                style="@style/SkippifyWidgetEtiqueta"
-                android:text="saltadas" />
         </LinearLayout>
     </LinearLayout>
 
-    <ImageView
-        android:id="@+id/widget_semana_barras"
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_marginTop="10dp"
+        android:layout_marginTop="6dp"
         android:layout_weight="1"
-        android:contentDescription="Escuchas por día"
-        android:minHeight="28dp"
-        android:scaleType="fitXY" />
+        android:background="@drawable/widget_tarjeta"
+        android:orientation="vertical"
+        android:paddingStart="8dp"
+        android:paddingTop="10dp"
+        android:paddingEnd="8dp"
+        android:paddingBottom="6dp">
+
+        <ImageView
+            android:id="@+id/widget_semana_barras"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:contentDescription="Escuchas por día"
+            android:minHeight="20dp"
+            android:scaleType="fitXY" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:orientation="horizontal">
+
+            <TextView android:id="@+id/widget_semana_d0" style="@style/SkippifyWidgetDia" android:text="L" />
+            <TextView android:id="@+id/widget_semana_d1" style="@style/SkippifyWidgetDia" android:text="M" />
+            <TextView android:id="@+id/widget_semana_d2" style="@style/SkippifyWidgetDia" android:text="X" />
+            <TextView android:id="@+id/widget_semana_d3" style="@style/SkippifyWidgetDia" android:text="J" />
+            <TextView android:id="@+id/widget_semana_d4" style="@style/SkippifyWidgetDia" android:text="V" />
+            <TextView android:id="@+id/widget_semana_d5" style="@style/SkippifyWidgetDia" android:text="S" />
+            <TextView android:id="@+id/widget_semana_d6" style="@style/SkippifyWidgetDia" android:text="D" />
+        </LinearLayout>
+    </LinearLayout>
 
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="4dp"
-        android:orientation="horizontal">
+        android:layout_height="32dp"
+        android:layout_marginTop="6dp"
+        android:background="@drawable/widget_tarjeta"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="10dp"
+        android:paddingEnd="10dp">
 
-        <TextView android:id="@+id/widget_semana_d0" style="@style/SkippifyWidgetDia" android:text="L" />
-        <TextView android:id="@+id/widget_semana_d1" style="@style/SkippifyWidgetDia" android:text="M" />
-        <TextView android:id="@+id/widget_semana_d2" style="@style/SkippifyWidgetDia" android:text="X" />
-        <TextView android:id="@+id/widget_semana_d3" style="@style/SkippifyWidgetDia" android:text="J" />
-        <TextView android:id="@+id/widget_semana_d4" style="@style/SkippifyWidgetDia" android:text="V" />
-        <TextView android:id="@+id/widget_semana_d5" style="@style/SkippifyWidgetDia" android:text="S" />
-        <TextView android:id="@+id/widget_semana_d6" style="@style/SkippifyWidgetDia" android:text="D" />
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@drawable/widget_modo_activo"
+            android:letterSpacing="0.08"
+            android:paddingStart="6dp"
+            android:paddingTop="1dp"
+            android:paddingEnd="6dp"
+            android:paddingBottom="1dp"
+            android:text="TOP"
+            android:textColor="#FF121212"
+            android:textSize="9sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/widget_semana_top"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:text="Aún no hay escuchas esta semana"
+            android:textColor="#FFE4E4E4"
+            android:textSize="12sp" />
     </LinearLayout>
-
-    <TextView
-        android:id="@+id/widget_semana_top"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:ellipsize="end"
-        android:maxLines="1"
-        android:text="Aún no hay escuchas esta semana"
-        android:textColor="#FFB3B3B3"
-        android:textSize="12sp" />
 </LinearLayout>

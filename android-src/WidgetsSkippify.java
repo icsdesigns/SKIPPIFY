@@ -10,6 +10,7 @@ import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.RectF;
 import android.os.Build;
+import android.os.Bundle;
 import android.widget.RemoteViews;
 
 import androidx.annotation.Nullable;
@@ -156,12 +157,17 @@ final class WidgetsSkippify {
             long ahora = System.currentTimeMillis();
             SemanaWidgetDatos.Resumen r = SemanaWidgetDatos.calcular(
                     RegistroSemanal.leer(ctx), DuplicateSkipEngine.dailyHistory(ctx), ahora, zona);
-            awm.updateAppWidget(ids, vistaSemana(ctx, r, zona));
+            // Uno a uno: el gráfico se dibuja al tamaño real de cada widget
+            // para que las barras no salgan estiradas ni borrosas.
+            for (int id : ids) {
+                awm.updateAppWidget(id, vistaSemana(ctx, r, zona, awm.getAppWidgetOptions(id)));
+            }
         } catch (Throwable ignored) {
         }
     }
 
-    private static RemoteViews vistaSemana(Context ctx, SemanaWidgetDatos.Resumen r, TimeZone zona) {
+    private static RemoteViews vistaSemana(Context ctx, SemanaWidgetDatos.Resumen r, TimeZone zona,
+                                           @Nullable Bundle opciones) {
         RemoteViews v = new RemoteViews(ctx.getPackageName(), R.layout.widget_semana);
 
         v.setTextViewText(R.id.widget_semana_rango, rango(r.inicioSemana, zona));
@@ -175,9 +181,9 @@ final class WidgetsSkippify {
                     ? "Aún no hay escuchas esta semana"
                     : r.distintas + (r.distintas == 1 ? " canción distinta" : " canciones distintas"));
         } else {
-            v.setTextViewText(R.id.widget_semana_top, "Top: " + r.artistaTop
-                    + " (" + r.escuchasArtistaTop + ")"
-                    + " · " + r.distintas + (r.distintas == 1 ? " canción distinta" : " canciones distintas"));
+            v.setTextViewText(R.id.widget_semana_top, r.artistaTop
+                    + " · " + r.escuchasArtistaTop + (r.escuchasArtistaTop == 1 ? " escucha" : " escuchas")
+                    + " · " + r.distintas + (r.distintas == 1 ? " canción" : " canciones"));
         }
 
         int[] letras = {
@@ -189,7 +195,7 @@ final class WidgetsSkippify {
             v.setTextColor(letras[i], i == r.hoy ? VERDE : GRIS);
         }
 
-        v.setImageViewBitmap(R.id.widget_semana_barras, barras(ctx, r));
+        v.setImageViewBitmap(R.id.widget_semana_barras, barras(ctx, r, opciones));
 
         PendingIntent abrir = abrirApp(ctx, "/stats", 211);
         if (abrir != null) v.setOnClickPendingIntent(R.id.widget_semana_raiz, abrir);
@@ -197,10 +203,20 @@ final class WidgetsSkippify {
     }
 
     /** Siete barras de lunes a domingo; hoy en verde vivo, el futuro sólo pista. */
-    private static Bitmap barras(Context ctx, SemanaWidgetDatos.Resumen r) {
+    private static Bitmap barras(Context ctx, SemanaWidgetDatos.Resumen r, @Nullable Bundle opciones) {
         float d = Math.min(3f, Math.max(1f, ctx.getResources().getDisplayMetrics().density));
-        int ancho = Math.round(280 * d);
-        int alto = Math.round(48 * d);
+        // Hueco del gráfico: el widget menos márgenes, tarjetas de cifras,
+        // letras de los días y la fila del artista (ver widget_semana.xml).
+        int anchoDp = 280;
+        int altoDp = 48;
+        if (opciones != null) {
+            int w = opciones.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 0);
+            int h = opciones.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 0);
+            if (w > 0) anchoDp = Math.max(120, w - 40);
+            if (h > 0) altoDp = Math.max(20, h - 186);
+        }
+        int ancho = Math.round(anchoDp * d);
+        int alto = Math.round(altoDp * d);
         Bitmap bmp = Bitmap.createBitmap(ancho, alto, Bitmap.Config.ARGB_8888);
         Canvas c = new Canvas(bmp);
         Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);

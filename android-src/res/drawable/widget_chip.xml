@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Lienzo de los widgets: el fondo de la app (ink-800). -->
+<!-- Pastilla del artista top, como .sk-chip. -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
-    <solid android:color="#FF121212" />
-    <corners android:radius="24dp" />
+    <solid android:color="#FF2A2A2A" />
+    <corners android:radius="14dp" />
 </shape>

@@ -6,13 +6,43 @@
     <string name="widget_semana_descripcion">Escuchas, tiempo, saltadas y tu artista más escuchado de la semana</string>
 
     <!--
-      Cifras de «Tu semana». Son cuatro en fila, así que el tamaño se ajusta
-      solo: «5 h 20 min» tiene que caber en un widget estrecho.
+      El vocabulario de la app llevado a los widgets: cada cifra vive en su
+      tarjeta (.sk-card), con el rótulo en versalitas grises (.sk-eyebrow)
+      encima del número.
     -->
+    <style name="SkippifyWidgetTarjeta">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">match_parent</item>
+        <item name="android:layout_weight">1</item>
+        <item name="android:background">@drawable/widget_tarjeta</item>
+        <item name="android:gravity">center_vertical</item>
+        <item name="android:orientation">vertical</item>
+        <item name="android:paddingStart">10dp</item>
+        <item name="android:paddingEnd">8dp</item>
+        <item name="android:paddingTop">6dp</item>
+        <item name="android:paddingBottom">6dp</item>
+    </style>
+
+    <style name="SkippifyWidgetRotulo">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:maxLines">1</item>
+        <item name="android:ellipsize">end</item>
+        <item name="android:letterSpacing">0.08</item>
+        <item name="android:textAllCaps">true</item>
+        <item name="android:textColor">#FFB3B3B3</item>
+        <item name="android:textSize">9sp</item>
+        <item name="android:textStyle">bold</item>
+    </style>
+
+    <!-- La cifra se encoge sola: «5 h 20 min» tiene que caber en una tarjeta estrecha. -->
     <style name="SkippifyWidgetCifra">
         <item name="android:layout_width">match_parent</item>
         <item name="android:layout_height">26dp</item>
+        <item name="android:layout_marginTop">2dp</item>
+        <item name="android:gravity">center_vertical</item>
         <item name="android:maxLines">1</item>
+        <item name="android:textColor">#FFFFFFFF</item>
         <item name="android:textSize">20sp</item>
         <item name="android:textStyle">bold</item>
         <item name="android:autoSizeTextType">uniform</item>
@@ -20,12 +50,33 @@
         <item name="android:autoSizeMaxTextSize">20sp</item>
     </style>
 
-    <style name="SkippifyWidgetEtiqueta">
-        <item name="android:layout_width">wrap_content</item>
+    <style name="SkippifyWidgetTitulo">
+        <item name="android:layout_width">0dp</item>
         <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_weight">1</item>
+        <item name="android:layout_marginStart">8dp</item>
         <item name="android:maxLines">1</item>
+        <item name="android:ellipsize">end</item>
+        <item name="android:textColor">#FFFFFFFF</item>
+        <item name="android:textSize">14sp</item>
+        <item name="android:textStyle">bold</item>
+    </style>
+
+    <!-- Botón de modo dentro del selector. -->
+    <style name="SkippifyWidgetModo">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">match_parent</item>
+        <item name="android:background">@drawable/widget_modo_inactivo</item>
+        <item name="android:gravity">center</item>
+        <item name="android:maxLines">1</item>
+        <item name="android:paddingStart">6dp</item>
+        <item name="android:paddingEnd">6dp</item>
         <item name="android:textColor">#FFB3B3B3</item>
-        <item name="android:textSize">11sp</item>
+        <item name="android:textSize">12sp</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:autoSizeTextType">uniform</item>
+        <item name="android:autoSizeMinTextSize">9sp</item>
+        <item name="android:autoSizeMaxTextSize">12sp</item>
     </style>
 
     <!-- Letra de cada día bajo el gráfico de «Tu semana». -->
@@ -35,7 +86,7 @@
         <item name="android:layout_weight">1</item>
         <item name="android:gravity">center</item>
         <item name="android:textColor">#FFB3B3B3</item>
-        <item name="android:textSize">11sp</item>
+        <item name="android:textSize">10sp</item>
         <item name="android:textStyle">bold</item>
     </style>
 </resources>

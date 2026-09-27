@@ -15,4 +15,11 @@ public class WidgetSemanaProvider extends AppWidgetProvider {
         WidgetsSkippify.pintarSemanaYa(context);
         SkippifyForegroundService.start(context);
     }
+
+    /** Al redimensionarlo, el gráfico se vuelve a dibujar a su nuevo tamaño. */
+    @Override
+    public void onAppWidgetOptionsChanged(Context context, AppWidgetManager manager, int appWidgetId,
+                                          android.os.Bundle newOptions) {
+        WidgetsSkippify.pintarSemanaYa(context);
+    }
 }

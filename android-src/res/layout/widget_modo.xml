@@ -1,160 +1,97 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Widget «Modo de escucha». Las cifras y el color de los botones los pone WidgetsSkippify. -->
+<!--
+  Widget «Modo de escucha». Cada bloque va en su tarjeta: las dos cifras del
+  día arriba y el selector de modo abajo, como un control segmentado. Las
+  cifras y qué botón está activo los pone WidgetsSkippify.
+-->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widget_modo_raiz"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@drawable/widget_fondo"
     android:orientation="vertical"
-    android:padding="14dp">
+    android:padding="12dp">
 
     <LinearLayout
         android:id="@+id/widget_modo_cabecera"
         android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
+        android:layout_height="wrap_content"
         android:gravity="center_vertical"
-        android:orientation="horizontal">
+        android:orientation="horizontal"
+        android:paddingStart="4dp"
+        android:paddingEnd="4dp">
 
         <ImageView
-            android:layout_width="20dp"
-            android:layout_height="20dp"
+            android:layout_width="18dp"
+            android:layout_height="18dp"
             android:contentDescription="@null"
             android:src="@drawable/ic_widget_skippify" />
 
-        <LinearLayout
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="10dp"
-            android:layout_weight="1"
-            android:orientation="vertical">
+        <TextView
+            style="@style/SkippifyWidgetTitulo"
+            android:text="Modo de escucha" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_marginTop="8dp"
+        android:layout_weight="1"
+        android:minHeight="44dp"
+        android:orientation="horizontal">
+
+        <LinearLayout style="@style/SkippifyWidgetTarjeta">
 
             <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:ellipsize="end"
-                android:maxLines="1"
-                android:text="Modo de escucha"
-                android:textColor="#FFFFFFFF"
-                android:textSize="14sp"
-                android:textStyle="bold" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Hoy"
-                android:textColor="#FFB3B3B3"
-                android:textSize="11sp" />
-        </LinearLayout>
-
-        <LinearLayout
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:gravity="end"
-            android:orientation="vertical">
+                style="@style/SkippifyWidgetRotulo"
+                android:text="Duplicadas hoy" />
 
             <TextView
                 android:id="@+id/widget_modo_duplicadas"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="0"
-                android:textColor="#FFFFFFFF"
-                android:textSize="22sp"
-                android:textStyle="bold" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="duplicadas"
-                android:textColor="#FFB3B3B3"
-                android:textSize="11sp" />
+                style="@style/SkippifyWidgetCifra"
+                android:text="0" />
         </LinearLayout>
 
         <LinearLayout
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="16dp"
-            android:gravity="end"
-            android:orientation="vertical">
+            style="@style/SkippifyWidgetTarjeta"
+            android:layout_marginStart="8dp">
+
+            <TextView
+                style="@style/SkippifyWidgetRotulo"
+                android:text="Saltadas hoy" />
 
             <TextView
                 android:id="@+id/widget_modo_saltadas"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
+                style="@style/SkippifyWidgetCifra"
                 android:text="0"
-                android:textColor="#FF1ED760"
-                android:textSize="22sp"
-                android:textStyle="bold" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="saltadas"
-                android:textColor="#FFB3B3B3"
-                android:textSize="11sp" />
+                android:textColor="#FF1ED760" />
         </LinearLayout>
     </LinearLayout>
 
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="36dp"
-        android:layout_marginTop="10dp"
-        android:orientation="horizontal">
+        android:layout_height="40dp"
+        android:layout_marginTop="8dp"
+        android:background="@drawable/widget_segmentos"
+        android:orientation="horizontal"
+        android:padding="4dp">
 
         <TextView
             android:id="@+id/widget_modo_descubrimiento"
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
+            style="@style/SkippifyWidgetModo"
             android:layout_weight="1.3"
-            android:autoSizeMaxTextSize="12sp"
-            android:autoSizeMinTextSize="9sp"
-            android:autoSizeTextType="uniform"
-            android:background="@drawable/widget_modo_inactivo"
-            android:gravity="center"
-            android:maxLines="1"
-            android:paddingStart="6dp"
-            android:paddingEnd="6dp"
-            android:text="Descubrimiento"
-            android:textColor="#FFB3B3B3"
-            android:textSize="12sp"
-            android:textStyle="bold" />
+            android:text="Descubrimiento" />
 
         <TextView
             android:id="@+id/widget_modo_casual"
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_marginStart="6dp"
+            style="@style/SkippifyWidgetModo"
             android:layout_weight="1"
-            android:autoSizeMaxTextSize="12sp"
-            android:autoSizeMinTextSize="9sp"
-            android:autoSizeTextType="uniform"
-            android:background="@drawable/widget_modo_inactivo"
-            android:gravity="center"
-            android:maxLines="1"
-            android:paddingStart="6dp"
-            android:paddingEnd="6dp"
-            android:text="Casual"
-            android:textColor="#FFB3B3B3"
-            android:textSize="12sp"
-            android:textStyle="bold" />
+            android:text="Casual" />
 
         <TextView
             android:id="@+id/widget_modo_personalizado"
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_marginStart="6dp"
+            style="@style/SkippifyWidgetModo"
             android:layout_weight="1.2"
-            android:autoSizeMaxTextSize="12sp"
-            android:autoSizeMinTextSize="9sp"
-            android:autoSizeTextType="uniform"
-            android:background="@drawable/widget_modo_inactivo"
-            android:gravity="center"
-            android:maxLines="1"
-            android:paddingStart="6dp"
-            android:paddingEnd="6dp"
-            android:text="Personalizado"
-            android:textColor="#FFB3B3B3"
-            android:textSize="12sp"
-            android:textStyle="bold" />
+            android:text="Personalizado" />
     </LinearLayout>
 </LinearLayout>
