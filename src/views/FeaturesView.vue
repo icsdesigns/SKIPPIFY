@@ -181,12 +181,26 @@
       </Transition>
     </FeaturePanel>
 
+    <!-- ══ 3 · Temporizador ══════════════════════════════════════════════════ -->
+    <FeaturePanel
+      icon="🌙"
+      icon-class="bg-sky-400/[0.18]"
+      title="Temporizador"
+      subtitle="Pausa la música al acabar la canción cuando se agote el tiempo"
+    >
+      <template #estado>
+        <span class="sk-chip" :class="temporizador.activo.value ? 'sk-chip-accent' : ''">{{ resumenTemporizador }}</span>
+      </template>
+
+      <SleepTimerSettings />
+    </FeaturePanel>
+
   </div>
 </template>
 
 <script setup>
 /**
- * Funciones — las dos automatizaciones de Skippify en una sola pantalla.
+ * Funciones — las automatizaciones de Skippify en una sola pantalla.
  *
  * El salto de duplicadas se elige entre tres modos, los mismos que ofrece la
  * notificación persistente: Descubrimiento, Casual y Personalizado. Los dos
@@ -198,9 +212,22 @@ import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useFeatures } from '@/composables/useFeatures'
 import FeaturePanel from '@/components/FeaturePanel.vue'
+import SleepTimerSettings from '@/components/SleepTimerSettings.vue'
+import { useSleepTimer, formatoCuenta } from '@/composables/useSleepTimer'
 
 const router = useRouter()
 const { state: features, setListeningMode } = useFeatures()
+
+const temporizador = useSleepTimer()
+
+/** Lo que enseña la cabecera del temporizador con el panel plegado. */
+const resumenTemporizador = computed(() => {
+  const { state } = temporizador
+  if (state.phase === 'counting') return formatoCuenta(temporizador.restanteMs.value)
+  if (state.phase === 'waiting') return 'Última canción'
+  if (state.phase === 'finishing') return 'Terminando'
+  return 'Desactivado'
+})
 
 const newKeyword = ref('')
 const requiredKeywords = ['publicidad', 'anuncio', 'anuncios']

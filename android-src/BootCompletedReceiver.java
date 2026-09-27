@@ -23,6 +23,14 @@ public class BootCompletedReceiver extends BroadcastReceiver {
         if (context == null || intent == null) return;
 
         String action = intent.getAction();
+
+        // Alarma de respaldo del temporizador de escucha: levanta el proceso si
+        // Android lo había matado y reengancha la cuenta atrás.
+        if (SleepTimer.ACTION_ALARM.equals(action)) {
+            SleepTimer.resume(context);
+            return;
+        }
+
         boolean shouldStart = Intent.ACTION_BOOT_COMPLETED.equals(action)
                 || Intent.ACTION_LOCKED_BOOT_COMPLETED.equals(action)
                 || Intent.ACTION_MY_PACKAGE_REPLACED.equals(action)
@@ -32,6 +40,8 @@ public class BootCompletedReceiver extends BroadcastReceiver {
 
         Context appContext = context.getApplicationContext();
         SkippifyForegroundService.start(appContext, ACTION_WATCHDOG.equals(action));
+        // Un temporizador puesto antes de reiniciar o de actualizar sigue vivo.
+        SleepTimer.resume(appContext);
 
         // Algunos OEMs sueltan el NotificationListenerService bajo presión de
         // memoria y no lo vuelven a enlazar solos. Pedirlo es barato y es la

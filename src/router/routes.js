@@ -47,7 +47,7 @@ export const routes = [
     component: FeaturesView,
     meta: {
       title: 'Funciones',
-      description: 'Salto de duplicadas y silenciado de anuncios, con la calibración del motor a mano.'
+      description: 'Salto de duplicadas, silenciado de anuncios y temporizador, con la calibración del motor a mano.'
     }
   },
   {

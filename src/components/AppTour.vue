@@ -228,7 +228,7 @@ const PASOS = [
     icon: '⚙️',
     eyebrow: 'Pestaña',
     title: 'Funciones',
-    description: 'Las dos automatizaciones: el salto de canciones duplicadas y el silenciado de anuncios para cuentas gratuitas. Elige ahora cada cuánto puedes repetir una canción, que es lo que gobierna el salto.',
+    description: 'Las automatizaciones: el salto de canciones duplicadas, el silenciado de anuncios para cuentas gratuitas y el temporizador para dormirse con música. Elige ahora cada cuánto puedes repetir una canción, que es lo que gobierna el salto.',
     route: '/features',
     requiereModo: true
   },

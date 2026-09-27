@@ -20,7 +20,10 @@ const raiz = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const FUENTES = [
   join(raiz, 'android-src', 'MacroRunner.java'),
   join(raiz, 'android-src', 'SpotifyBackend.java'),
-  join(raiz, 'scripts', 'native-tests', 'PruebasMacros.java')
+  join(raiz, 'scripts', 'native-tests', 'PruebasMacros.java'),
+  // El temporizador de escucha aparta igual su decisión en una clase sin Android.
+  join(raiz, 'android-src', 'SleepTimerDecision.java'),
+  join(raiz, 'scripts', 'native-tests', 'PruebasTemporizador.java')
 ]
 
 for (const f of FUENTES) {
@@ -51,6 +54,7 @@ const salida = mkdtempSync(join(tmpdir(), 'skippify-nativo-'))
 try {
   execFileSync('javac', ['-nowarn', '-d', salida, ...FUENTES], { stdio: 'inherit' })
   execFileSync('java', ['-Dfile.encoding=UTF-8', '-cp', salida, 'com.skippify.app.PruebasMacros'], { stdio: 'inherit' })
+  execFileSync('java', ['-Dfile.encoding=UTF-8', '-cp', salida, 'com.skippify.app.PruebasTemporizador'], { stdio: 'inherit' })
 } finally {
   rmSync(salida, { recursive: true, force: true })
 }

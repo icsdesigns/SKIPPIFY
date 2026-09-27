@@ -702,6 +702,9 @@ public class SpotifyNotificationListener extends NotificationListenerService
 
         restorePersistedAdMuteIfNeeded(getApplicationContext());
 
+        // Si el proceso murió con un temporizador en marcha, se retoma aquí.
+        SleepTimer.resume(getApplicationContext());
+
         // Al (re)conectar, Spotify puede estar ya sonando y la notificación ya
         // existir: se consultan las activas para engancharse al MediaSession.
         try {

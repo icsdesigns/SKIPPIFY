@@ -765,6 +765,112 @@ public class NotifListenerPlugin extends Plugin
         return out;
     }
 
+    // ── Temporizador de escucha ───────────────────────────────────────────────
+
+    /** Estado del temporizador: { phase, endAt, sound, bluetoothOff, ... }. */
+    @PluginMethod
+    public void getSleepTimer(PluginCall call) {
+        call.resolve(toJSObject(SleepTimer.state(getContext())));
+    }
+
+    @PluginMethod
+    public void startSleepTimer(PluginCall call) {
+        long durationMs = longArg(call, "durationMs");
+        if (durationMs < 60_000L) {
+            call.reject("La duración mínima es un minuto.");
+            return;
+        }
+        SleepTimer.start(
+                getContext(),
+                durationMs,
+                call.getBoolean("sound", false),
+                call.getBoolean("bluetoothOff", false)
+        );
+        call.resolve(toJSObject(SleepTimer.state(getContext())));
+    }
+
+    @PluginMethod
+    public void extendSleepTimer(PluginCall call) {
+        SleepTimer.extend(getContext(), longArg(call, "deltaMs"));
+        call.resolve(toJSObject(SleepTimer.state(getContext())));
+    }
+
+    @PluginMethod
+    public void setSleepTimerOptions(PluginCall call) {
+        SleepTimer.setOptions(
+                getContext(),
+                call.getBoolean("sound", false),
+                call.getBoolean("bluetoothOff", false)
+        );
+        call.resolve(toJSObject(SleepTimer.state(getContext())));
+    }
+
+    @PluginMethod
+    public void cancelSleepTimer(PluginCall call) {
+        SleepTimer.cancel(getContext());
+        call.resolve(toJSObject(SleepTimer.state(getContext())));
+    }
+
+    /** Hace sonar el aviso de fin, para que el usuario sepa qué va a oír. */
+    @PluginMethod
+    public void testSleepTimerSound(PluginCall call) {
+        final android.content.Context app = getContext().getApplicationContext();
+        new Thread(() -> SleepTimer.playChime(app), "skippify-chime").start();
+        call.resolve();
+    }
+
+    /** Qué deja hacer el sistema con el Bluetooth y qué hay conectado. */
+    @PluginMethod
+    public void getBluetoothInfo(PluginCall call) {
+        call.resolve(toJSObject(SleepTimer.bluetoothInfo(getContext())));
+    }
+
+    /** Android 12 pide «Dispositivos cercanos» para poder apagar el Bluetooth. */
+    @PluginMethod
+    public void requestBluetoothPermission(PluginCall call) {
+        if (SleepTimer.needsConnectPermission(getContext())) {
+            try {
+                ActivityCompat.requestPermissions(
+                        getActivity(),
+                        new String[] { Manifest.permission.BLUETOOTH_CONNECT },
+                        9002
+                );
+            } catch (Throwable ignored) {
+            }
+        }
+        call.resolve(toJSObject(SleepTimer.bluetoothInfo(getContext())));
+    }
+
+    static void notifySleepTimerChanged(JSONObject state) {
+        NotifListenerPlugin instance = sInstance;
+        if (instance == null) return;
+        try {
+            instance.notifyListeners("sleepTimerChanged", toJSObject(state), true);
+        } catch (Throwable ignored) {
+        }
+    }
+
+    /**
+     * `PluginCall.getLong()` sólo acepta valores que ya sean Long, y un número
+     * de JS que cabe en un int llega como Integer: se leería el valor por
+     * defecto. Por eso se lee a mano.
+     */
+    private static long longArg(PluginCall call, String name) {
+        try {
+            return call.getData().optLong(name, 0L);
+        } catch (Throwable ignored) {
+            return 0L;
+        }
+    }
+
+    private static JSObject toJSObject(JSONObject json) {
+        try {
+            return JSObject.fromJSONObject(json);
+        } catch (JSONException e) {
+            return new JSObject();
+        }
+    }
+
     private void emitFeatureConfigChanged() {
         notifyListeners("featureConfigChanged", buildFeatureConfig(), true);
     }
