@@ -27,3 +27,6 @@ firebase-debug.log
 firestore-debug.log
 ui-debug.log
 firebase/.firebase/
+
+# Worktrees de git: siempre dentro del repo, nunca como carpetas hermanas
+.worktrees/
