@@ -120,6 +120,12 @@ async function main () {
   check('el panel se pinta', html.includes('Guía rápida de Skippify'))
   check('empieza por la pestaña Inicio', html.includes('>Inicio</h3>'))
   check('y son seis pasos, uno por pestaña', html.includes('1 / 6'))
+  // Estilo del tour de Salbus: la versión arriba, un punto por paso y el icono
+  // de la pestaña en lugar de un emoji.
+  check('con un punto por paso', (html.match(/class="[^"]*tour-dot"/g) || []).length === 6)
+  check('el primero marcado como actual', /class="(is-current tour-dot|tour-dot is-current)"/.test(html))
+  check('muestra la versión', html.includes('tour-badge'))
+  check('y el icono de la pestaña es un SVG', /tour-icon[^>]*><svg/.test(html))
   // La guía dejó de ser saltable: un «Omitir» al lado dejaría en nada los dos
   // pasos obligatorios (modo de escucha y permisos).
   check('sin botón de omitir', !html.includes('Omitir'))
