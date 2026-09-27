@@ -189,6 +189,31 @@ titulo('Las dos publicaciones comparten el cálculo')
     /\bfunction scoreMember\b/.test(funcion), false)
 }
 
+// ── Escuchas del miembro, no del grupo ───────────────────────────────────────
+// Cada evento se subía con los grupos que el usuario tenía en ese momento y el
+// ranking descartaba los que no nombraban al grupo. Quien entraba en IVANDRA
+// después de haber sincronizado salía en él con cero canciones.
+
+titulo('Un miembro puntúa todas sus escuchas')
+{
+  const { readFileSync } = await import('node:fs')
+  const { fileURLToPath } = await import('node:url')
+  const raizDe = (rel) => fileURLToPath(new URL(rel, import.meta.url))
+
+  const deOtroGrupo = { ...escucha('A', 'X', '2026-09-22T10:00:00Z'), groupIds: ['otro-grupo'] }
+  const sinGrupo = escucha('B', 'Y', '2026-09-22T11:00:00Z')
+  check('una escucha subida con otro grupo cuenta igual',
+    scoreMember([deOtroGrupo, sinGrupo]).totalTracks, 2)
+
+  for (const [nombre, ruta] of [
+    ['la acción de GitHub', './publish-weekly-leaderboard.mjs'],
+    ['la función programada', '../firebase/functions/index.js']
+  ]) {
+    check(`${nombre} no filtra las escuchas por grupo`,
+      /belongsToGroup|groupIds/.test(readFileSync(raizDe(ruta), 'utf8')), false)
+  }
+}
+
 // ── Corte semanal ────────────────────────────────────────────────────────────
 // GitHub arranca las ejecuciones programadas con horas de retraso. Antes sólo
 // se publicaba entre las 15:00 y las 15:59 de Madrid, y el domingo en que la

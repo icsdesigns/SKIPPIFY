@@ -9,7 +9,7 @@ import { pathToFileURL } from 'node:url'
 // añadidas en la v4.0.1 según cuál de las dos publicara.
 import scoring from '../firebase/functions/scoring.js'
 
-const { scoreMember, horaLocalDeEscucha, belongsToGroup } = scoring
+const { scoreMember, horaLocalDeEscucha } = scoring
 
 function getServiceAccountFromEnv () {
   const raw = process.env.FIREBASE_SERVICE_ACCOUNT_JSON || ''
@@ -151,8 +151,8 @@ async function run () {
     const results = []
     for (const member of members) {
       const events = await fetchMemberEventsForWindow(db, member.uid, startIso, endIso)
-      const groupScoped = events.filter(e => belongsToGroup(e, groupId))
-      const stats = scoreMember(groupScoped)
+      // Todas las escuchas del miembro: ver la nota en scoring.js.
+      const stats = scoreMember(events)
 
       results.push({
         uid: member.uid,

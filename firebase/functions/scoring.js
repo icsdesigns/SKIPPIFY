@@ -37,17 +37,12 @@ function horaLocalDeEscucha (playedAt) {
   return Number.isInteger(hora) && hora >= 0 && hora <= 23 ? hora : null
 }
 
-/**
- * Un usuario puede pertenecer a varios grupos, así que sus reproducciones llevan
- * la lista `groupIds`. `groupId` (una sola) se mantiene por los eventos subidos
- * con versiones anteriores de la app.
- */
-function belongsToGroup (event, groupId) {
-  if (Array.isArray(event?.groupIds) && event.groupIds.length) {
-    return event.groupIds.includes(groupId)
-  }
-  return (event?.groupId || '') === groupId
-}
+// Las escuchas son del usuario, no del grupo: cada grupo puntúa TODAS las de
+// sus miembros en la ventana. Antes se filtraban por la lista `groupIds` que
+// llevaba cada evento al subirse, pero esa lista era la de los grupos que el
+// usuario tenía EN ESE MOMENTO y no se reescribe: quien entraba en un grupo
+// después de haber sincronizado aparecía en él con cero canciones toda la
+// semana.
 
 function topOf (map) {
   let name = ''
@@ -155,4 +150,4 @@ function scoreMember (events) {
   }
 }
 
-module.exports = { scoreMember, horaLocalDeEscucha, belongsToGroup, topOf }
+module.exports = { scoreMember, horaLocalDeEscucha, topOf }

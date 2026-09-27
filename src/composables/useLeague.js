@@ -4,7 +4,8 @@
  * Un usuario puede pertenecer a VARIOS grupos a la vez y salirse de cualquiera.
  * El estado guarda la lista completa y cuál se está mirando; los eventos de
  * escucha son del usuario (no del grupo), así que se suben una sola vez y cada
- * grupo los puntúa por su cuenta en la función programada.
+ * grupo puntúa todos los de sus miembros en la publicación semanal. La subida
+ * corre desde App.vue (checkPublishedResults), no sólo con Comunidad abierta.
  */
 import { computed, reactive, ref } from 'vue'
 import { signInAnonymously, onAuthStateChanged } from 'firebase/auth'
@@ -708,9 +709,23 @@ async function syncLocalEvents (options = {}) {
 }
 
 async function _syncLocalEvents (options = {}) {
-  const silent = !!options?.silent
-  if (!silent) clearStatus()
-  else error.value = ''
+  // `background`: la subida que corre sola desde App.vue. No toca los avisos de
+  // la pantalla Comunidad, que el usuario puede no estar mirando.
+  const background = !!options?.background
+  const silent = background || !!options?.silent
+  if (!background) {
+    if (!silent) clearStatus()
+    else error.value = ''
+  }
+
+  // Volver a la app también dispara esta subida, y cada una reenvía el día de
+  // solape de abajo: sin este respiro, entrar y salir varias veces seguidas
+  // reescribía cientos de documentos iguales.
+  const BACKGROUND_MIN_GAP_MS = 10 * 60 * 1000
+  if (background && state.value.lastSyncAt &&
+      Date.now() - new Date(state.value.lastSyncAt).getTime() < BACKGROUND_MIN_GAP_MS) {
+    return 0
+  }
 
   if (!requireFirebase()) return 0
 
@@ -807,7 +822,7 @@ async function _syncLocalEvents (options = {}) {
     for (const b of batches) await b.commit()
   } catch (err) {
     syncing.value = false
-    error.value = mapFirebaseError(err, 'No fue posible sincronizar las reproducciones.')
+    if (!background) error.value = mapFirebaseError(err, 'No fue posible sincronizar las reproducciones.')
     return 0
   }
 
@@ -879,6 +894,14 @@ async function checkPublishedResults () {
     // En silencio: este repaso corre solo, así que no puede dejar mensajes de
     // error en una pantalla que el usuario no ha pedido.
     if (!(await ensureAuth())) return 0
+
+    // Las escuchas sólo se subían con la pestaña Comunidad abierta, así que
+    // quien escuchaba toda la semana sin entrar en ella salía en el ranking con
+    // cero canciones. Este repaso corre al abrir la app, al volver a ella y cada
+    // 30 minutos, que es justo lo que hacía falta para subirlas.
+    try {
+      await syncLocalEvents({ background: true })
+    } catch { /* sin red: se reintenta en el siguiente repaso */ }
 
     for (const group of [...state.value.groups]) {
       try {

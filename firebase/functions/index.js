@@ -3,7 +3,7 @@ const { onCall, HttpsError } = require('firebase-functions/v2/https')
 const admin = require('firebase-admin')
 // Puntuación compartida con la acción de GitHub: una sola implementación, en
 // scoring.js, para que las dos publiquen exactamente las mismas cifras.
-const { scoreMember, belongsToGroup } = require('./scoring')
+const { scoreMember } = require('./scoring')
 
 admin.initializeApp()
 const db = admin.firestore()
@@ -46,7 +46,7 @@ async function publicarRankingDeGrupo (groupId, { weekKey, weekStartIso, weekEnd
   const results = []
   for (const member of members) {
     const events = await fetchMemberEventsForWindow(member.uid, weekStartIso, weekEndIso)
-    const stats = scoreMember(events.filter(e => belongsToGroup(e, groupId)))
+    const stats = scoreMember(events)
 
     results.push({
       uid: member.uid,
