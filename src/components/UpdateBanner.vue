@@ -6,7 +6,9 @@
     >
       <div class="sk-card sk-card-lit my-auto w-full max-w-md p-6">
         <div class="mb-4 flex items-center gap-3">
-          <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-brand-400 text-xl shadow-glow">⬆️</span>
+          <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-brand-400 shadow-glow">
+            <UpdateIcon class="h-6 w-6 text-black" />
+          </span>
           <div class="min-w-0">
             <h2 class="truncate text-lg font-extrabold tracking-tight text-white">Actualización disponible</h2>
             <p class="truncate text-[11px] font-bold text-brand-400">Skippify {{ update.latest.value?.version }}</p>
@@ -76,6 +78,7 @@
 <script setup>
 import { computed, onMounted, onUnmounted } from 'vue'
 import { useAppUpdate } from '@/composables/useAppUpdate'
+import UpdateIcon from '@/components/UpdateIcon.vue'
 
 const update = useAppUpdate()
 
