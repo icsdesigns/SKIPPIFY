@@ -1,23 +1,22 @@
 <template>
-  <div class="sk-stagger space-y-6">
+  <!-- Cada función va en su propio panel plegable (FeaturePanel). Para añadir
+       una función nueva basta con otro <FeaturePanel> en esta lista. -->
+  <div class="sk-stagger space-y-3">
 
     <!-- ══ 1 · Salto de duplicadas ═══════════════════════════════════════════ -->
-    <section class="space-y-4">
-      <header class="flex items-center gap-3">
-        <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-400/[0.18] text-base">🔁</span>
-        <div class="min-w-0">
-          <h2 class="text-xl font-extrabold tracking-tightest text-white">Salto de duplicadas</h2>
-          <p class="text-[11px] text-slate-500">Cuánto tiempo tiene que pasar para volver a oír la misma canción</p>
-        </div>
-      </header>
+    <FeaturePanel
+      icon="🔁"
+      icon-class="bg-brand-400/[0.18]"
+      title="Salto de duplicadas"
+      subtitle="Cuánto tiempo tiene que pasar para volver a oír la misma canción"
+    >
+      <template #estado>
+        <span class="sk-chip sk-chip-accent">{{ resumenActivo }}</span>
+      </template>
 
       <!-- ── Elección de familia: predefinidos o personalizado ─────────────── -->
-      <article data-tour="listening-modes" class="sk-card p-5">
-        <div class="flex flex-wrap items-center justify-between gap-2">
-          <p class="sk-eyebrow">Modo de escucha</p>
-          <span class="sk-chip sk-chip-accent">{{ resumenActivo }}</span>
-        </div>
-
+      <div data-tour="listening-modes">
+        <p class="sk-eyebrow">Modo de escucha</p>
         <!-- Los tres modos, siempre a la vista: son los mismos que ofrece la
              notificación persistente, así que la rejilla no cambia de forma. -->
         <!-- Tres columnas sólo a partir de lg: entre 640 y 1024 px la barra
@@ -92,10 +91,10 @@
             </p>
           </div>
         </Transition>
-      </article>
+      </div>
 
       <!-- ── Calibración del salto ────────────────────────────────────────── -->
-      <article data-tour="calibration-cta" class="sk-card p-5">
+      <div data-tour="calibration-cta" class="mt-5 border-t border-white/[0.07] pt-5">
         <div class="flex flex-wrap items-center gap-3">
           <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-violet-400/[0.18] text-lg">🩺</span>
           <div class="min-w-0 flex-1">
@@ -109,83 +108,78 @@
             Calibrar
           </button>
         </div>
-      </article>
-    </section>
-
-    <div class="sk-divider" />
+      </div>
+    </FeaturePanel>
 
     <!-- ══ 2 · Silenciamiento de anuncios ════════════════════════════════════ -->
-    <section class="space-y-4">
-      <header class="flex items-center gap-3">
-        <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-amber-400/[0.18] text-base">🔇</span>
-        <div class="min-w-0">
-          <h2 class="text-xl font-extrabold tracking-tightest text-white">Silenciamiento de anuncios</h2>
-          <p class="text-[11px] text-slate-500">Solo tiene efecto en cuentas gratuitas de Spotify</p>
-        </div>
-      </header>
+    <FeaturePanel
+      icon="🔇"
+      icon-class="bg-amber-400/[0.18]"
+      title="Silenciamiento de anuncios"
+      subtitle="Solo tiene efecto en cuentas gratuitas de Spotify"
+    >
+      <template #estado>
+        <span class="sk-chip" :class="features.silenceAds ? 'sk-chip-accent' : ''">
+          {{ features.silenceAds ? 'Activado' : 'Desactivado' }}
+        </span>
+      </template>
 
-      <article class="sk-card sk-card-lit p-5">
-        <div class="flex items-start gap-4">
-          <span
-            class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-xl transition-colors"
-            :class="features.silenceAds ? 'bg-brand-400/25' : 'bg-white/[0.08]'"
-          >🚫</span>
+      <div class="flex items-start gap-4">
+        <span
+          class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-xl transition-colors"
+          :class="features.silenceAds ? 'bg-brand-400/25' : 'bg-white/[0.08]'"
+        >🚫</span>
 
-          <div class="min-w-0 flex-1">
-            <div class="flex flex-wrap items-center gap-2">
-              <h3 class="sk-title">Silenciar anuncios</h3>
-              <span class="sk-chip" :class="features.silenceAds ? 'sk-chip-accent' : ''">
-                {{ features.silenceAds ? 'Activado' : 'Desactivado' }}
-              </span>
-            </div>
-            <p class="sk-subtitle">
-              Cuando la notificación de Spotify contiene alguna palabra clave, Skippify baja
-              el volumen multimedia mientras dura el anuncio y lo restaura al terminar.
-            </p>
-            <p class="mt-1 text-[11px] text-slate-500">Experimental · Requiere acceso a notificaciones</p>
-          </div>
-
-          <button
-            role="switch"
-            :aria-checked="features.silenceAds"
-            class="sk-switch mt-1"
-            :class="features.silenceAds ? 'border-transparent bg-brand-400' : 'border-transparent bg-white/[0.18]'"
-            @click="features.silenceAds = !features.silenceAds"
-          >
-            <span class="sk-switch-knob" :class="features.silenceAds ? 'translate-x-6' : 'translate-x-1'" />
-          </button>
+        <div class="min-w-0 flex-1">
+          <h3 class="sk-title">Silenciar anuncios</h3>
+          <p class="sk-subtitle">
+            Cuando la notificación de Spotify contiene alguna palabra clave, Skippify baja
+            el volumen multimedia mientras dura el anuncio y lo restaura al terminar.
+          </p>
+          <p class="mt-1 text-[11px] text-slate-500">Experimental · Requiere acceso a notificaciones</p>
         </div>
 
-        <Transition name="desplegar">
-          <div v-if="features.silenceAds" class="mt-4 border-t border-white/[0.07] pt-4">
-            <p class="sk-eyebrow">Palabras clave detectadas</p>
-            <div class="mt-2 flex flex-wrap gap-1.5">
-              <span v-for="kw in features.silenceAdsKeywords" :key="kw" class="sk-chip">
-                {{ kw }}
-                <button
-                  v-if="!requiredKeywords.includes(kw)"
-                  class="text-slate-500 transition-colors hover:text-rose-200"
-                  aria-label="Quitar palabra"
-                  @click="removeKeyword(kw)"
-                >×</button>
-              </span>
-            </div>
+        <button
+          role="switch"
+          :aria-checked="features.silenceAds"
+          aria-label="Silenciar anuncios"
+          class="sk-switch mt-1"
+          :class="features.silenceAds ? 'border-transparent bg-brand-400' : 'border-transparent bg-white/[0.18]'"
+          @click="features.silenceAds = !features.silenceAds"
+        >
+          <span class="sk-switch-knob" :class="features.silenceAds ? 'translate-x-6' : 'translate-x-1'" />
+        </button>
+      </div>
 
-            <div class="mt-3 flex flex-col gap-2 sm:flex-row">
-              <input
-                v-model="newKeyword"
-                type="text"
-                placeholder="Añadir palabra personalizada"
-                class="sk-input flex-1"
-                @keydown.enter.prevent="addKeyword"
-              >
-              <button class="sk-btn sk-btn-primary sk-btn-sm" @click="addKeyword">Añadir</button>
-            </div>
-            <p class="mt-2 text-[11px] text-slate-500">Las palabras por defecto no se pueden eliminar.</p>
+      <Transition name="desplegar">
+        <div v-if="features.silenceAds" class="mt-4 border-t border-white/[0.07] pt-4">
+          <p class="sk-eyebrow">Palabras clave detectadas</p>
+          <div class="mt-2 flex flex-wrap gap-1.5">
+            <span v-for="kw in features.silenceAdsKeywords" :key="kw" class="sk-chip">
+              {{ kw }}
+              <button
+                v-if="!requiredKeywords.includes(kw)"
+                class="text-slate-500 transition-colors hover:text-rose-200"
+                aria-label="Quitar palabra"
+                @click="removeKeyword(kw)"
+              >×</button>
+            </span>
           </div>
-        </Transition>
-      </article>
-    </section>
+
+          <div class="mt-3 flex flex-col gap-2 sm:flex-row">
+            <input
+              v-model="newKeyword"
+              type="text"
+              placeholder="Añadir palabra personalizada"
+              class="sk-input flex-1"
+              @keydown.enter.prevent="addKeyword"
+            >
+            <button class="sk-btn sk-btn-primary sk-btn-sm" @click="addKeyword">Añadir</button>
+          </div>
+          <p class="mt-2 text-[11px] text-slate-500">Las palabras por defecto no se pueden eliminar.</p>
+        </div>
+      </Transition>
+    </FeaturePanel>
 
   </div>
 </template>
@@ -203,6 +197,7 @@
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useFeatures } from '@/composables/useFeatures'
+import FeaturePanel from '@/components/FeaturePanel.vue'
 
 const router = useRouter()
 const { state: features, setListeningMode } = useFeatures()
