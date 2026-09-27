@@ -188,7 +188,9 @@
     -->
     <section class="overflow-hidden sk-card">
       <header class="sk-card-head">
-        <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-400/[0.18] text-base">⬆️</span>
+        <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-400/[0.18]">
+          <UpdateIcon class="h-5 w-5 text-brand-400" />
+        </span>
         <div class="min-w-0">
           <h2 class="text-sm font-bold text-white">Actualizaciones</h2>
           <p class="text-[11px] text-slate-400">Se comprueba sola al abrir la app.</p>
@@ -258,6 +260,7 @@ import { useNotifListener } from '@/composables/useNotifListener'
 import { useEventStore } from '@/stores/events'
 import { useFeatures, sanitizeListeningMode, sanitizeSkipInterval } from '@/composables/useFeatures'
 import { useAppUpdate } from '@/composables/useAppUpdate'
+import UpdateIcon from '@/components/UpdateIcon.vue'
 import {
   REGISTER_DUPLICATE_PROGRESS_RATIO,
   REGISTER_NEW_SONG_PROGRESS_RATIO,
