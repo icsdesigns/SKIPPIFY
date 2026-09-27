@@ -53,16 +53,54 @@ function madridNowParts (date = new Date()) {
  * ejecutar a mano cuando un grupo recién creado no tiene todavía ningún ranking
  * que enseñar.
  */
-function shouldRunPublishNow () {
+function isForcedPublish () {
   if ((process.env.FORCE_WEEKLY_PUBLISH || '').toLowerCase() === 'true') return true
-  if (process.argv.slice(2).some(a => a === '--ahora' || a === '--force')) return true
-  const now = madridNowParts()
-  return now.weekday === 'Sun' && now.hour === 15
+  return process.argv.slice(2).some(a => a === '--ahora' || a === '--force')
+}
+
+const DIAS_SEMANA = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+const SEMANA_MS = 7 * 24 * 60 * 60 * 1000
+
+/** Instante UTC de una hora de pared en Madrid (vale en verano y en invierno). */
+function madridWallTimeToDate (year, month, day, hour) {
+  const guess = Date.UTC(year, month - 1, day, hour)
+  const p = madridNowParts(new Date(guess))
+  const desfase = Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, p.second) - guess
+  return new Date(guess - desfase)
+}
+
+/**
+ * Último corte semanal (domingo 15:00 Europe/Madrid) ya alcanzado.
+ *
+ * Antes sólo se publicaba si la acción arrancaba justo entre las 15:00 y las
+ * 15:59, pero GitHub retrasa y salta las ejecuciones programadas: de las 24
+ * horarias del domingo corren unas seis, a deshora. Los domingos en que ninguna
+ * caía en esa hora el ranking no se publicaba. Ahora cualquier ejecución
+ * posterior al corte publica el de esa semana, y la ventana se ancla al corte
+ * para que la hora a la que arranque la acción no cambie las cifras.
+ */
+function latestWeeklyCut (now = new Date()) {
+  const hoy = madridNowParts(now)
+  const diasDesdeDomingo = DIAS_SEMANA.indexOf(hoy.weekday)
+  const domingo = new Date(Date.UTC(hoy.year, hoy.month - 1, hoy.day - diasDesdeDomingo))
+  let corte = madridWallTimeToDate(domingo.getUTCFullYear(), domingo.getUTCMonth() + 1, domingo.getUTCDate(), 15)
+  if (corte > now) corte = new Date(corte.getTime() - SEMANA_MS)
+  return corte
+}
+
+function getCutWindow (now = new Date()) {
+  const end = latestWeeklyCut(now)
+  const start = new Date(end.getTime() - SEMANA_MS)
+  return {
+    startIso: start.toISOString(),
+    endIso: end.toISOString(),
+    weekKey: start.toISOString().slice(0, 10)
+  }
 }
 
 function getRollingWindow () {
   const end = new Date()
-  const start = new Date(end.getTime() - (7 * 24 * 60 * 60 * 1000))
+  const start = new Date(end.getTime() - SEMANA_MS)
   return {
     startIso: start.toISOString(),
     endIso: end.toISOString(),
@@ -83,24 +121,29 @@ async function fetchMemberEventsForWindow (db, uid, startIso, endIso) {
 }
 
 async function run () {
-  if (!shouldRunPublishNow()) {
-    console.log('[weekly] Skipped: outside Sunday 15:00 Europe/Madrid window.')
-    return
-  }
-
   const serviceAccount = getServiceAccountFromEnv()
   if (!getApps().length) {
     initializeApp({ credential: cert(serviceAccount) })
   }
 
   const db = getFirestore()
-  const { startIso, endIso, weekKey } = getRollingWindow()
-  console.log(`[weekly] Publishing window ${startIso} -> ${endIso}`)
+  const forzado = isForcedPublish()
+  const { startIso, endIso, weekKey } = forzado ? getRollingWindow() : getCutWindow()
+  console.log(`[weekly] Publishing window ${startIso} -> ${endIso}${forzado ? ' (forzado)' : ''}`)
 
   const groupsSnap = await db.collection('friend_groups').get()
   for (const groupDoc of groupsSnap.docs) {
     const groupId = groupDoc.id
     const resultsCollection = db.collection('friend_groups').doc(groupId).collection('weekly_results')
+
+    // La acción corre varias veces después del corte; sólo la primera publica.
+    if (!forzado) {
+      const currentSnap = await resultsCollection.doc('current').get()
+      if (currentSnap.exists && currentSnap.get('weekEnd') === endIso) {
+        console.log(`[weekly] Group ${groupId} already published for ${endIso}`)
+        continue
+      }
+    }
     const membersSnap = await db.collection('friend_groups').doc(groupId).collection('members').get()
     const members = membersSnap.docs.map(d => ({ uid: d.id, ...d.data() }))
     if (!members.length) continue
@@ -233,4 +276,4 @@ if (ejecucionDirecta) {
   })
 }
 
-export { scoreMember, horaLocalDeEscucha }
+export { scoreMember, horaLocalDeEscucha, latestWeeklyCut }

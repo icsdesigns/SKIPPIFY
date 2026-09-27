@@ -11,7 +11,7 @@
  * desfase de Europe/Madrid —que además cambia entre invierno (+1) y verano (+2)—.
  * Es un fallo que no se ve: la cifra sale, sólo que corrida una o dos horas.
  */
-import { scoreMember, horaLocalDeEscucha } from './publish-weekly-leaderboard.mjs'
+import { scoreMember, horaLocalDeEscucha, latestWeeklyCut } from './publish-weekly-leaderboard.mjs'
 
 let fallos = 0
 let total = 0
@@ -187,6 +187,28 @@ titulo('Las dos publicaciones comparten el cálculo')
     /require\(['"]\.\/scoring['"]\)/.test(funcion), true)
   check('y no vuelve a declarar scoreMember por su cuenta',
     /\bfunction scoreMember\b/.test(funcion), false)
+}
+
+// ── Corte semanal ────────────────────────────────────────────────────────────
+// GitHub arranca las ejecuciones programadas con horas de retraso. Antes sólo
+// se publicaba entre las 15:00 y las 15:59 de Madrid, y el domingo en que la
+// acción corría a las 16:59 (27-09-2026) el ranking no salió.
+
+titulo('Corte del domingo a las 15:00 de Madrid')
+{
+  const corte = (iso) => latestWeeklyCut(new Date(iso)).toISOString()
+  check('una ejecución retrasada a las 16:59 publica el de ese domingo',
+    corte('2026-09-27T14:59:07Z'), '2026-09-27T13:00:00.000Z')
+  check('justo en el corte ya cuenta',
+    corte('2026-09-27T13:00:00Z'), '2026-09-27T13:00:00.000Z')
+  check('antes de las 15:00 sigue valiendo el domingo anterior',
+    corte('2026-09-27T12:59:59Z'), '2026-09-20T13:00:00.000Z')
+  check('el lunes de madrugada todavía es el del domingo',
+    corte('2026-09-21T00:59:26Z'), '2026-09-20T13:00:00.000Z')
+  check('en invierno las 15:00 de Madrid son las 14:00 UTC',
+    corte('2026-12-06T18:00:00Z'), '2026-12-06T14:00:00.000Z')
+  check('un miércoles apunta al domingo anterior',
+    corte('2026-12-09T10:00:00Z'), '2026-12-06T14:00:00.000Z')
 }
 
 console.log()
