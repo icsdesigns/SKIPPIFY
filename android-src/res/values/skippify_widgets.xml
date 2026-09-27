@@ -5,6 +5,29 @@
     <string name="widget_semana_nombre">Tu semana</string>
     <string name="widget_semana_descripcion">Escuchas, tiempo, saltadas y tu artista más escuchado de la semana</string>
 
+    <!--
+      Cifras de «Tu semana». Son cuatro en fila, así que el tamaño se ajusta
+      solo: «5 h 20 min» tiene que caber en un widget estrecho.
+    -->
+    <style name="SkippifyWidgetCifra">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">26dp</item>
+        <item name="android:maxLines">1</item>
+        <item name="android:textSize">20sp</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:autoSizeTextType">uniform</item>
+        <item name="android:autoSizeMinTextSize">11sp</item>
+        <item name="android:autoSizeMaxTextSize">20sp</item>
+    </style>
+
+    <style name="SkippifyWidgetEtiqueta">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:maxLines">1</item>
+        <item name="android:textColor">#FFB3B3B3</item>
+        <item name="android:textSize">11sp</item>
+    </style>
+
     <!-- Letra de cada día bajo el gráfico de «Tu semana». -->
     <style name="SkippifyWidgetDia">
         <item name="android:layout_width">0dp</item>

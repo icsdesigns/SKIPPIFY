@@ -59,6 +59,9 @@ public final class PruebasWidgetSemana {
         check("artista top por su primer nombre", r.artistaTop, "Rosalía");
         check("con sus escuchas", r.escuchasArtistaTop, 3);
         check("tiempo: 160+190+160+120 s", r.msEscuchados, 630000L);
+        check("media diaria: 630 s entre los 7 días que van", r.msMediaDiaria, 90000L);
+        check("el lunes, la media es el propio día (160+190+160 s)",
+                SemanaWidgetDatos.calcular(log, "", ms("2026-09-21T09:00:00Z"), madrid).msMediaDiaria, 510000L);
         check("duplicadas desde el lunes", r.duplicadas, 4);
         check("saltadas desde el lunes", r.saltadas, 3);
 

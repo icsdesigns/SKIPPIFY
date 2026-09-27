@@ -47,26 +47,18 @@
         <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
+            android:layout_weight="0.8"
             android:orientation="vertical">
 
             <TextView
                 android:id="@+id/widget_semana_escuchas"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:maxLines="1"
+                style="@style/SkippifyWidgetCifra"
                 android:text="0"
-                android:textColor="#FFFFFFFF"
-                android:textSize="20sp"
-                android:textStyle="bold" />
+                android:textColor="#FFFFFFFF" />
 
             <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:maxLines="1"
-                android:text="escuchas"
-                android:textColor="#FFB3B3B3"
-                android:textSize="11sp" />
+                style="@style/SkippifyWidgetEtiqueta"
+                android:text="escuchas" />
         </LinearLayout>
 
         <LinearLayout
@@ -77,46 +69,47 @@
 
             <TextView
                 android:id="@+id/widget_semana_tiempo"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:maxLines="1"
+                style="@style/SkippifyWidgetCifra"
                 android:text="0 min"
-                android:textColor="#FFFFFFFF"
-                android:textSize="20sp"
-                android:textStyle="bold" />
+                android:textColor="#FFFFFFFF" />
 
             <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:maxLines="1"
-                android:text="escuchado"
-                android:textColor="#FFB3B3B3"
-                android:textSize="11sp" />
+                style="@style/SkippifyWidgetEtiqueta"
+                android:text="escuchado" />
         </LinearLayout>
 
         <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
+            android:layout_weight="1.1"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/widget_semana_media"
+                style="@style/SkippifyWidgetCifra"
+                android:text="0 min"
+                android:textColor="#FFFFFFFF" />
+
+            <TextView
+                style="@style/SkippifyWidgetEtiqueta"
+                android:text="al día" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="0.9"
             android:orientation="vertical">
 
             <TextView
                 android:id="@+id/widget_semana_saltadas"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:maxLines="1"
+                style="@style/SkippifyWidgetCifra"
                 android:text="0"
-                android:textColor="#FF1ED760"
-                android:textSize="20sp"
-                android:textStyle="bold" />
+                android:textColor="#FF1ED760" />
 
             <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:maxLines="1"
-                android:text="saltadas"
-                android:textColor="#FFB3B3B3"
-                android:textSize="11sp" />
+                style="@style/SkippifyWidgetEtiqueta"
+                android:text="saltadas" />
         </LinearLayout>
     </LinearLayout>
 

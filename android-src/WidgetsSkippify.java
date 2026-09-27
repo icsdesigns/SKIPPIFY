@@ -167,7 +167,8 @@ final class WidgetsSkippify {
         v.setTextViewText(R.id.widget_semana_rango, rango(r.inicioSemana, zona));
         v.setTextViewText(R.id.widget_semana_escuchas, String.valueOf(r.escuchas));
         v.setTextViewText(R.id.widget_semana_tiempo, SemanaWidgetDatos.duracion(r.msEscuchados));
-        v.setTextViewText(R.id.widget_semana_saltadas, String.valueOf(r.saltadas));
+        v.setTextViewText(R.id.widget_semana_media, SemanaWidgetDatos.duracion(r.msMediaDiaria));
+        v.setTextViewText(R.id.widget_semana_saltadas,String.valueOf(r.saltadas));
 
         if (r.artistaTop.isEmpty()) {
             v.setTextViewText(R.id.widget_semana_top, r.escuchas == 0

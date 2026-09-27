@@ -28,6 +28,8 @@ public final class SemanaWidgetDatos {
     public static final class Resumen {
         public int escuchas;
         public long msEscuchados;
+        /** Tiempo escuchado entre los días que van de semana, hoy incluido. */
+        public long msMediaDiaria;
         public int distintas;
         public String artistaTop = "";
         public int escuchasArtistaTop;
@@ -107,6 +109,9 @@ public final class SemanaWidgetDatos {
             porArtista.put(artista, n == null ? 1 : n + 1);
         }
         r.distintas = distintas.size();
+        // Se divide entre los días transcurridos, no entre siete: un martes con
+        // dos días de música no debe salir con una media de domingo.
+        r.msMediaDiaria = r.msEscuchados / (r.hoy + 1);
 
         for (Map.Entry<String, Integer> it : porArtista.entrySet()) {
             int n = it.getValue();
