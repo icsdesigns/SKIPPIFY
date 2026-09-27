@@ -14,7 +14,7 @@
         class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-base"
         :class="iconClass"
         aria-hidden="true"
-      >{{ icon }}</span>
+      ><slot name="icono">{{ icon }}</slot></span>
       <span class="min-w-0 flex-1">
         <span class="block truncate text-sm font-bold text-white">{{ title }}</span>
         <span v-if="subtitle" class="hidden truncate text-[11px] text-slate-500 sm:block">{{ subtitle }}</span>
@@ -71,7 +71,8 @@
 import { computed, inject, ref, useId } from 'vue'
 
 const props = defineProps({
-  icon: { type: String, required: true },
+  /** Emoji del círculo; el slot #icono lo sustituye por un dibujo propio. */
+  icon: { type: String, default: '' },
   /** Fondo del círculo del icono, p. ej. 'bg-amber-400/[0.18]'. */
   iconClass: { type: String, default: 'bg-white/[0.08]' },
   title: { type: String, required: true },
