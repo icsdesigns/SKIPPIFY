@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- «Siguiente» de la tarjeta «Saltadas» del widget «Tu mes», en el verde de la cifra. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:pathData="M5.5,5.8 L14.8,11.2 A0.9,0.9 0 0 1 14.8,12.8 L5.5,18.2 A0.9,0.9 0 0 1 4.2,17.4 V6.6 A0.9,0.9 0 0 1 5.5,5.8 Z"
+        android:fillColor="#FF1ED760" />
+    <path
+        android:pathData="M18.5,6 V18"
+        android:strokeWidth="2.4"
+        android:strokeLineCap="round"
+        android:strokeColor="#FF1ED760" />
+</vector>

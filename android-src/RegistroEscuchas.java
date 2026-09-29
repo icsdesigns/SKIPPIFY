@@ -14,32 +14,38 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Copia de los eventos de Spotify de los últimos días, para el widget «Tu semana».
+ * Copia de los eventos de Spotify del último mes, para el widget «Tu mes».
  *
  * El widget no puede tirar del log crudo del listener: la app lo vacía cada
  * vez que se abre (drainBackgroundEvents), así que tras abrirla el widget se
  * quedaría a cero. Tampoco del historial de la app, que vive en el
  * localStorage de la WebView y Android no puede leer. Por eso el listener
  * escribe cada evento también aquí, y este fichero sólo lo recorta el tiempo:
- * se guardan {@link #DIAS} días, lo justo para cubrir la semana en curso.
+ * se guardan {@link #DIAS} días, lo justo para cubrir los 30 del widget.
+ *
+ * El fichero conserva el nombre con el que nació en la v4.2.5 (cuando el
+ * widget era semanal y guardaba 8 días) para no perder lo ya apuntado.
  */
-final class RegistroSemanal {
+final class RegistroEscuchas {
 
     static final String FICHERO = "skippify-widget-semana.ndjson";
 
-    /** Una semana y un día: el lunes a primera hora aún se ve el domingo. */
-    private static final long DIAS = 8L;
+    /** Los 30 días del widget y uno de margen. */
+    private static final long DIAS = MesWidgetDatos.DIAS + 1L;
     private static final long VENTANA_MS = DIAS * 24L * 3600L * 1000L;
     /** Recorte como mucho cada 6 horas: reescribir el fichero en cada evento sobra. */
     private static final long RECORTE_CADA_MS = 6L * 3600L * 1000L;
-    /** Tope de seguridad por si el reloj se va: más de esto se recorta ya. */
-    private static final long MAX_BYTES = 2L * 1024L * 1024L;
-    private static final int MAX_LINEAS = 20000;
+    /**
+     * Tope de seguridad por si el reloj se va: más de esto se recorta ya. Un
+     * mes escuchando mucho ronda las 20 000 líneas y 4 MB.
+     */
+    private static final long MAX_BYTES = 8L * 1024L * 1024L;
+    private static final int MAX_LINEAS = 60000;
 
     private static final Object LOCK = new Object();
     private static long sUltimoRecorte = 0L;
 
-    private RegistroSemanal() { }
+    private RegistroEscuchas() { }
 
     /** Añade un evento con la misma forma que el log crudo. */
     static void anotar(Context ctx, JSONObject evento) {

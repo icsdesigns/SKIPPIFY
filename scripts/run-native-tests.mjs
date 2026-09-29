@@ -27,9 +27,9 @@ const FUENTES = [
   // Y la subida de escuchas de Comunidad: la parte que decide, sin Android.
   join(raiz, 'android-src', 'EscuchasNube.java'),
   join(raiz, 'scripts', 'native-tests', 'PruebasLiga.java'),
-  // Las cifras del widget «Tu semana», que se apoyan en el mismo troceado.
-  join(raiz, 'android-src', 'SemanaWidgetDatos.java'),
-  join(raiz, 'scripts', 'native-tests', 'PruebasWidgetSemana.java')
+  // Las medias del widget «Tu mes», que se apoyan en el mismo troceado.
+  join(raiz, 'android-src', 'MesWidgetDatos.java'),
+  join(raiz, 'scripts', 'native-tests', 'PruebasWidgetMes.java')
 ]
 
 for (const f of FUENTES) {
@@ -62,7 +62,7 @@ try {
   execFileSync('java', ['-Dfile.encoding=UTF-8', '-cp', salida, 'com.skippify.app.PruebasMacros'], { stdio: 'inherit' })
   execFileSync('java', ['-Dfile.encoding=UTF-8', '-cp', salida, 'com.skippify.app.PruebasTemporizador'], { stdio: 'inherit' })
   execFileSync('java', ['-Dfile.encoding=UTF-8', '-cp', salida, 'com.skippify.app.PruebasLiga'], { stdio: 'inherit' })
-  execFileSync('java', ['-Dfile.encoding=UTF-8', '-cp', salida, 'com.skippify.app.PruebasWidgetSemana'], { stdio: 'inherit' })
+  execFileSync('java', ['-Dfile.encoding=UTF-8', '-cp', salida, 'com.skippify.app.PruebasWidgetMes'], { stdio: 'inherit' })
 } finally {
   rmSync(salida, { recursive: true, force: true })
 }

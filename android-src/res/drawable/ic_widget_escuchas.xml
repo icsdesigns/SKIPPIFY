@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Auriculares de la tarjeta «Escuchas» del widget «Tu mes». -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:pathData="M4,15 V12 A8,8 0 0 1 20,12 V15"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:strokeColor="#FFB3B3B3" />
+    <path
+        android:pathData="M4,14 H6 A1.5,1.5 0 0 1 7.5,15.5 V18.5 A1.5,1.5 0 0 1 6,20 H5.5 A1.5,1.5 0 0 1 4,18.5 Z M20,14 H18 A1.5,1.5 0 0 0 16.5,15.5 V18.5 A1.5,1.5 0 0 0 18,20 H18.5 A1.5,1.5 0 0 0 20,18.5 Z"
+        android:fillColor="#FFB3B3B3" />
+</vector>

@@ -346,7 +346,7 @@ if ($manifestContent -notmatch 'android.permission.REQUEST_INSTALL_PACKAGES') {
     Write-Step "AndroidManifest.xml: permiso REQUEST_INSTALL_PACKAGES añadido"
 }
 
-# Widgets de la pantalla de inicio: «Modo de escucha» y «Tu semana». El
+# Widgets de la pantalla de inicio: «Modo de escucha» y «Tu mes». El
 # receptor de modo no se exporta con acción propia: sus botones le llegan por
 # PendingIntent explícito, así que sólo escucha la acción estándar de widgets.
 if ($manifestContent -notmatch "WidgetModoProvider") {

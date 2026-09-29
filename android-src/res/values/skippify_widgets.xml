@@ -2,8 +2,8 @@
 <resources>
     <string name="widget_modo_nombre">Modo de escucha</string>
     <string name="widget_modo_descripcion">Cambia de modo y mira las duplicadas y saltadas de hoy</string>
-    <string name="widget_semana_nombre">Tu semana</string>
-    <string name="widget_semana_descripcion">Escuchas, tiempo, saltadas y tu artista más escuchado de la semana</string>
+    <string name="widget_semana_nombre">Tu mes</string>
+    <string name="widget_semana_descripcion">Tus escuchas, tiempo y saltadas de media al día en el último mes</string>
 
     <!--
       El vocabulario de la app llevado a los widgets: cada cifra vive en su
@@ -79,14 +79,23 @@
         <item name="android:autoSizeMaxTextSize">12sp</item>
     </style>
 
-    <!-- Letra de cada día bajo el gráfico de «Tu semana». -->
-    <style name="SkippifyWidgetDia">
-        <item name="android:layout_width">0dp</item>
+    <!-- Rótulo con icono delante, en las tarjetas de «Tu mes». -->
+    <style name="SkippifyWidgetRotuloFila">
+        <item name="android:layout_width">match_parent</item>
         <item name="android:layout_height">wrap_content</item>
+        <item name="android:gravity">center_vertical</item>
+        <item name="android:orientation">horizontal</item>
+    </style>
+
+    <style name="SkippifyWidgetIcono">
+        <item name="android:layout_width">12dp</item>
+        <item name="android:layout_height">12dp</item>
+        <item name="android:contentDescription">@null</item>
+    </style>
+
+    <style name="SkippifyWidgetRotuloIcono" parent="SkippifyWidgetRotulo">
+        <item name="android:layout_width">0dp</item>
         <item name="android:layout_weight">1</item>
-        <item name="android:gravity">center</item>
-        <item name="android:textColor">#FFB3B3B3</item>
-        <item name="android:textSize">10sp</item>
-        <item name="android:textStyle">bold</item>
+        <item name="android:layout_marginStart">4dp</item>
     </style>
 </resources>
