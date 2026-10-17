@@ -383,6 +383,41 @@ if ($manifestContent -notmatch "WidgetModoProvider") {
     Write-Step "AndroidManifest.xml ya contiene los widgets"
 }
 
+# Botón de función de los auriculares: la pulsación larga llega como orden de
+# voz. Nace deshabilitada (android:enabled="false") y la app la habilita sólo
+# cuando el usuario vincula una macro, para no colarse en el selector del
+# asistente de nadie más.
+if ($manifestContent -notmatch "BotonAuricularesActivity") {
+    $botonXml = @'
+
+        <!-- Skippify: pulsación larga del botón de los auriculares → macro -->
+        <activity
+            android:name=".BotonAuricularesActivity"
+            android:label="Skippify · macro"
+            android:theme="@android:style/Theme.NoDisplay"
+            android:enabled="false"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:taskAffinity=""
+            android:showWhenLocked="true">
+            <intent-filter>
+                <action android:name="android.intent.action.VOICE_COMMAND" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.speech.action.VOICE_SEARCH_HANDS_FREE" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+'@
+    $manifestContent = $manifestContent -replace '</application>', "$botonXml`n    </application>"
+    $manifestChanged = $true
+    Write-Step "AndroidManifest.xml parcheado con el botón de los auriculares"
+} else {
+    Write-Step "AndroidManifest.xml ya contiene el botón de los auriculares"
+}
+
 if ($manifestChanged) {
     $utf8NoBom2 = New-Object System.Text.UTF8Encoding($false)
     [System.IO.File]::WriteAllText($manifestPath, $manifestContent, $utf8NoBom2)

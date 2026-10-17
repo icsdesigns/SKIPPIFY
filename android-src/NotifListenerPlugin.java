@@ -523,6 +523,31 @@ public class NotifListenerPlugin extends Plugin
     }
 
     /**
+     * Vincula una macro a la pulsación larga del botón de los auriculares, o
+     * suelta el vínculo con un id vacío. Devuelve el estado completo de las
+     * macros, que ya incluye el del botón.
+     */
+    @PluginMethod
+    public void setHeadsetMacro(PluginCall call) {
+        MacroBackground.vincularBoton(getContext(), call.getString("id"));
+        call.resolve(estadoDeMacros());
+    }
+
+    /** Ejecuta la macro del botón como si se hubiera pulsado. Para «Probar». */
+    @PluginMethod
+    public void runHeadsetMacroNow(final PluginCall call) {
+        new Thread(new Runnable() {
+            public void run() {
+                try {
+                    call.resolve(aJS(MacroBackground.ejecutarBoton(getContext())));
+                } catch (Throwable t) {
+                    call.reject("No se pudo ejecutar: " + t.getMessage());
+                }
+            }
+        }).start();
+    }
+
+    /**
      * JSObject.fromJSONObject declara JSONException, y un método de plugin no
      * puede propagarla. Aquí se traduce a un objeto vacío: el JSON lo construye
      * esta misma clase, así que si algún día fallara sería un error nuestro, no
@@ -541,6 +566,7 @@ public class NotifListenerPlugin extends Plugin
         result.put("ids", MacroBackground.idsDeSegundoPlano(getContext()));
         result.put("stats", MacroBackground.estadisticas(getContext()));
         result.put("excluidas", MacroBackground.exclusiones(getContext()));
+        result.put("boton", aJS(MacroBackground.estadoBoton(getContext())));
         return result;
     }
 
