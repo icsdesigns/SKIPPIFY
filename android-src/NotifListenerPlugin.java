@@ -2,7 +2,10 @@ package com.skippify.app;
 
 import android.Manifest;
 import android.app.AlertDialog;
+import android.app.AppOpsManager;
+import android.content.ComponentName;
 import android.content.Intent;
+import android.content.pm.InstallSourceInfo;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.PowerManager;
@@ -31,6 +34,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Date;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * Capacitor plugin that bridges SpotifyNotificationListener → JavaScript.
@@ -146,11 +150,62 @@ public class NotifListenerPlugin extends Plugin
         call.resolve(result);
     }
 
-    /** Opens the system Notification Access settings screen. */
+    /**
+     * Abre el ajuste del acceso a notificaciones y dice por dónde ha entrado.
+     *
+     * Primero la ficha del propio Skippify (Android 11+), que deja el
+     * interruptor a un toque; si la capa del fabricante no la resuelve, la
+     * lista general; y si tampoco, la ficha de la app. `via` deja a la pantalla
+     * de bloqueo afinar qué decirle al usuario.
+     */
     @PluginMethod
     public void requestPermission(PluginCall call) {
-        openNotificationListenerSettings();
-        call.resolve();
+        JSObject result = new JSObject();
+        result.put("via", openNotificationListenerSettings());
+        call.resolve(result);
+    }
+
+    /**
+     * Abre «Información de la app» de Skippify: es donde vive el menú de tres
+     * puntos con «Permitir ajustes restringidos» en Android 13+.
+     */
+    @PluginMethod
+    public void openAppDetails(PluginCall call) {
+        JSObject result = new JSObject();
+        result.put("opened", openAppDetailsScreen());
+        call.resolve(result);
+    }
+
+    /**
+     * Qué dispositivo es y cómo se instaló Skippify, para que la pantalla de
+     * bloqueo dé el camino exacto en vez de uno genérico.
+     *
+     * · `rom` / `romVersion`: la capa del fabricante, leída de las propiedades
+     *   del sistema que cada una publica (no hay API pública para esto).
+     * · `packageSource`: Android 13+ marca las APK abiertas desde un archivo o
+     *   una descarga, que son justo las que sufren los «ajustes restringidos».
+     * · `restrictedSettings`: el estado real de esa restricción, leído de su
+     *   AppOp. «restricted» = el interruptor saldrá bloqueado; «allowed» = ya
+     *   se permitió o nunca aplicó; «unknown» = el sistema no deja leerlo.
+     */
+    @PluginMethod
+    public void getDeviceInfo(PluginCall call) {
+        JSObject r = new JSObject();
+        r.put("manufacturer", nz(Build.MANUFACTURER));
+        r.put("brand", nz(Build.BRAND));
+        r.put("model", nz(Build.MODEL));
+        r.put("sdkInt", Build.VERSION.SDK_INT);
+        r.put("release", nz(Build.VERSION.RELEASE));
+
+        String[] rom = detectRom();
+        r.put("rom", rom[0]);
+        r.put("romVersion", rom[1]);
+
+        r.put("installer", installerPackage());
+        r.put("packageSource", packageSource());
+        r.put("restrictedSettings", restrictedSettingsState());
+        r.put("listenerEnabled", isNotificationListenerEnabled());
+        call.resolve(r);
     }
 
     /**
@@ -915,10 +970,140 @@ public class NotifListenerPlugin extends Plugin
         return !TextUtils.isEmpty(flat) && flat.contains(getContext().getPackageName());
     }
 
-    private void openNotificationListenerSettings() {
-        Intent intent = new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS);
-        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-        getContext().startActivity(intent);
+    /** @return "detail" | "list" | "app-details" | "none" */
+    private String openNotificationListenerSettings() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            try {
+                Intent detail = new Intent(Settings.ACTION_NOTIFICATION_LISTENER_DETAIL_SETTINGS);
+                detail.putExtra(
+                        Settings.EXTRA_NOTIFICATION_LISTENER_COMPONENT_NAME,
+                        new ComponentName(getContext(), SpotifyNotificationListener.class).flattenToString());
+                detail.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                // Algunas capas declaran la acción pero no la resuelven: se
+                // comprueba antes para no acabar en una pantalla vacía.
+                if (detail.resolveActivity(getContext().getPackageManager()) != null) {
+                    getContext().startActivity(detail);
+                    return "detail";
+                }
+            } catch (Throwable ignored) {
+            }
+        }
+        try {
+            Intent intent = new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS);
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            getContext().startActivity(intent);
+            return "list";
+        } catch (Throwable ignored) {
+        }
+        return openAppDetailsScreen() ? "app-details" : "none";
+    }
+
+    private boolean openAppDetailsScreen() {
+        try {
+            Intent app = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
+            app.setData(Uri.parse("package:" + getContext().getPackageName()));
+            app.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            getContext().startActivity(app);
+            return true;
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    private static String nz(String s) {
+        return s == null ? "" : s;
+    }
+
+    /** Lee una propiedad del sistema (lo que da `getprop`) sin permisos. */
+    private static String sysProp(String key) {
+        try {
+            Class<?> sp = Class.forName("android.os.SystemProperties");
+            Object v = sp.getMethod("get", String.class).invoke(null, key);
+            return v == null ? "" : v.toString().trim();
+        } catch (Throwable ignored) {
+            return "";
+        }
+    }
+
+    /** { capa, versión } según las propiedades que publica cada fabricante. */
+    private static String[] detectRom() {
+        String v;
+        if (!(v = sysProp("ro.mi.os.version.name")).isEmpty()) return new String[] { "hyperos", v };
+        if (!(v = sysProp("ro.miui.ui.version.name")).isEmpty()) return new String[] { "miui", v };
+        if (!(v = sysProp("ro.build.version.oneui")).isEmpty()) return new String[] { "oneui", v };
+        if (!(v = sysProp("ro.build.version.magic")).isEmpty()) return new String[] { "magicos", v };
+        if (!(v = sysProp("ro.build.version.emui")).isEmpty()) return new String[] { "emui", v };
+        if (!(v = sysProp("ro.build.version.realmeui")).isEmpty()) return new String[] { "realmeui", v };
+        if (!(v = sysProp("ro.build.version.opporom")).isEmpty()) return new String[] { "coloros", v };
+        if (!(v = sysProp("ro.oxygen.version")).isEmpty()) return new String[] { "oxygenos", v };
+        if (!(v = sysProp("ro.vivo.os.version")).isEmpty()) {
+            String name = sysProp("ro.vivo.os.name").toLowerCase(Locale.ROOT);
+            return new String[] { name.contains("origin") ? "originos" : "funtouch", v };
+        }
+        if ("samsung".equalsIgnoreCase(Build.MANUFACTURER)) return new String[] { "oneui", "" };
+        return new String[] { "", "" };
+    }
+
+    private String installerPackage() {
+        try {
+            PackageManager pm = getContext().getPackageManager();
+            String pkg = getContext().getPackageName();
+            String inst;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                InstallSourceInfo info = pm.getInstallSourceInfo(pkg);
+                inst = info.getInstallingPackageName();
+            } else {
+                inst = pm.getInstallerPackageName(pkg);
+            }
+            return inst == null ? "" : inst;
+        } catch (Throwable ignored) {
+            return "";
+        }
+    }
+
+    /** "local-file" | "downloaded-file" | "store" | "other" | "unspecified" | "" */
+    private String packageSource() {
+        if (Build.VERSION.SDK_INT < 33) return "";
+        try {
+            int src = getContext().getPackageManager()
+                    .getInstallSourceInfo(getContext().getPackageName()).getPackageSource();
+            switch (src) {
+                case PackageInstallerSource.LOCAL_FILE: return "local-file";
+                case PackageInstallerSource.DOWNLOADED_FILE: return "downloaded-file";
+                case PackageInstallerSource.STORE: return "store";
+                case PackageInstallerSource.OTHER: return "other";
+                default: return "unspecified";
+            }
+        } catch (Throwable ignored) {
+            return "";
+        }
+    }
+
+    /** Valores de `PackageInstaller.PACKAGE_SOURCE_*` (API 33). */
+    private static final class PackageInstallerSource {
+        static final int OTHER = 1;
+        static final int STORE = 2;
+        static final int DOWNLOADED_FILE = 3;
+        static final int LOCAL_FILE = 4;
+    }
+
+    /** "restricted" | "allowed" | "unknown" | "n/a" (antes de Android 13). */
+    private String restrictedSettingsState() {
+        if (Build.VERSION.SDK_INT < 33) return "n/a";
+        try {
+            AppOpsManager aom = (AppOpsManager) getContext().getSystemService(android.content.Context.APP_OPS_SERVICE);
+            if (aom == null) return "unknown";
+            // OPSTR_ACCESS_RESTRICTED_SETTINGS es @hide, pero el AppOp existe
+            // desde Android 13 y la propia app puede consultar el suyo.
+            int mode = aom.unsafeCheckOpNoThrow(
+                    "android:access_restricted_settings",
+                    getContext().getApplicationInfo().uid,
+                    getContext().getPackageName());
+            if (mode == AppOpsManager.MODE_ERRORED || mode == AppOpsManager.MODE_IGNORED) return "restricted";
+            return "allowed";
+        } catch (Throwable ignored) {
+            return "unknown";
+        }
     }
 
     private boolean isPostNotificationsGranted() {

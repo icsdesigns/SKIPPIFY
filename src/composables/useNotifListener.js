@@ -347,6 +347,45 @@ export function useNotifListener () {
     } catch { /* ignored */ }
   }
 
+  /**
+   * Abre el ajuste del acceso a notificaciones sin diálogo previo (la pantalla
+   * de bloqueo ya lo explica). Devuelve por dónde entró: 'detail' (ficha de
+   * Skippify), 'list', 'app-details' o 'none'; '' si el nativo es antiguo.
+   */
+  async function abrirAccesoNotificaciones () {
+    const NL = getPlugin()
+    if (!NL) return 'none'
+    try {
+      const res = await NL.requestPermission()
+      return (res?.via || '').toString()
+    } catch {
+      return 'none'
+    }
+  }
+
+  /** Abre «Información de la app» (ajustes restringidos, Autoinicio…). */
+  async function abrirInfoApp () {
+    const NL = getPlugin()
+    if (!NL?.openAppDetails) return false
+    try {
+      const res = await NL.openAppDetails()
+      return !!res?.opened
+    } catch {
+      return false
+    }
+  }
+
+  /** Fabricante, capa, versión y estado de los ajustes restringidos. */
+  async function leerDispositivo () {
+    const NL = getPlugin()
+    if (!NL?.getDeviceInfo) return null
+    try {
+      return await NL.getDeviceInfo()
+    } catch {
+      return null
+    }
+  }
+
   /** Re-check permission (call after returning from settings) */
   async function recheckPermission () {
     const NL = getPlugin()
@@ -589,6 +628,9 @@ export function useNotifListener () {
     checkAndInit,
     requestPermission,
     promptPermission,
+    abrirAccesoNotificaciones,
+    abrirInfoApp,
+    leerDispositivo,
     recheckPermission,
     postNotifGranted,
     batteryOptimizationIgnored,

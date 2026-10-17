@@ -46,38 +46,11 @@
     <!-- `min-w-0` es imprescindible: sin él, un hijo ancho (una tabla, un
          nombre largo) estira la columna y saca la página de la pantalla. -->
     <div class="flex min-w-0 flex-1 flex-col">
-      <!-- ── Aviso de permisos en el primer arranque ──────────────────────── -->
+      <!-- ── Bloqueo hasta conceder el acceso a notificaciones ─────────────
+           Sustituye al aviso de primer arranque, que se podía descartar: sin
+           este permiso la app no hace nada, así que no se deja usar. -->
       <Transition name="modal">
-        <div
-          v-if="notif.showPermissionsModal.value"
-          class="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/80 p-4 backdrop-blur-sm"
-        >
-          <div class="sk-card sk-card-lit my-auto w-full max-w-md p-6">
-            <div class="mb-4 flex items-center gap-3">
-              <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-amber-400/[0.16] text-xl">🔔</span>
-              <div class="min-w-0">
-                <h2 class="truncate text-lg font-extrabold tracking-tight text-white">Permisos requeridos</h2>
-                <p class="truncate text-[11px] font-semibold text-amber-300">Acceso a notificaciones</p>
-              </div>
-            </div>
-            <p class="mb-2 text-sm leading-relaxed text-slate-300">
-              Skippify necesita acceso a las notificaciones del sistema para detectar
-              automáticamente las canciones que escuchas en Spotify.
-            </p>
-            <p class="mb-6 text-sm leading-relaxed text-slate-400">
-              Dirígete a la pestaña <span class="font-bold text-white">Configuración</span> para
-              revisar y conceder los permisos necesarios.
-            </p>
-            <div class="flex flex-wrap gap-2">
-              <button class="sk-btn sk-btn-primary min-w-0 flex-1" @click="goToSettings">
-                Ir a Configuración
-              </button>
-              <button class="sk-btn sk-btn-ghost sk-btn-sm shrink-0" @click="notif.dismissPermissionsModal()">
-                Ahora no
-              </button>
-            </div>
-          </div>
-        </div>
+        <NotifAccessGate v-if="accesoBloqueado" />
       </Transition>
 
       <!-- ── Cabecera ──────────────────────────────────────────────────────
@@ -181,6 +154,7 @@ import AppSidebar from '@/components/AppSidebar.vue'
 import AppTour from '@/components/AppTour.vue'
 import UpdateBanner from '@/components/UpdateBanner.vue'
 import BrandMark from '@/components/BrandMark.vue'
+import NotifAccessGate from '@/components/NotifAccessGate.vue'
 import { useNotifListener } from '@/composables/useNotifListener'
 import { useFeatures } from '@/composables/useFeatures'
 import { useAppUpdate } from '@/composables/useAppUpdate'
@@ -204,6 +178,17 @@ const scrolled = ref(false)
 const TOUR_DONE_KEY = `skippify.tour.build.${__APP_BUILD_ID__}.completed`
 const SPLASH_MS = 1500
 const splashLetters = 'Skippify'.split('')
+
+/**
+ * La app queda bloqueada mientras falte el acceso a notificaciones. Sólo en
+ * Android: en el navegador no hay permiso que conceder.
+ */
+const accesoBloqueado = computed(() =>
+  notif.isCapacitor.value && notif.notifChecked.value && !notif.notifEnabled.value
+)
+
+/** La guía rápida espera a que se conceda el acceso; no compite con el bloqueo. */
+const tourEnEspera = ref(false)
 
 /** Ajustes del sistema pendientes; alimenta el banner de aviso. */
 const ajustesPendientes = notif.missingSystemSettings
@@ -248,11 +233,6 @@ function setNowPlaying (state) {
 
 function handleTourSidebarToggle (open) {
   sidebarOpen.value = !!open
-}
-
-function goToSettings () {
-  notif.dismissPermissionsModal()
-  router.push('/settings')
 }
 
 function completeTour () {
@@ -310,8 +290,21 @@ onMounted(async () => {
 
   if (tourPending) {
     tourTimer = setTimeout(() => {
-      showTour.value = true
+      if (accesoBloqueado.value) tourEnEspera.value = true
+      else showTour.value = true
     }, SPLASH_MS + 350)
+  }
+})
+
+watch(accesoBloqueado, (bloqueado) => {
+  // Si se retira el permiso con la guía abierta, la guía se aparta y vuelve
+  // cuando el acceso esté de nuevo concedido.
+  if (bloqueado && showTour.value) {
+    showTour.value = false
+    tourEnEspera.value = true
+  } else if (!bloqueado && tourEnEspera.value) {
+    tourEnEspera.value = false
+    showTour.value = true
   }
 })
 
