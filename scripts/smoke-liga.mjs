@@ -11,7 +11,7 @@
  * desfase de Europe/Madrid —que además cambia entre invierno (+1) y verano (+2)—.
  * Es un fallo que no se ve: la cifra sale, sólo que corrida una o dos horas.
  */
-import { scoreMember, horaLocalDeEscucha, latestWeeklyCut } from './publish-weekly-leaderboard.mjs'
+import { scoreMember, horaLocalDeEscucha, latestWeeklyCut, revealAtForCut, getCutWindow, colocarSemana, promocionPendiente } from './publish-weekly-leaderboard.mjs'
 
 let fallos = 0
 let total = 0
@@ -219,21 +219,56 @@ titulo('Un miembro puntúa todas sus escuchas')
 // se publicaba entre las 15:00 y las 15:59 de Madrid, y el domingo en que la
 // acción corría a las 16:59 (27-09-2026) el ranking no salió.
 
-titulo('Corte del domingo a las 15:00 de Madrid')
+// Desde la 4.2.7 la semana se cierra el domingo a las 00:00 y se publica a
+// partir de las 03:00, para que esté calculada antes de desvelarla a las 15:00.
+
+titulo('Cierre del domingo a las 00:00 de Madrid, desvelado a las 15:00')
 {
   const corte = (iso) => latestWeeklyCut(new Date(iso)).toISOString()
-  check('una ejecución retrasada a las 16:59 publica el de ese domingo',
-    corte('2026-09-27T14:59:07Z'), '2026-09-27T13:00:00.000Z')
-  check('justo en el corte ya cuenta',
-    corte('2026-09-27T13:00:00Z'), '2026-09-27T13:00:00.000Z')
-  check('antes de las 15:00 sigue valiendo el domingo anterior',
-    corte('2026-09-27T12:59:59Z'), '2026-09-20T13:00:00.000Z')
-  check('el lunes de madrugada todavía es el del domingo',
-    corte('2026-09-21T00:59:26Z'), '2026-09-20T13:00:00.000Z')
-  check('en invierno las 15:00 de Madrid son las 14:00 UTC',
-    corte('2026-12-06T18:00:00Z'), '2026-12-06T14:00:00.000Z')
+  check('una ejecución a las 03:17 publica la semana que acaba de cerrar',
+    corte('2026-09-27T01:17:00Z'), '2026-09-26T22:00:00.000Z')
+  check('dentro de las tres horas de gracia sigue valiendo la anterior',
+    corte('2026-09-27T00:47:00Z'), '2026-09-19T22:00:00.000Z')
+  check('una ejecución retrasada a las 16:59 publica la de ese domingo',
+    corte('2026-09-27T14:59:07Z'), '2026-09-26T22:00:00.000Z')
+  check('el lunes de madrugada todavía es la del domingo',
+    corte('2026-09-28T00:59:26Z'), '2026-09-26T22:00:00.000Z')
+  check('en invierno las 00:00 de Madrid son las 23:00 UTC del sábado',
+    corte('2026-12-06T18:00:00Z'), '2026-12-05T23:00:00.000Z')
   check('un miércoles apunta al domingo anterior',
-    corte('2026-12-09T10:00:00Z'), '2026-12-06T14:00:00.000Z')
+    corte('2026-12-09T10:00:00Z'), '2026-12-05T23:00:00.000Z')
+  check('el día del cambio de hora se cierra a las 00:00 de verano',
+    corte('2026-10-25T05:00:00Z'), '2026-10-24T22:00:00.000Z')
+
+  const desvela = (iso) => revealAtForCut(new Date(iso)).toISOString()
+  check('se desvela a las 15:00 de verano',
+    desvela('2026-09-26T22:00:00.000Z'), '2026-09-27T13:00:00.000Z')
+  check('y a las 15:00 de invierno el día que cambia la hora',
+    desvela('2026-10-24T22:00:00.000Z'), '2026-10-25T14:00:00.000Z')
+
+  const v = getCutWindow(new Date('2026-12-06T08:00:00Z'))
+  check('la semana dura de domingo a domingo', v.startIso, '2026-11-28T23:00:00.000Z')
+  check('y se nombra por el día de Madrid, no el de UTC', v.weekKey, '2026-11-29')
+  const v2 = getCutWindow(new Date('2026-10-25T08:00:00Z'))
+  check('la semana del cambio de hora empieza a las 00:00 de verano', v2.startIso, '2026-10-17T22:00:00.000Z')
+  const t = getCutWindow(new Date('2026-10-18T05:00:00Z'), '2026-10-11T13:00:00.000Z')
+  check('la primera semana tras el cambio no repite las horas ya puntuadas',
+    t.startIso, '2026-10-11T13:00:00.000Z')
+}
+
+titulo('La semana nueva espera en `next` hasta las 15:00')
+{
+  const anterior = { weekKey: 'A', weekEnd: 'fin-A', members: [{ uid: 'a' }] }
+  const semana = { weekKey: 'B', weekEnd: 'fin-B', revealAt: '2026-10-18T13:00:00.000Z', members: [{ uid: 'b' }] }
+  const temprano = colocarSemana(anterior, semana, new Date('2026-10-18T03:00:00Z'))
+  check('a las 05:00 arriba sigue la semana anterior', temprano.weekKey, 'A')
+  check('y la nueva queda guardada en next', temprano.next?.weekKey, 'B')
+  check('antes de las 15:00 no se promociona', promocionPendiente(temprano, new Date('2026-10-18T12:59:59Z')), null)
+  const promovido = promocionPendiente(temprano, new Date('2026-10-18T13:00:00Z'))
+  check('a las 15:00 la nueva pasa arriba', promovido?.weekKey, 'B')
+  check('y next desaparece', 'next' in promovido, false)
+  const tarde = colocarSemana(anterior, semana, new Date('2026-10-18T16:00:00Z'))
+  check('si se calcula después de las 15:00 va directa arriba', tarde.weekKey + ('next' in tarde), 'Bfalse')
 }
 
 console.log()

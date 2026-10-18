@@ -70,31 +70,69 @@ function madridWallTimeToDate (year, month, day, hour) {
 }
 
 /**
- * Último corte semanal (domingo 15:00 Europe/Madrid) ya alcanzado.
+ * Cierre de los datos y desvelado: dos horas distintas del mismo domingo.
  *
- * Antes sólo se publicaba si la acción arrancaba justo entre las 15:00 y las
- * 15:59, pero GitHub retrasa y salta las ejecuciones programadas: de las 24
- * horarias del domingo corren unas seis, a deshora. Los domingos en que ninguna
- * caía en esa hora el ranking no se publicaba. Ahora cualquier ejecución
- * posterior al corte publica el de esa semana, y la ventana se ancla al corte
- * para que la hora a la que arranque la acción no cambie las cifras.
+ * El ranking tiene que verse el domingo a las 15:00 en punto, y GitHub retrasa
+ * y salta las ejecuciones programadas (el 27-09-2026 no corrió ninguna entre
+ * las 17:00 y las 22:00 UTC). Con el corte a las 15:00 el ranking no podía
+ * calcularse antes de esa hora, así que siempre llegaba tarde. Ahora la semana
+ * se cierra el domingo a las 00:00, cualquier ejecución a partir de las 03:00
+ * la publica (tres horas de gracia para que los móviles terminen de subir las
+ * escuchas: el servicio lo hace como mucho una vez por hora) y el documento
+ * lleva `revealAt` con las 15:00 de ese domingo. Es la app la que lo desvela a
+ * esa hora, con una alarma exacta, aunque los datos lleven horas publicados.
  */
-function latestWeeklyCut (now = new Date()) {
+const HORA_CIERRE = 0
+const HORA_DESVELADO = 15
+const GRACIA_MS = 3 * 60 * 60 * 1000
+
+/** Último domingo a `hora` (Madrid) que ya ha pasado. */
+function ultimoDomingoA (now, hora) {
   const hoy = madridNowParts(now)
   const diasDesdeDomingo = DIAS_SEMANA.indexOf(hoy.weekday)
   const domingo = new Date(Date.UTC(hoy.year, hoy.month - 1, hoy.day - diasDesdeDomingo))
-  let corte = madridWallTimeToDate(domingo.getUTCFullYear(), domingo.getUTCMonth() + 1, domingo.getUTCDate(), 15)
-  if (corte > now) corte = new Date(corte.getTime() - SEMANA_MS)
+  let corte = madridWallTimeToDate(domingo.getUTCFullYear(), domingo.getUTCMonth() + 1, domingo.getUTCDate(), hora)
+  if (corte > now) {
+    // Por la fecha y no restando 7 días: la semana del cambio de hora no dura 168 h.
+    const antes = new Date(domingo.getTime() - SEMANA_MS)
+    corte = madridWallTimeToDate(antes.getUTCFullYear(), antes.getUTCMonth() + 1, antes.getUTCDate(), hora)
+  }
   return corte
 }
 
-function getCutWindow (now = new Date()) {
+/**
+ * Último cierre semanal (domingo 00:00 Europe/Madrid) que ya se puede publicar.
+ *
+ * Cualquier ejecución posterior al cierre más la gracia publica el de esa
+ * semana, y la ventana se ancla al cierre para que la hora a la que arranque
+ * la acción no cambie las cifras.
+ */
+function latestWeeklyCut (now = new Date()) {
+  return ultimoDomingoA(new Date(now.getTime() - GRACIA_MS), HORA_CIERRE)
+}
+
+/** Las 15:00 (Madrid) del domingo en que se cierra `cierre`. */
+function revealAtForCut (cierre) {
+  const p = madridNowParts(cierre)
+  return madridWallTimeToDate(p.year, p.month, p.day, HORA_DESVELADO)
+}
+
+function getCutWindow (now = new Date(), finAnterior = '') {
   const end = latestWeeklyCut(now)
-  const start = new Date(end.getTime() - SEMANA_MS)
+  let start = ultimoDomingoA(new Date(end.getTime() - 1), HORA_CIERRE)
+  // La primera semana tras mover el cierre de las 15:00 a las 00:00 se
+  // solaparía quince horas con la anterior: esas escuchas ya puntuaron.
+  const anterior = finAnterior ? new Date(finAnterior) : null
+  if (anterior && !Number.isNaN(anterior.getTime()) && anterior > start && anterior < end) {
+    start = anterior
+  }
+  const dia = madridNowParts(start)
   return {
     startIso: start.toISOString(),
     endIso: end.toISOString(),
-    weekKey: start.toISOString().slice(0, 10)
+    // El día de Madrid: las 00:00 del domingo son aún sábado en UTC.
+    weekKey: `${dia.year}-${String(dia.month).padStart(2, '0')}-${String(dia.day).padStart(2, '0')}`,
+    revealAtIso: revealAtForCut(end).toISOString()
   }
 }
 
@@ -104,8 +142,36 @@ function getRollingWindow () {
   return {
     startIso: start.toISOString(),
     endIso: end.toISOString(),
-    weekKey: start.toISOString().slice(0, 10)
+    weekKey: start.toISOString().slice(0, 10),
+    // A mano se publica para verlo ya.
+    revealAtIso: end.toISOString()
   }
+}
+
+/**
+ * El documento `current` con la semana nueva colocada en su sitio.
+ *
+ * Los campos de arriba son lo que se ve ahora (y lo único que leen las
+ * versiones de la app anteriores a la 4.2.7). Mientras no llega la hora de
+ * desvelar, la semana nueva espera en `next` y arriba sigue la anterior; la
+ * primera ejecución posterior a `revealAt` la sube arriba, para esas apps
+ * antiguas. La app nueva no espera a esa ejecución: lee `next` en cuanto su
+ * reloj pasa de `revealAt`.
+ */
+function colocarSemana (actual, semana, now = new Date()) {
+  const base = { ...(actual || {}) }
+  delete base.next
+  if (new Date(semana.revealAt) <= now) return { ...base, ...semana }
+  return { ...base, next: semana }
+}
+
+/** Sube `next` a la vista si ya es su hora; null si no hay nada que hacer. */
+function promocionPendiente (actual, now = new Date()) {
+  const next = actual?.next
+  if (!next || !next.revealAt || new Date(next.revealAt) > now) return null
+  const base = { ...actual }
+  delete base.next
+  return { ...base, ...next }
 }
 
 async function fetchMemberEventsForWindow (db, uid, startIso, endIso) {
@@ -128,22 +194,36 @@ async function run () {
 
   const db = getFirestore()
   const forzado = isForcedPublish()
-  const { startIso, endIso, weekKey } = forzado ? getRollingWindow() : getCutWindow()
-  console.log(`[weekly] Publishing window ${startIso} -> ${endIso}${forzado ? ' (forzado)' : ''}`)
+  const ahora = new Date()
+  console.log(`[weekly] Último cierre publicable: ${latestWeeklyCut(ahora).toISOString()}${forzado ? ' (forzado)' : ''}`)
 
   const groupsSnap = await db.collection('friend_groups').get()
   for (const groupDoc of groupsSnap.docs) {
     const groupId = groupDoc.id
     const resultsCollection = db.collection('friend_groups').doc(groupId).collection('weekly_results')
+    const currentRef = resultsCollection.doc('current')
+    const currentSnap = await currentRef.get()
+    let actual = currentSnap.exists ? currentSnap.data() : null
 
-    // La acción corre varias veces después del corte; sólo la primera publica.
-    if (!forzado) {
-      const currentSnap = await resultsCollection.doc('current').get()
-      if (currentSnap.exists && currentSnap.get('weekEnd') === endIso) {
-        console.log(`[weekly] Group ${groupId} already published for ${endIso}`)
-        continue
-      }
+    // Una semana que esperaba su hora pasa a la vista: es para las apps antiguas.
+    const promovido = promocionPendiente(actual, ahora)
+    if (promovido) {
+      await currentRef.set(promovido)
+      actual = promovido
+      console.log(`[weekly] Group ${groupId}: desvelada la semana ${promovido.weekEnd}`)
     }
+
+    const finAnterior = actual?.next?.weekEnd || actual?.weekEnd || ''
+    const { startIso, endIso, weekKey, revealAtIso } = forzado
+      ? getRollingWindow()
+      : getCutWindow(ahora, finAnterior)
+
+    // La acción corre muchas veces después del cierre; sólo la primera publica.
+    if (!forzado && (actual?.weekEnd === endIso || actual?.next?.weekEnd === endIso)) {
+      console.log(`[weekly] Group ${groupId} already published for ${endIso}`)
+      continue
+    }
+    console.log(`[weekly] Group ${groupId}: ventana ${startIso} -> ${endIso}, se desvela ${revealAtIso}`)
     const membersSnap = await db.collection('friend_groups').doc(groupId).collection('members').get()
     const members = membersSnap.docs.map(d => ({ uid: d.id, ...d.data() }))
     if (!members.length) continue
@@ -172,6 +252,7 @@ async function run () {
         weekKey,
         weekStart: startIso,
         weekEnd: endIso,
+        revealAt: revealAtIso,
         groupId,
         displayName: memberResult.displayName,
         totalMinutes: memberResult.totalMinutes,
@@ -236,22 +317,23 @@ async function run () {
 
     await pruneBatch.commit()
 
-    await resultsCollection
-      .doc('current')
-      .set({
-        weekKey,
-        weekStart: startIso,
-        weekEnd: endIso,
-        publishedAt: FieldValue.serverTimestamp(),
-        members: results,
-        algorithm: {
-          mode: 'free-github-actions',
-          minutesWeight: 1,
-          activeDaysWeight: 2,
-          completedTracksWeight: 0.5,
-          minCompletionRatioForMinutes: 0.8
-        }
-      }, { merge: true })
+    const semana = {
+      weekKey,
+      weekStart: startIso,
+      weekEnd: endIso,
+      revealAt: revealAtIso,
+      publishedAt: FieldValue.serverTimestamp(),
+      members: results,
+      algorithm: {
+        mode: 'free-github-actions',
+        minutesWeight: 1,
+        activeDaysWeight: 2,
+        completedTracksWeight: 0.5,
+        minCompletionRatioForMinutes: 0.8
+      }
+    }
+    // Sin merge: `next` tiene que poder desaparecer entero al subir arriba.
+    await currentRef.set(colocarSemana(actual, semana, new Date()))
 
     console.log(`[weekly] Published group ${groupId} (${results.length} members)`)
   }
@@ -276,4 +358,4 @@ if (ejecucionDirecta) {
   })
 }
 
-export { scoreMember, horaLocalDeEscucha, latestWeeklyCut }
+export { scoreMember, horaLocalDeEscucha, latestWeeklyCut, revealAtForCut, getCutWindow, colocarSemana, promocionPendiente }
