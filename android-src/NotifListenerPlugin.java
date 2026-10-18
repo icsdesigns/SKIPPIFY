@@ -482,7 +482,29 @@ public class NotifListenerPlugin extends Plugin
                     call.getString("origin")
             );
         }
+        // Con grupos nuevos (o sin ninguno) la alarma del domingo cambia.
+        try {
+            LigaResultados.programar(getContext());
+        } catch (Throwable ignored) {
+        }
         call.resolve(aJS(LigaBackground.estado(getContext())));
+    }
+
+    /**
+     * La app ya enseña la semana de un grupo. El aviso lo da el servicio, que es
+     * quien lleva la cuenta de lo avisado: si ya sonó a las 15:00, no se repite.
+     */
+    @PluginMethod
+    public void notifyLeagueResult(PluginCall call) {
+        boolean mostrado = LigaResultados.avisar(
+                getContext(),
+                call.getString("groupId", ""),
+                call.getString("groupName", ""),
+                call.getString("revealAt", "")
+        );
+        JSObject r = new JSObject();
+        r.put("shown", mostrado);
+        call.resolve(r);
     }
 
     /** La app sincroniza aquí sus macros cada vez que cambian. */

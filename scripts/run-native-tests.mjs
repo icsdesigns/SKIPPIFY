@@ -29,7 +29,10 @@ const FUENTES = [
   join(raiz, 'scripts', 'native-tests', 'PruebasLiga.java'),
   // Las medias del widget «Tu mes», que se apoyan en el mismo troceado.
   join(raiz, 'android-src', 'MesWidgetDatos.java'),
-  join(raiz, 'scripts', 'native-tests', 'PruebasWidgetMes.java')
+  join(raiz, 'scripts', 'native-tests', 'PruebasWidgetMes.java'),
+  // Las horas del aviso del ranking del domingo a las 15:00.
+  join(raiz, 'android-src', 'ResultadosLiga.java'),
+  join(raiz, 'scripts', 'native-tests', 'PruebasResultados.java')
 ]
 
 for (const f of FUENTES) {
@@ -63,6 +66,7 @@ try {
   execFileSync('java', ['-Dfile.encoding=UTF-8', '-cp', salida, 'com.skippify.app.PruebasTemporizador'], { stdio: 'inherit' })
   execFileSync('java', ['-Dfile.encoding=UTF-8', '-cp', salida, 'com.skippify.app.PruebasLiga'], { stdio: 'inherit' })
   execFileSync('java', ['-Dfile.encoding=UTF-8', '-cp', salida, 'com.skippify.app.PruebasWidgetMes'], { stdio: 'inherit' })
+  execFileSync('java', ['-Dfile.encoding=UTF-8', '-cp', salida, 'com.skippify.app.PruebasResultados'], { stdio: 'inherit' })
 } finally {
   rmSync(salida, { recursive: true, force: true })
 }

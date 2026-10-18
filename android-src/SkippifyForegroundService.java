@@ -192,6 +192,13 @@ public class SkippifyForegroundService extends Service {
         } catch (Throwable ignored) {
         }
 
+        // Y para el aviso del ranking del domingo a las 15:00: repone la alarma
+        // si se ha perdido y, cerca de esa hora, mira si ya está publicado.
+        try {
+            LigaResultados.latido(getApplicationContext());
+        } catch (Throwable ignored) {
+        }
+
         // Los widgets: el modo puede haber cambiado y, con el latido, el día.
         WidgetsSkippify.actualizar(getApplicationContext());
 

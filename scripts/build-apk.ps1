@@ -346,6 +346,42 @@ if ($manifestContent -notmatch 'android.permission.REQUEST_INSTALL_PACKAGES') {
     Write-Step "AndroidManifest.xml: permiso REQUEST_INSTALL_PACKAGES añadido"
 }
 
+# BootCompletedReceiver: relanza el servicio tras reiniciar y recibe las alarmas
+# del vigilante, del temporizador y del aviso del ranking. Sólo estaba en el
+# android/ de la máquina de siempre, puesto a mano; un android/ recién creado
+# salía sin él y ninguna de esas alarmas llegaba a nada.
+if ($manifestContent -notmatch "BootCompletedReceiver") {
+    $bootXml = @'
+
+        <!-- Skippify: relanzar el servicio tras reiniciar/actualizar y recibir sus alarmas -->
+        <receiver
+            android:name=".BootCompletedReceiver"
+            android:enabled="true"
+            android:exported="true"
+            android:directBootAware="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.LOCKED_BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+'@
+    $manifestContent = $manifestContent -replace '</application>', "$bootXml`n    </application>"
+    $manifestChanged = $true
+    Write-Step "AndroidManifest.xml parcheado con BootCompletedReceiver"
+}
+
+# Alarma exacta para avisar del ranking de Comunidad el domingo a las 15:00 en
+# punto. USE_EXACT_ALARM (Android 13+) la concede el sistema sin preguntar; Google
+# Play la reserva a despertadores y calendarios, pero Skippify se distribuye por
+# releases de GitHub. En Android 12 basta SCHEDULE_EXACT_ALARM, que allí viene
+# concedida por defecto.
+if ($manifestContent -notmatch 'android.permission.USE_EXACT_ALARM') {
+    $manifestContent = $manifestContent -replace '(<uses-permission android:name="android.permission.INTERNET" />)', "`$1`n    <uses-permission android:name=`"android.permission.USE_EXACT_ALARM`" />`n    <uses-permission android:name=`"android.permission.SCHEDULE_EXACT_ALARM`" android:maxSdkVersion=`"32`" />"
+    $manifestChanged = $true
+    Write-Step "AndroidManifest.xml: permisos de alarma exacta añadidos"
+}
+
 # Widgets de la pantalla de inicio: «Modo de escucha» y «Tu mes». El
 # receptor de modo no se exporta con acción propia: sus botones le llegan por
 # PendingIntent explícito, así que sólo escucha la acción estándar de widgets.
