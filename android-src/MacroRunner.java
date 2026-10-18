@@ -286,6 +286,25 @@ public final class MacroRunner {
         return motivoExclusion(m) == null;
     }
 
+    // ── Botón de los auriculares ─────────────────────────────────────────────
+
+    /**
+     * La misma macro, pero activa. El botón la ejecuta aunque esté desactivada:
+     * es lo que permite tener una macro que SÓLO responda al botón. Una de
+     * «canción actual → copiar» activa copiaría cada canción que suena; pausada
+     * y vinculada, copia sólo la que suena cuando se pulsa.
+     */
+    public static Macro paraBoton(Macro m) {
+        if (m == null || m.enabled) return m;
+        return new Macro(m.id, m.name, true, m.source, m.action, m.target,
+                m.targetPlaylistId, m.sourcePlaylistId);
+    }
+
+    /** Motivo por el que el botón no puede ejecutarla, o null si puede. */
+    public static String motivoExclusionBoton(Macro m) {
+        return motivoExclusion(paraBoton(m));
+    }
+
     // ── Guarda de reproducción ───────────────────────────────────────────────
 
     /**

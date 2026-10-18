@@ -47,6 +47,7 @@ public final class PruebasMacros {
         erroresDeLista();
         historialDeSieteDias();
         noCortarLaReproduccion();
+        botonDeAuriculares();
 
         System.out.println();
         if (fallos > 0) {
@@ -858,6 +859,43 @@ public final class PruebasMacros {
         contiene("primero añade al destino", http.llamadas.get(1), "POST https://api.spotify.com/v1/playlists/PLT/items");
         contiene("después quita del origen", http.llamadas.get(2), "DELETE https://api.spotify.com/v1/playlists/PLS/items");
         contiene("con el cuerpo que espera Spotify", http.llamadas.get(2), "{\"items\":[{\"uri\":\"spotify:track:t2\"}]}");
+    }
+
+    static void botonDeAuriculares() {
+        titulo("Botón de los auriculares");
+        String C = MacroRunner.SOURCE_CURRENT_TRACK;
+
+        MacroRunner.Macro pausada = new MacroRunner.Macro("p", "p", false, C, "copy", "playlist", "PLT");
+        check("pausada: el servicio no la toca sola",
+                MacroRunner.esDeSegundoPlano(pausada), false);
+        check("pero el botón sí puede",
+                MacroRunner.motivoExclusionBoton(pausada), null);
+        check("sin cambiar la original",
+                pausada.enabled, false);
+
+        check("una que el servicio no admite tampoco va al botón",
+                MacroRunner.motivoExclusionBoton(
+                        new MacroRunner.Macro("x", "x", false, C, "copy", "playlist", null)) != null, true);
+        check("sin macro, motivo",
+                MacroRunner.motivoExclusionBoton(null) != null, true);
+
+        // Pausada y pulsada: se aplica a la canción que suena, aunque acabe de
+        // pasar por ella el disparo automático de otra macro.
+        HttpFalso h = new HttpFalso();
+        Memoria store = new Memoria();
+        Reloj reloj = new Reloj();
+        List<MacroRunner.Outcome> nada = MacroRunner.run(pista(), lista(pausada), h, store, reloj);
+        check("pausada no se ejecuta por cambio de canción", nada.size(), 0);
+        List<MacroRunner.Outcome> r = MacroRunner.run(pista(), lista(MacroRunner.paraBoton(pausada)),
+                h, store, reloj, true);
+        check("con el botón, se aplica", r.size() == 1 && r.get(0).status == MacroRunner.APLICADA, true);
+        check("y sale la petición", h.llamadas.size(), 1);
+
+        MacroRunner.Macro deTop = new MacroRunner.Macro("l", "l", false, "top_tracks", "copy", "liked", null, null);
+        HttpGuion http = new HttpGuion().cuando("/me/top/tracks", 200, "{\"items\":[]}");
+        List<MacroRunner.Outcome> rl = MacroRunner.runListas(lista(MacroRunner.paraBoton(deTop)),
+                http, new Memoria(), new Reloj(), true, null);
+        check("una de lista pausada también corre con el botón", rl.size(), 1);
     }
 
     static void unaSolaMacro() {

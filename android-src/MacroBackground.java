@@ -41,6 +41,9 @@ public final class MacroBackground {
 
     private static final String K_MACROS = "macros.json";
 
+    /** Id de la macro vinculada al botón de los auriculares; vacío si ninguna. */
+    private static final String K_BOTON = "boton.macroId";
+
     /**
      * Un solo hilo: los cambios de canción llegan en ráfaga y dos ejecuciones a
      * la vez sobre las mismas macros se pisarían el deduplicado.
@@ -137,6 +140,13 @@ public final class MacroBackground {
 
     public static void guardarMacros(Context ctx, String json) {
         store(ctx).put(K_MACROS, json == null ? "[]" : json);
+
+        // Si la macro vinculada al botón se ha borrado, el vínculo se suelta:
+        // pulsar y que no pase nada sería peor que no capturar el botón.
+        String vinculada = macroDelBoton(ctx);
+        if (vinculada != null && buscar(macros(ctx), vinculada) == null) {
+            vincularBoton(ctx, null);
+        }
     }
 
     static List<MacroRunner.Macro> macros(Context ctx) {
@@ -243,6 +253,105 @@ public final class MacroBackground {
         return arr;
     }
 
+    // ── Botón de los auriculares ─────────────────────────────────────────────
+
+    /** Id de la macro vinculada, o null. */
+    public static String macroDelBoton(Context ctx) {
+        return vacioANull(store(ctx).get(K_BOTON));
+    }
+
+    /**
+     * Vincula (o suelta, con null) la macro del botón. La activity que recibe
+     * la pulsación sólo existe para Android mientras hay vínculo: así Skippify
+     * no aparece en el selector del asistente de quien no usa esto.
+     */
+    public static void vincularBoton(Context ctx, String macroId) {
+        String id = vacioANull(macroId);
+        if (id != null && MacroRunner.motivoExclusionBoton(buscar(macros(ctx), id)) != null) {
+            id = null;
+        }
+        store(ctx).put(K_BOTON, id == null ? "" : id);
+        BotonAuricularesActivity.habilitar(ctx, id != null);
+    }
+
+    /** Estado para la app: qué macro está vinculada y cuáles se pueden vincular. */
+    public static JSONObject estadoBoton(Context ctx) {
+        JSONObject o = new JSONObject();
+        JSONArray elegibles = new JSONArray();
+        JSONArray noElegibles = new JSONArray();
+        List<MacroRunner.Macro> ms = macros(ctx);
+        for (int i = 0; i < ms.size(); i++) {
+            MacroRunner.Macro m = ms.get(i);
+            String motivo = MacroRunner.motivoExclusionBoton(m);
+            if (motivo == null) {
+                elegibles.put(m.id);
+                continue;
+            }
+            try {
+                JSONObject f = new JSONObject();
+                f.put("id", m.id);
+                f.put("motivo", motivo);
+                noElegibles.put(f);
+            } catch (Throwable ignored) { }
+        }
+        try {
+            o.put("macroId", valor(macroDelBoton(ctx)));
+            o.put("elegibles", elegibles);
+            o.put("noElegibles", noElegibles);
+        } catch (Throwable ignored) { }
+        return o;
+    }
+
+    /**
+     * Ejecuta la macro vinculada. Bloquea: se llama desde un hilo propio. Se
+     * fuerza siempre —quien pulsa el botón espera que pase algo aunque la
+     * canción se acabara de procesar sola— y la macro se toma como activa
+     * aunque esté pausada (ver {@link MacroRunner#paraBoton}).
+     *
+     * Devuelve { id, name, status, message } o { id?, name?, error }.
+     */
+    public static JSONObject ejecutarBoton(Context ctx) {
+        Context app = ctx.getApplicationContext();
+        JSONObject o = new JSONObject();
+        try {
+            String id = macroDelBoton(app);
+            MacroRunner.Macro m = id == null ? null : buscar(macros(app), id);
+            if (m == null) {
+                o.put("error", "No hay ninguna macro vinculada al botón.");
+                return o;
+            }
+            o.put("id", m.id);
+            o.put("name", valor(m.name));
+            if (!sesion(app).haySesion()) {
+                o.put("error", "Conecta tu cuenta de Spotify en la pestaña Macros.");
+                return o;
+            }
+
+            List<MacroRunner.Macro> una = new ArrayList<MacroRunner.Macro>();
+            una.add(MacroRunner.paraBoton(m));
+            JSONArray detalle = ejecutarEstas(app, true, una).optJSONArray("detalle");
+            JSONObject mio = detalle == null ? null : detalle.optJSONObject(0);
+            if (mio == null) {
+                // La única forma de no salir es la canción actual sin nada sonando.
+                o.put("error", "No hay ninguna canción sonando ahora mismo.");
+                return o;
+            }
+            o.put("status", mio.optInt("status", MacroRunner.ERROR));
+            o.put("message", mio.optString("message", ""));
+        } catch (Throwable t) {
+            try { o.put("error", String.valueOf(t.getMessage())); } catch (Throwable ignored) { }
+        }
+        return o;
+    }
+
+    static MacroRunner.Macro buscar(List<MacroRunner.Macro> ms, String id) {
+        if (id == null) return null;
+        for (int i = 0; i < ms.size(); i++) {
+            if (id.equals(ms.get(i).id)) return ms.get(i);
+        }
+        return null;
+    }
+
     // ── Ejecución ────────────────────────────────────────────────────────────
 
     /**
@@ -299,12 +408,15 @@ public final class MacroBackground {
     }
 
     static JSONObject ejecutar(Context app, boolean forzar, String soloId) {
+        return ejecutarEstas(app, forzar, seleccionar(macros(app), soloId));
+    }
+
+    static JSONObject ejecutarEstas(Context app, boolean forzar, List<MacroRunner.Macro> objetivo) {
         JSONObject resumen = new JSONObject();
         JSONArray detalle = new JSONArray();
 
         MacroRunner.Http http = http(app);
         MacroRunner.Store store = store(app);
-        List<MacroRunner.Macro> objetivo = seleccionar(macros(app), soloId);
 
         List<MacroRunner.Outcome> res = new ArrayList<MacroRunner.Outcome>();
 
