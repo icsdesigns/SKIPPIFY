@@ -178,6 +178,35 @@ async function main () {
   check('un nombre de miembro largo se lee en dos líneas, no recortado',
     /<p class="sk-clamp-2 text-sm font-semibold text-white"/.test(html))
 
+  console.log('\nDesvelado del domingo a las 15:00')
+  {
+    const { resultadoVisible, resultadoPendiente, ultimoDesvelado } = await import('../src/composables/useLeague.js')
+    const doc = {
+      weekKey: '2026-10-11',
+      members: [{ uid: 'a' }],
+      next: { weekKey: '2026-10-18', revealAt: '2026-10-18T13:00:00.000Z', members: [{ uid: 'b' }] }
+    }
+    const a = (iso) => Date.parse(iso)
+    check('a las 14:59 se ve todavía la semana anterior',
+      resultadoVisible(doc, a('2026-10-18T12:59:59Z')).weekKey === '2026-10-11')
+    check('a las 15:00 en punto se ve la nueva',
+      resultadoVisible(doc, a('2026-10-18T13:00:00Z')).weekKey === '2026-10-18')
+    check('lo de next no se cuela en la vista anterior',
+      !('next' in resultadoVisible(doc, a('2026-10-18T12:00:00Z'))))
+    check('el último desvelado en verano son las 13:00 UTC',
+      new Date(ultimoDesvelado(a('2026-10-18T16:00:00Z'))).toISOString() === '2026-10-18T13:00:00.000Z')
+    check('y en invierno las 14:00 UTC',
+      new Date(ultimoDesvelado(a('2026-12-06T14:30:00Z'))).toISOString() === '2026-12-06T14:00:00.000Z')
+    check('el sábado no hay nada pendiente',
+      !resultadoPendiente({ weekKey: 'x', members: [] }, a('2026-10-17T12:00:00Z')))
+    check('a las 15:05 sin la semana nueva se dice que se está calculando',
+      resultadoPendiente({ weekKey: '2026-10-04', weekEnd: '2026-10-11T13:00:00.000Z', members: [] }, a('2026-10-18T13:05:00Z')))
+    check('con la semana ya en next no hay nada pendiente',
+      !resultadoPendiente(doc, a('2026-10-18T13:05:00Z')))
+    check('el martes ya no se dice «calculando»',
+      !resultadoPendiente({ weekKey: 'x', members: [] }, a('2026-10-20T13:05:00Z')))
+  }
+
   if (fallos) {
     console.error(`\n${fallos} comprobación(es) con error.`)
     process.exit(1)

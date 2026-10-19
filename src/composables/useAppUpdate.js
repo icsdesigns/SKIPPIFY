@@ -12,7 +12,7 @@
  */
 import { ref, computed } from 'vue'
 
-const REPO = 'SILAB3D/SKIPPIFY'
+const REPO = 'icsdesigns/SKIPPIFY'
 const LATEST_RELEASE_URL = `https://api.github.com/repos/${REPO}/releases/latest`
 
 /** Versión ignorada por el usuario, para no repetir el aviso en cada arranque. */

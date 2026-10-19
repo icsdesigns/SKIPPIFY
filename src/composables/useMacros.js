@@ -849,7 +849,12 @@ const nativeState = reactive({
   /** Motivo por el que el servicio deja fuera a una macro, por id. */
   excluidas: {},
   /** `true` en cuanto el puente ha contestado alguna vez. */
-  disponible: false
+  disponible: false,
+  /**
+   * Botón de los auriculares: la macro vinculada, las que se pueden vincular
+   * (aunque estén pausadas) y por qué las demás no.
+   */
+  boton: { macroId: '', elegibles: [], noElegibles: {} }
 })
 
 function nativePlugin () {
@@ -885,6 +890,17 @@ function absorberEstado (estado) {
     if (fila?.id) motivos[fila.id] = fila.motivo || ''
   }
   nativeState.excluidas = motivos
+
+  const boton = estado.boton || {}
+  const noElegibles = {}
+  for (const fila of (Array.isArray(boton.noElegibles) ? boton.noElegibles : [])) {
+    if (fila?.id) noElegibles[fila.id] = fila.motivo || ''
+  }
+  nativeState.boton = {
+    macroId: boton.macroId || '',
+    elegibles: Array.isArray(boton.elegibles) ? [...boton.elegibles] : [],
+    noElegibles
+  }
 }
 
 /** Envía las macros al servicio y recoge su estado. Silencioso sin puente. */
@@ -908,6 +924,40 @@ export async function refrescarEstadoNativo () {
   } catch {
     return false
   }
+}
+
+/**
+ * Vincula una macro a la pulsación larga del botón de los auriculares; con
+ * cadena vacía suelta el vínculo. Lo guarda el servicio, que es quien atiende
+ * la pulsación con la app cerrada.
+ */
+export async function vincularBoton (id) {
+  const NL = nativePlugin()
+  if (!NL?.setHeadsetMacro) return false
+  try {
+    absorberEstado(await NL.setHeadsetMacro({ id: id || '' }))
+    return true
+  } catch {
+    return false
+  }
+}
+
+/** Ejecuta la macro del botón como si se hubiera pulsado. */
+export async function probarBoton () {
+  const NL = nativePlugin()
+  if (!NL?.runHeadsetMacroNow) return { error: 'El servicio en segundo plano no está disponible.' }
+  try {
+    const res = await NL.runHeadsetMacroNow()
+    await refrescarEstadoNativo()
+    return res || {}
+  } catch (error) {
+    return { error: error?.message || 'No se pudo hablar con el servicio.' }
+  }
+}
+
+/** ¿Es la macro vinculada al botón? */
+export function vinculadaAlBoton (macro) {
+  return !!macro && !!nativeState.boton.macroId && nativeState.boton.macroId === macro.id
 }
 
 /** ¿La ejecuta el servicio por su cuenta? */
@@ -1070,6 +1120,9 @@ export function useMacros () {
     motivoSinSegundoPlano,
     estadisticasNativas,
     historialDe,
-    historialPorDia
+    historialPorDia,
+    vincularBoton,
+    probarBoton,
+    vinculadaAlBoton
   }
 }

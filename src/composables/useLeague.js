@@ -225,11 +225,130 @@ function nextSunday1500Label () {
   })
 }
 
-async function requestWeeklyResultNotification (groupName) {
+// ── Desvelado del domingo a las 15:00 ────────────────────────────────────────
+
+/**
+ * La acción de GitHub calcula la semana de madrugada y la deja en `next` con
+ * `revealAt` (las 15:00 de Madrid del domingo); arriba sigue la semana
+ * anterior hasta que alguna ejecución posterior la sube. Aquí no se espera a
+ * esa ejecución, que GitHub puede retrasar horas: se enseña `next` en cuanto el
+ * reloj pasa de `revealAt`, y hasta entonces lo de arriba.
+ */
+export function resultadoVisible (raw, now = Date.now()) {
+  if (!raw) return null
+  const { next, ...vista } = raw
+  const t = next?.revealAt ? Date.parse(next.revealAt) : NaN
+  if (next && Number.isFinite(t) && t <= now) {
+    return { ...vista, ...next, members: Array.isArray(next.members) ? next.members : [] }
+  }
+  return { ...vista, members: Array.isArray(vista.members) ? vista.members : [] }
+}
+
+function partesMadrid (ms) {
+  const p = Object.fromEntries(new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Europe/Madrid',
+    weekday: 'short',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hourCycle: 'h23'
+  }).formatToParts(new Date(ms)).map(x => [x.type, x.value]))
+  return {
+    dow: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(p.weekday),
+    y: Number(p.year),
+    m: Number(p.month),
+    d: Number(p.day),
+    h: Number(p.hour),
+    min: Number(p.minute),
+    s: Number(p.second)
+  }
+}
+
+/** Instante de una hora de pared de Madrid (vale en verano y en invierno). */
+function horaMadrid (y, m, d, h) {
+  const guess = Date.UTC(y, m - 1, d, h)
+  const p = partesMadrid(guess)
+  return guess - (Date.UTC(p.y, p.m - 1, p.d, p.h, p.min, p.s) - guess)
+}
+
+/** Último domingo a las 15:00 de Madrid que ya ha llegado. */
+export function ultimoDesvelado (now = Date.now()) {
+  const hoy = partesMadrid(now)
+  const domingo = new Date(Date.UTC(hoy.y, hoy.m - 1, hoy.d - hoy.dow))
+  let t = horaMadrid(domingo.getUTCFullYear(), domingo.getUTCMonth() + 1, domingo.getUTCDate(), 15)
+  if (t > now) {
+    const antes = new Date(domingo.getTime() - 7 * 86400000)
+    t = horaMadrid(antes.getUTCFullYear(), antes.getUTCMonth() + 1, antes.getUTCDate(), 15)
+  }
+  return t
+}
+
+/** Lo que tarda como mucho GitHub en publicar: luego se deja de decir «calculando». */
+const ESPERA_MAXIMA_MS = 36 * 60 * 60 * 1000
+
+/**
+ * ¿Ya son las 15:00 del domingo y la semana todavía no está publicada?
+ * Pasa cuando GitHub no ha llegado a ejecutar la acción a tiempo.
+ */
+export function resultadoPendiente (raw, now = Date.now()) {
+  const desde = ultimoDesvelado(now)
+  if (now - desde > ESPERA_MAXIMA_MS) return false
+  const visible = resultadoVisible(raw, now)
+  const t = visible?.revealAt ? Date.parse(visible.revealAt) : NaN
+  return !(Number.isFinite(t) && t >= desde)
+}
+
+/** Un temporizador por grupo para cambiar la pantalla a las 15:00 en punto. */
+const desveladoTimers = {}
+
+function programarDesvelado (groupId, raw) {
+  if (typeof window === 'undefined') return
+  if (desveladoTimers[groupId]) {
+    clearTimeout(desveladoTimers[groupId])
+    delete desveladoTimers[groupId]
+  }
+  const t = raw?.next?.revealAt ? Date.parse(raw.next.revealAt) : NaN
+  const falta = t - Date.now()
+  // setTimeout no admite más de ~24,8 días; para eso ya está el repaso.
+  if (!Number.isFinite(falta) || falta <= 0 || falta > 2 ** 31 - 1) return
+  desveladoTimers[groupId] = setTimeout(() => {
+    delete desveladoTimers[groupId]
+    clockTick.value = Date.now()
+    void checkPublishedResults()
+  }, falta + 500)
+}
+
+/**
+ * Aviso de que ya se ve la semana de un grupo.
+ *
+ * En Android lo da el propio servicio (LigaResultados.java), que es también el
+ * que avisa a las 15:00 con la app cerrada: así lleva el icono de Skippify y,
+ * como lleva la cuenta de lo ya avisado, abrir la app después no lo repite.
+ */
+async function requestWeeklyResultNotification (groupName, groupId = '', revealAt = '') {
   const title = 'Skippify'
   const body = groupName
-    ? `Ya está el resumen semanal de ${groupName}.`
-    : 'Los resultados semanales de tu grupo ya están disponibles.'
+    ? `Ya están los resultados de la semana de ${groupName}.`
+    : 'Ya están los resultados semanales de tu grupo.'
+
+  const NL = typeof window !== 'undefined' ? window.Capacitor?.Plugins?.NotifListener : null
+  if (NL?.notifyLeagueResult && groupId) {
+    try {
+      // El permiso se sigue pidiendo aquí, con el primer aviso, como antes; el
+      // servicio no puede preguntarlo con la app cerrada.
+      const permisos = await LocalNotifications.checkPermissions()
+      if (permisos.display === 'prompt' || permisos.display === 'prompt-with-rationale') {
+        await LocalNotifications.requestPermissions()
+      }
+    } catch { /* sin el plugin: el servicio lo intenta igual */ }
+    try {
+      await NL.notifyLeagueResult({ groupId, groupName: groupName || '', revealAt: revealAt || '' })
+      return
+    } catch { /* versiones nativas sin este método: el camino de siempre */ }
+  }
 
   try {
     const permissions = await LocalNotifications.checkPermissions()
@@ -246,6 +365,9 @@ async function requestWeeklyResultNotification (groupName) {
           id: Date.now() % 2147483647,
           title,
           body,
+          // El monograma de Skippify y no el icono genérico del plugin.
+          smallIcon: 'ic_stat_skippify',
+          iconColor: '#1ed760',
           schedule: { at: new Date(Date.now() + 1000) }
         }
       ]
@@ -933,24 +1055,10 @@ async function checkPublishedResults () {
     for (const group of [...state.value.groups]) {
       try {
         const result = await fetchLatestWeeklyResult(group.groupId)
-        const weekKey = (result?.weekKey || '').toString()
-        if (!weekKey) continue
-
-        const previo = (state.value.lastSeenWeekKeys?.[group.groupId] || '').toString()
-        state.value.lastSeenWeekKeys = { ...state.value.lastSeenWeekKeys, [group.groupId]: weekKey }
-        saveState()
-
+        if (!result) continue
         // También se cachea lo leído: si el usuario entra en Comunidad tras el
         // aviso, el ranking ya está puesto.
-        leaderboards[group.groupId] = {
-          ...result,
-          members: Array.isArray(result.members) ? result.members : []
-        }
-
-        if (previo && previo !== weekKey) {
-          avisos += 1
-          await requestWeeklyResultNotification(group.name)
-        }
+        if (await guardarResultado(group.groupId, result)) avisos += 1
       } catch {
         // Un grupo sin permiso o sin red no puede tumbar el repaso del resto.
       }
@@ -960,6 +1068,32 @@ async function checkPublishedResults () {
   }
 
   return avisos
+}
+
+/**
+ * Guarda el documento tal cual (con `next` dentro) y avisa si la semana que se
+ * VE es nueva. Lo que aún espera en `next` no cuenta: avisar de madrugada de
+ * un ranking que no se enseña hasta las 15:00 sería adelantarlo.
+ *
+ * La primera vez que se ve un grupo sólo se fija el punto de partida.
+ *
+ * @returns {Promise<boolean>} si se ha avisado.
+ */
+async function guardarResultado (groupId, raw) {
+  leaderboards[groupId] = raw
+  programarDesvelado(groupId, raw)
+
+  const visible = resultadoVisible(raw)
+  const weekKey = (visible?.weekKey || '').toString()
+  if (!weekKey) return false
+
+  const previo = (state.value.lastSeenWeekKeys?.[groupId] || '').toString()
+  state.value.lastSeenWeekKeys = { ...state.value.lastSeenWeekKeys, [groupId]: weekKey }
+  saveState()
+
+  if (!previo || previo === weekKey) return false
+  await requestWeeklyResultNotification(findGroup(groupId)?.name, groupId, visible.revealAt || '')
+  return true
 }
 
 /** Arranca el repaso periódico. Idempotente: llamarlo dos veces no duplica nada. */
@@ -1000,20 +1134,8 @@ async function loadLeaderboard (options = {}) {
       return null
     }
 
-    leaderboards[groupId] = {
-      ...result,
-      members: Array.isArray(result.members) ? result.members : []
-    }
-
-    const previousWeekKey = (state.value.lastSeenWeekKeys?.[groupId] || '').toString()
-    const currentWeekKey = (result.weekKey || '').toString()
-    if (currentWeekKey && previousWeekKey && currentWeekKey !== previousWeekKey) {
-      void requestWeeklyResultNotification(findGroup(groupId)?.name)
-    }
-    state.value.lastSeenWeekKeys = { ...state.value.lastSeenWeekKeys, [groupId]: currentWeekKey }
-    saveState()
-
-    return leaderboards[groupId]
+    await guardarResultado(groupId, result)
+    return resultadoVisible(leaderboards[groupId])
   }
 
   try {
@@ -1050,7 +1172,11 @@ loadState()
 
 export function useLeague () {
   const activeGroup = computed(() => findGroup(state.value.activeGroupId))
-  const activeLeaderboard = computed(() => leaderboards[state.value.activeGroupId] || null)
+  // Depende de `clockTick` para cambiar sola a las 15:00 del domingo.
+  const activeLeaderboard = computed(() => {
+    const raw = leaderboards[state.value.activeGroupId]
+    return raw ? resultadoVisible(raw, clockTick.value) : null
+  })
 
   return {
     enabled: computed(() => ctx.enabled),
@@ -1065,7 +1191,10 @@ export function useLeague () {
     members,
     activeMembers: computed(() => members[state.value.activeGroupId] || []),
     /** Publicación más reciente del grupo activo, si ya hubo alguna. */
-    activeLastUpdate: computed(() => toDate(leaderboards[state.value.activeGroupId]?.publishedAt)),
+    activeLastUpdate: computed(() => toDate(activeLeaderboard.value?.publishedAt)),
+    /** Son más de las 15:00 del domingo y la semana del grupo activo aún no ha llegado. */
+    activeResultPending: computed(() => state.value.groups.length > 0 &&
+      resultadoPendiente(leaderboards[state.value.activeGroupId], clockTick.value)),
     memberCount: (groupId) => (members[groupId] || []).length,
     weeklyMembers: computed(() => activeLeaderboard.value?.members || []),
     authReady,

@@ -35,12 +35,19 @@
       <path d="M18.4 14.6C17.4 15.1 16.3 15.3 15.1 15.2C11.3 14.9 8.6 11.7 8.9 8C9 6.8 9.4 5.7 10.1 4.8C6.8 5.6 4.4 8.8 4.6 12.4C4.9 16.4 8.3 19.5 12.3 19.3C15 19.1 17.3 17.3 18.4 14.6Z" />
       <path d="M17.2 3.6C17.5 5.1 18 5.7 19.5 6C18 6.3 17.5 6.9 17.2 8.4C16.9 6.9 16.4 6.3 14.9 6C16.4 5.7 16.9 5.1 17.2 3.6Z" fill="currentColor" stroke-width="1.4" />
     </template>
+    <!-- Botón de los auriculares: diadema con un punto de pulsación. -->
+    <template v-else-if="name === 'auriculares'">
+      <path d="M4.6 15.2C4.3 9.4 7.6 5.3 12 5.2C16.4 5.1 19.8 9.2 19.4 15.2" />
+      <path d="M4.5 14.1C5.6 13.9 6.7 14 7.6 14.2C7.8 15.9 7.8 17.6 7.6 19.2C6.6 19.4 5.6 19.4 4.7 19.2C4.5 17.5 4.4 15.8 4.5 14.1Z" />
+      <path d="M19.5 14.1C18.4 13.9 17.3 14 16.4 14.2C16.2 15.9 16.2 17.6 16.4 19.2C17.4 19.4 18.4 19.4 19.3 19.2C19.5 17.5 19.6 15.8 19.5 14.1Z" />
+      <circle cx="12" cy="13.6" r="1.6" fill="currentColor" stroke="none" />
+    </template>
   </svg>
 </template>
 
 <script setup>
 defineProps({
-  /** 'salto' | 'silencio' | 'luna' */
+  /** 'salto' | 'silencio' | 'luna' | 'auriculares' */
   name: { type: String, required: true }
 })
 </script>

@@ -31,6 +31,12 @@ public class BootCompletedReceiver extends BroadcastReceiver {
             return;
         }
 
+        // El domingo a las 15:00 (o un reintento): avisar del ranking semanal.
+        if (LigaResultados.ACTION_ALARMA.equals(action)) {
+            LigaResultados.alSonar(context, goAsync());
+            return;
+        }
+
         boolean shouldStart = Intent.ACTION_BOOT_COMPLETED.equals(action)
                 || Intent.ACTION_LOCKED_BOOT_COMPLETED.equals(action)
                 || Intent.ACTION_MY_PACKAGE_REPLACED.equals(action)
@@ -42,6 +48,11 @@ public class BootCompletedReceiver extends BroadcastReceiver {
         SkippifyForegroundService.start(appContext, ACTION_WATCHDOG.equals(action));
         // Un temporizador puesto antes de reiniciar o de actualizar sigue vivo.
         SleepTimer.resume(appContext);
+        // Las alarmas no sobreviven a un reinicio: la del ranking se repone.
+        try {
+            LigaResultados.programar(appContext);
+        } catch (Throwable ignored) {
+        }
 
         // Algunos OEMs sueltan el NotificationListenerService bajo presión de
         // memoria y no lo vuelven a enlazar solos. Pedirlo es barato y es la

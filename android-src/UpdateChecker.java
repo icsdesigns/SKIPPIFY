@@ -47,7 +47,7 @@ final class UpdateChecker {
 
     /** Debe coincidir con el repositorio que publica las releases. */
     private static final String LATEST_RELEASE_URL =
-            "https://api.github.com/repos/SILAB3D/SKIPPIFY/releases/latest";
+            "https://api.github.com/repos/icsdesigns/SKIPPIFY/releases/latest";
 
     /** Una vez al día: más a menudo no aporta nada y gasta batería y cupo. */
     static final long CHECK_INTERVAL_MS = 24L * 60L * 60L * 1000L;

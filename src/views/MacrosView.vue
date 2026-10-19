@@ -480,6 +480,14 @@
                 <span class="h-1 w-1 rounded-full bg-brand-400" />segundo plano
               </span>
 
+              <span
+                v-if="vinculadaAlBoton(macro)"
+                class="inline-flex shrink-0 items-center gap-1 rounded-full bg-sky-400/[0.18] px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-sky-200"
+                title="Se ejecuta con la pulsación larga del botón de los auriculares"
+              >
+                <FeatureIcon name="auriculares" class="h-3 w-3" />botón
+              </span>
+
               <span class="hidden shrink-0 font-mono text-[10px] text-slate-500 sm:inline">
                 {{ ejecuciones(macro) }} ejec.
               </span>
@@ -597,6 +605,90 @@
           </li>
         </ul>
       </section>
+
+      <!-- ══ 4 · Botón de los auriculares ════════════════════════════════════ -->
+      <!--
+        Sólo en la app: quien atiende la pulsación es el servicio nativo, con la
+        app cerrada. En el navegador no hay nada que vincular.
+      -->
+      <section v-if="nativeState.disponible && macros.length" class="space-y-4">
+        <header class="flex items-center gap-3">
+          <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-sky-400/[0.18] text-sky-200">
+            <FeatureIcon name="auriculares" class="h-5 w-5" />
+          </span>
+          <div class="min-w-0">
+            <h2 class="text-xl font-extrabold tracking-tightest text-white">Botón de los auriculares</h2>
+            <p class="text-[11px] text-slate-500">Mantén pulsado el botón de función y se ejecuta la macro que elijas.</p>
+          </div>
+        </header>
+
+        <article class="sk-card space-y-3 p-5">
+          <label class="block">
+            <span class="sk-eyebrow">Macro vinculada</span>
+            <select
+              class="mt-2 w-full sk-input px-3 py-2.5 text-xs text-slate-200"
+              :value="nativeState.boton.macroId"
+              :disabled="botonOcupado"
+              @change="onVincularBoton($event.target.value)"
+            >
+              <option value="">Ninguna (el botón hace lo de siempre)</option>
+              <option v-for="macro in macrosParaBoton" :key="macro.id" :value="macro.id">
+                {{ macro.name }}{{ macro.enabled ? '' : ' (pausada)' }}
+              </option>
+            </select>
+          </label>
+
+          <p v-if="!macrosParaBoton.length" class="text-[11px] text-amber-300/80">
+            Ninguna de tus macros puede ejecutarse desde el botón:
+            {{ Object.values(nativeState.boton.noElegibles)[0] || 'el servicio no las admite.' }}
+          </p>
+
+          <template v-if="nativeState.boton.macroId">
+            <ol class="space-y-1.5 rounded-xl bg-black/30 px-3.5 py-3 text-[11px] leading-relaxed text-slate-400">
+              <li>
+                <span class="font-semibold text-slate-200">1.</span>
+                Mantén pulsado el botón de función de los auriculares, el que suele abrir el asistente de voz.
+              </li>
+              <li>
+                <span class="font-semibold text-slate-200">2.</span>
+                La primera vez Android te preguntará con qué app abrirlo: elige
+                <span class="text-slate-200">Skippify · macro</span> y <span class="text-slate-200">Siempre</span>.
+              </li>
+              <li>
+                <span class="font-semibold text-slate-200">3.</span>
+                Un aviso en pantalla te dirá qué ha hecho la macro. También queda en su historial.
+              </li>
+            </ol>
+
+            <p class="text-[10px] leading-relaxed text-slate-500">
+              El botón la ejecuta aunque esté pausada. Así puedes tener, por ejemplo,
+              «la canción que suena → copiar a una playlist» sólo cuando tú lo pidas,
+              sin que se aplique a cada canción. Las pulsaciones cortas (pausa, siguiente)
+              siguen yendo a Spotify. Si tus auriculares usan la pulsación larga para su
+              propia app (algunos Galaxy Buds o Pixel Buds), cámbiala allí a «asistente de voz».
+            </p>
+
+            <div class="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                class="sk-btn sk-btn-sm bg-sky-400/[0.18] text-sky-100 hover:bg-sky-400/30"
+                :disabled="botonOcupado"
+                @click="onProbarBoton"
+              >{{ botonOcupado ? 'Ejecutando…' : 'Probar ahora' }}</button>
+            </div>
+
+            <p
+              v-if="botonResultado"
+              class="rounded-lg border px-3 py-2 text-[11px]"
+              :class="botonResultado.error
+                ? 'border-transparent bg-rose-500/[0.16] text-rose-200'
+                : 'sk-option text-slate-200'"
+            >
+              {{ botonResultado.message }}
+            </p>
+          </template>
+        </article>
+      </section>
     </template>
 
   </div>
@@ -614,6 +706,7 @@
  */
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useSpotify } from '@/composables/useSpotify'
+import FeatureIcon from '@/components/FeatureIcon.vue'
 import {
   useMacros,
   describeMacro,
@@ -631,8 +724,38 @@ const { state, connected, clientId, setClientId, redirectUri, connect, disconnec
 const {
   macros, createMacro, deleteMacro, toggleMacro, runMacro, runAllEnabled,
   sincronizarConNativo, refrescarEstadoNativo, correEnSegundoPlano, motivoSinSegundoPlano,
-  estadisticasNativas, historialPorDia
+  estadisticasNativas, historialPorDia,
+  nativeState, vincularBoton, probarBoton, vinculadaAlBoton
 } = useMacros()
+
+// ── Botón de los auriculares ────────────────────────────────────────────────
+
+/** Las macros que el servicio puede ejecutar desde el botón, aunque estén pausadas. */
+const macrosParaBoton = computed(() =>
+  macros.filter(macro => nativeState.boton.elegibles.includes(macro.id)))
+
+const botonOcupado = ref(false)
+const botonResultado = ref(null)
+
+async function onVincularBoton (id) {
+  botonOcupado.value = true
+  botonResultado.value = null
+  await vincularBoton(id)
+  botonOcupado.value = false
+}
+
+async function onProbarBoton () {
+  botonOcupado.value = true
+  botonResultado.value = null
+  const res = await probarBoton()
+  // 0 aplicada · 1 omitida · 2 error (ver MacroRunner.java)
+  const error = res.error || (res.status === 2 ? (res.message || 'Error en segundo plano.') : '')
+  botonResultado.value = {
+    error: !!error,
+    message: error || res.message || 'Hecho.'
+  }
+  botonOcupado.value = false
+}
 
 /** Qué macros están desplegadas. Plegadas por defecto: el objeto nace vacío. */
 const abierta = reactive({})

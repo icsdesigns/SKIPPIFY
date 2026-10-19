@@ -142,6 +142,10 @@
           <span v-if="weekLabel" class="sk-chip">{{ weekLabel }}</span>
         </div>
 
+        <p v-if="activeResultPending" class="mt-3 rounded-md bg-white/[0.06] px-3 py-2 text-xs text-slate-300">
+          Los resultados de esta semana aún se están calculando. Te avisaremos en cuanto estén.
+        </p>
+
         <p v-if="!weeklyMembers.length" class="mt-3 text-xs text-slate-500">
           Todavía no hay ranking publicado para este grupo. Se publica cada domingo a las 15:00.
         </p>
@@ -380,6 +384,7 @@ const {
   error,
   message,
   nextPublishLabel,
+  activeResultPending,
   ensureAuth,
   createGroup,
   joinGroup,
