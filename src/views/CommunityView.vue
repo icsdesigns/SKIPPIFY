@@ -1,5 +1,24 @@
 <template>
   <div class="sk-stagger space-y-4">
+    <!-- ── Modo: con servidor (Firebase) o sin servidor (LocalHost) ───────── -->
+    <div class="sk-card flex items-center gap-1.5 p-1.5" role="tablist" aria-label="Tipo de comunidad">
+      <button
+        v-for="op in modos"
+        :key="op.id"
+        type="button"
+        role="tab"
+        :aria-selected="modo === op.id"
+        class="min-w-0 flex-1 rounded-full px-3 py-2 text-xs font-bold transition-colors"
+        :class="modo === op.id ? 'bg-white text-black' : 'text-slate-300 hover:bg-white/[0.08]'"
+        @click="elegirModo(op.id)"
+      >
+        {{ op.label }}
+      </button>
+    </div>
+
+    <LocalHostPanel v-if="modo === 'local'" />
+
+    <template v-else>
     <!-- ── Estado del servicio ───────────────────────────────────────────── -->
     <div v-if="!enabled" class="sk-card p-5">
       <p class="text-sm font-semibold text-amber-200">La comunidad no está configurada</p>
@@ -301,6 +320,7 @@
       Usuario: {{ state.displayName || 'sin nombre' }} · ID: {{ shortUid }}
       <template v-if="state.lastSyncAt"> · última sincronización: {{ lastSyncLabel }}</template>
     </p>
+    </template>
   </div>
 </template>
 
@@ -317,7 +337,29 @@
  * crear o unirse, que despliegan su formulario al elegirlas.
  */
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { defineAsyncComponent } from 'vue'
 import { useLeague, normalizeInviteCode } from '@/composables/useLeague'
+
+// El modo sin servidor arrastra libsodium (WASM): se carga sólo al elegirlo.
+const LocalHostPanel = defineAsyncComponent(() => import('@/components/LocalHostPanel.vue'))
+
+const MODO_KEY = 'skippify-community-mode'
+const modos = [
+  { id: 'servidor', label: 'Con servidor' },
+  { id: 'local', label: 'Sin servidor' }
+]
+function modoInicial () {
+  try {
+    const guardado = localStorage.getItem(MODO_KEY)
+    if (guardado === 'local' || guardado === 'servidor') return guardado
+  } catch { /* sin almacenamiento */ }
+  return 'servidor'
+}
+const modo = ref(modoInicial())
+function elegirModo (id) {
+  modo.value = id
+  try { localStorage.setItem(MODO_KEY, id) } catch { /* sin almacenamiento */ }
+}
 
 const {
   enabled,

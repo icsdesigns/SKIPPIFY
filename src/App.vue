@@ -185,6 +185,7 @@ import { useNotifListener } from '@/composables/useNotifListener'
 import { useFeatures } from '@/composables/useFeatures'
 import { useAppUpdate } from '@/composables/useAppUpdate'
 import { useLeague } from '@/composables/useLeague'
+import { useLocalLeague } from '@/composables/useLocalLeague'
 
 // Vestigio del cajón lateral que había en móvil, ahora sustituido por la barra
 // de pestañas inferior. Se conserva porque la guía rápida sigue emitiendo
@@ -195,6 +196,7 @@ const notif = useNotifListener()
 const { initializeNativeFeatures } = useFeatures()
 const update = useAppUpdate()
 const league = useLeague()
+const localLeague = useLocalLeague()
 const nowPlaying = ref({ mode: 'stopped' })
 const router = useRouter()
 const route = useRoute()
@@ -307,6 +309,8 @@ onMounted(async () => {
   // Avisa de los resultados de la comunidad sin tener que entrar en la pestaña.
   // Si el usuario no pertenece a ningún grupo no sale ni una petición.
   league.startPublishedResultsWatch()
+  // Grupos «sin servidor» (LocalHost): sincroniza y publica escuchas. Sin grupos no hace nada.
+  localLeague.startWatch()
 
   if (tourPending) {
     tourTimer = setTimeout(() => {
@@ -335,12 +339,14 @@ function onVisibleAgain () {
   // Volver a la app es el momento más probable de haberse perdido una
   // publicación: el temporizador no corre mientras el proceso está dormido.
   void league.checkPublishedResults()
+  void localLeague.syncAll()
 }
 
 onBeforeUnmount(() => {
   document.removeEventListener('visibilitychange', onVisibleAgain)
   window.removeEventListener('scroll', onScroll)
   league.stopPublishedResultsWatch()
+  localLeague.stopWatch()
   if (splashTimer) clearTimeout(splashTimer)
   if (tourTimer) clearTimeout(tourTimer)
   stopNavWatch()
