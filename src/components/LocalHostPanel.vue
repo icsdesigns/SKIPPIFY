@@ -50,7 +50,7 @@
           class="mt-3 rounded-card bg-sky-500/[0.12] px-3.5 py-3 text-xs text-sky-200"
         >
           <template v-if="activeStatus === 'joining'">
-            Esperando a que un miembro del grupo abra la app y te deje entrar. La invitación vale 24 horas.
+            Esperando a que un miembro del grupo tenga la app abierta y te deje entrar. Mantén esta app abierta: se comprueba cada pocos segundos. La invitación vale 24 horas.
           </template>
           <template v-else>
             Restaurando: este móvil recibirá las llaves del grupo en cuanto otro miembro sincronice.
@@ -105,7 +105,7 @@
             </button>
             <button v-if="canShare" class="sk-btn sk-btn-ghost sk-btn-sm" @click="compartir(inviteCode)">Compartir</button>
           </div>
-          <p class="text-[11px] text-slate-500">Vale 24 horas y se puede usar una sola vez.</p>
+          <p class="text-[11px] text-slate-500">Vale 24 horas y se puede usar una sola vez. Mantén la app abierta hasta que la otra persona entre: es tu móvil quien la deja pasar.</p>
         </div>
 
         <div class="sk-divider my-4" />

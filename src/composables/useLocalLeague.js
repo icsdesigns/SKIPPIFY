@@ -31,6 +31,14 @@ const COLL = 'escuchas'
 const COLL_GRUPO = 'grupo'
 const COLL_PERFIL = 'perfil'
 const SYNC_INTERVAL_MS = 60_000
+/** Cada cuánto se mira si toca sincronizar (el ritmo real lo decide `tick`). */
+const TICK_MS = 15_000
+/**
+ * Mientras alguien espera —un invitado que aún no ha entrado, o un admin que
+ * acaba de dar una invitación— se sincroniza cada tick en vez de cada minuto:
+ * la entrada depende de que los dos móviles coincidan en los relays.
+ */
+const FAST_WINDOW_MS = 10 * 60_000
 /** Sólo se publican las escuchas de los últimos días: el ranking mira dos semanas. */
 const PUBLISH_WINDOW_MS = 15 * 24 * 3600 * 1000
 /** Margen tras el final teórico de la canción para dar su `ms_played` por definitivo. */
@@ -61,6 +69,8 @@ const lastSyncByGroup = reactive({})
 const runtimes = new Map()
 let kitPromise = null
 let watchTimer = null
+let lastFullSync = 0
+let fastUntil = 0
 let syncAllPromise = null
 
 function loadState () {
@@ -227,6 +237,7 @@ async function createGroup ({ displayName, groupName } = {}) {
     runtimes.set(slot, { kit, storage, transport, group })
     refreshMembers(slot, group)
     message.value = 'Grupo creado. Genera una invitación para tus amigos.'
+    startWatch()
     return slot
   } catch (err) {
     await deleteSlot(slot)
@@ -272,6 +283,7 @@ async function joinGroup ({ inviteCode, displayName } = {}) {
     statuses[slot] = group.status
     message.value = 'Solicitud enviada. Entrarás cuando algún miembro del grupo abra la app.'
     void syncGroup(slot)
+    acelerar()
     return slot
   } catch (err) {
     await deleteSlot(slot)
@@ -308,7 +320,9 @@ async function createInvite (groupId = state.value.activeGroupId) {
   clearStatus()
   try {
     const { group } = await openRuntime(groupId)
-    return await group.createInvite()
+    const code = await group.createInvite()
+    acelerar()
+    return code
   } catch (err) {
     error.value = mapError(err, 'No fue posible crear la invitación (sólo pueden los administradores).')
     return ''
@@ -319,7 +333,9 @@ async function createLinkCode (groupId = state.value.activeGroupId) {
   clearStatus()
   try {
     const { group } = await openRuntime(groupId)
-    return await group.createLinkCode()
+    const code = await group.createLinkCode()
+    acelerar()
+    return code
   } catch (err) {
     error.value = mapError(err, 'No fue posible crear el código de vinculación.')
     return ''
@@ -354,6 +370,7 @@ async function linkDevice ({ code, displayName } = {}) {
     runtimes.set(slot, { kit, storage, transport, group })
     statuses[slot] = group.status
     void syncGroup(slot)
+    acelerar()
     return slot
   } catch (err) {
     await deleteSlot(slot)
@@ -395,6 +412,7 @@ async function restoreBackup ({ backup, password, displayName } = {}) {
     runtimes.set(slot, { kit, storage, transport, group })
     statuses[slot] = group.status
     void syncGroup(slot)
+    acelerar()
     return slot
   } catch (err) {
     await deleteSlot(slot)
@@ -554,9 +572,16 @@ async function syncGroup (groupId, { silent = true } = {}) {
   }
 }
 
+/** Activa el ritmo rápido y se asegura de que el vigilante está en marcha. */
+function acelerar () {
+  fastUntil = Date.now() + FAST_WINDOW_MS
+  startWatch()
+}
+
 function syncAll (options = {}) {
   if (syncAllPromise) return syncAllPromise
   if (!state.value.groups.length) return Promise.resolve(0)
+  lastFullSync = Date.now()
   syncing.value = true
   syncAllPromise = (async () => {
     let n = 0
@@ -583,14 +608,23 @@ async function refreshAll (options = {}) {
   return n
 }
 
+/**
+ * Arranca el vigilante. Idempotente. Antes sólo se armaba si ya había grupos al
+ * abrir la app, así que quien creaba o se unía al primer grupo en esa sesión no
+ * sincronizaba nunca hasta reiniciarla: la invitación se quedaba sin atender.
+ */
 function startWatch () {
-  if (!state.value.groups.length) return
-  void syncAll()
+  if (state.value.groups.length) void syncAll()
   if (watchTimer || typeof window === 'undefined') return
-  watchTimer = setInterval(() => {
-    if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return
-    void syncAll()
-  }, SYNC_INTERVAL_MS)
+  watchTimer = setInterval(tick, TICK_MS)
+}
+
+function tick () {
+  if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return
+  if (!state.value.groups.length) return
+  const ahora = Date.now()
+  const esperando = state.value.groups.some(g => (statuses[g.groupId] || 'ready') !== 'ready')
+  if (esperando || ahora < fastUntil || ahora - lastFullSync >= SYNC_INTERVAL_MS) void syncAll()
 }
 
 function stopWatch () {
