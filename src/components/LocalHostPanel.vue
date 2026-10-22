@@ -312,13 +312,13 @@ const copiado = ref('')
 const verCopia = ref(false)
 const accion = ref('')
 const confirmLeaveId = ref('')
-const vista = ref('pasada')
+const vista = ref('actual')
 let copiadoTimer = null
 let confirmTimer = null
 
 const vistas = [
-  { id: 'pasada', label: 'Semana pasada' },
-  { id: 'actual', label: 'Esta semana' }
+  { id: 'actual', label: 'Esta semana' },
+  { id: 'pasada', label: 'Semana pasada' }
 ]
 const opciones = [
   { id: 'crear', icon: '➕', title: 'Crear grupo', description: 'Abres uno nuevo y generas invitaciones.' },

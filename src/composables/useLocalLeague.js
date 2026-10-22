@@ -91,6 +91,49 @@ function saveState () {
   try {
     localStorage.setItem(STATE_KEY, JSON.stringify(state.value))
   } catch { /* sin almacenamiento: se pierde sólo la caché de la lista */ }
+  void avisarServicio()
+}
+
+// ── Servicio en segundo plano (Android) ─────────────────────────────────────
+//
+// Con la app cerrada, un WebView sin interfaz que vive en el servicio en primer
+// plano (LocalHostBackground.java, página bg.html) sigue sincronizando, para que
+// una invitación se acepte en segundos aunque nadie tenga la app abierta. Sólo
+// UNO de los dos mundos escribe a la vez: el nativo para al volver la app a
+// primer plano y `acquire()` espera a que haya parado. Si el servicio llegó a
+// escribir, los grupos que esta página tenía en memoria están desfasados (llaves
+// y miembros nuevos) y se vuelven a abrir desde IndexedDB.
+
+function pluginBg () {
+  return typeof window !== 'undefined' ? window.Capacitor?.Plugins?.LocalHostBg : null
+}
+
+async function avisarServicio () {
+  const bg = pluginBg()
+  if (!bg?.configure) return
+  try { await bg.configure({ enabled: state.value.groups.length > 0 }) } catch { /* versión nativa sin servicio */ }
+}
+
+let acquirePromise = null
+
+function ensureMain () {
+  if (acquirePromise) return acquirePromise
+  const bg = pluginBg()
+  if (!bg?.acquire) return Promise.resolve()
+  acquirePromise = (async () => {
+    try {
+      const r = await bg.acquire()
+      if (r?.bgRan) liberarRuntimes()
+    } catch { /* sin servicio: nada que esperar */ }
+  })()
+  return acquirePromise
+}
+
+if (typeof document !== 'undefined') {
+  document.addEventListener('visibilitychange', () => {
+    // Al pasar a segundo plano el servicio nativo puede tomar el relevo.
+    if (document.visibilityState === 'hidden') acquirePromise = null
+  })
 }
 
 loadState()
@@ -141,7 +184,16 @@ function validateName (name) {
 }
 
 /** Abre (o reutiliza) el grupo del kit asociado a una ranura. */
+/** Cierra los grupos abiertos: la próxima vez se leen de nuevo de IndexedDB. */
+function liberarRuntimes () {
+  for (const rt of runtimes.values()) {
+    try { rt.storage.close() } catch { /* nada */ }
+  }
+  runtimes.clear()
+}
+
 async function openRuntime (groupId) {
+  if (typeof document === 'undefined' || document.visibilityState !== 'hidden') await ensureMain()
   const cached = runtimes.get(groupId)
   if (cached) return cached
   const meta = findGroup(groupId)
@@ -435,9 +487,9 @@ function hashId (input) {
 }
 
 /** Escuchas locales ya terminadas, en el formato compacto del grupo. */
-function escuchasTerminadas (person, ahora) {
+function escuchasTerminadas (person, ahora, desdeAlmacen = false) {
   const { state: eventState } = useEventStore()
-  const events = Array.isArray(eventState.events) ? eventState.events : []
+  const events = desdeAlmacen ? eventosDeAlmacen() : (Array.isArray(eventState.events) ? eventState.events : [])
   const out = []
   for (const ev of events) {
     const playedAt = Date.parse(ev?.played_at)
@@ -451,6 +503,42 @@ function escuchasTerminadas (person, ahora) {
     out.push([eid, playedAt, (ev.track || '').toString(), (ev.artist || '').toString(), duration, msPlayed, measured])
   }
   return out
+}
+
+/**
+ * Historial leído directamente de localStorage. El WebView del servicio no ve
+ * los cambios que la app hace en su store en memoria, pero sí lo que ha
+ * guardado: comparten origen.
+ */
+function eventosDeAlmacen () {
+  try {
+    const parsed = JSON.parse(localStorage.getItem('skippify-events') || '[]')
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
+/**
+ * Escuchas captadas con la app cerrada, que sólo el código nativo ve (log
+ * crudo del listener, ya troceado como hace la subida a Firebase). Sólo existe
+ * en el WebView del servicio, que recibe el puente `SkippifyLh`.
+ */
+function escuchasNativas (person, ahora) {
+  try {
+    const crudo = window.SkippifyLh?.escuchas?.()
+    if (!crudo) return []
+    const lista = JSON.parse(crudo)
+    const out = []
+    for (const e of lista) {
+      if (!Number.isFinite(e.playedAtMs) || ahora - e.playedAtMs > PUBLISH_WINDOW_MS) continue
+      const eid = hashId(`${person}|${e.playedAt}|${e.track}|${e.artist}|${e.durationMs}`)
+      out.push([eid, e.playedAtMs, e.track || '', e.artist || '', e.durationMs || 0, e.msPlayed || 0, e.msPlayed || 0])
+    }
+    return out
+  } catch {
+    return []
+  }
 }
 
 /** Todas las escuchas del grupo, ya decodificadas y sin duplicados: Map persona → tupla[]. */
@@ -472,13 +560,21 @@ async function leerEscuchas (group) {
   return porPersona
 }
 
-async function publicarEscuchas (groupId) {
+async function publicarEscuchas (groupId, { desdeFondo = false } = {}) {
   const rt = runtimes.get(groupId)
   if (!rt || rt.group.status !== 'ready' || !rt.group.canSeal()) return 0
   const person = rt.group.me.person
   const propias = await leerEscuchas(rt.group)
   const yaPublicadas = new Set((propias.get(person) || []).map(t => t[0]))
-  const nuevas = escuchasTerminadas(person, Date.now()).filter(t => !yaPublicadas.has(t[0]))
+  const ahora = Date.now()
+  const candidatas = escuchasTerminadas(person, ahora, desdeFondo)
+  if (desdeFondo) candidatas.push(...escuchasNativas(person, ahora))
+  const vistas = new Set()
+  const nuevas = candidatas.filter((t) => {
+    if (yaPublicadas.has(t[0]) || vistas.has(t[0])) return false
+    vistas.add(t[0])
+    return true
+  })
   if (!nuevas.length) return 0
   nuevas.sort((a, b) => a[1] - b[1])
   let publicadas = 0
@@ -491,7 +587,7 @@ async function publicarEscuchas (groupId) {
 
 // ── Ranking ─────────────────────────────────────────────────────────────────
 
-async function calcularRanking (groupId, cual = 'pasada') {
+async function calcularRanking (groupId, cual = 'actual') {
   const rt = runtimes.get(groupId)
   if (!rt) return null
   const { group } = rt
@@ -514,7 +610,7 @@ async function calcularRanking (groupId, cual = 'pasada') {
 
 async function loadLeaderboard (options = {}) {
   const groupId = options?.groupId || state.value.activeGroupId
-  const cual = options?.cual || 'pasada'
+  const cual = options?.cual || 'actual'
   if (!groupId) return null
   try { await openRuntime(groupId) } catch { return null }
   const result = await calcularRanking(groupId, cual)
@@ -592,7 +688,7 @@ function syncAll (options = {}) {
     }
     const active = state.value.activeGroupId
     if (active && runtimes.has(active)) {
-      await loadLeaderboard({ groupId: active, cual: leaderboards[active]?.cual || 'pasada' })
+      await loadLeaderboard({ groupId: active, cual: leaderboards[active]?.cual || 'actual' })
     }
     return n
   })().finally(() => { syncing.value = false; syncAllPromise = null })
@@ -631,6 +727,42 @@ function stopWatch () {
   if (!watchTimer) return
   clearInterval(watchTimer)
   watchTimer = null
+}
+
+/**
+ * Tanda de sincronización del servicio en segundo plano (la llama bg.html).
+ * Sólo sincroniza: no publica escuchas ni perfil, no avisa y no toca la
+ * pantalla. Devuelve en cuánto volver a llamar: rápido si alguien espera
+ * (un invitado sin entrar, o una invitación aún válida), lento si no.
+ */
+export async function backgroundTick () {
+  loadState()
+  const vivos = new Set(state.value.groups.map(g => g.groupId))
+  for (const [id, rt] of [...runtimes]) {
+    if (!vivos.has(id)) {
+      try { rt.storage.close() } catch { /* nada */ }
+      runtimes.delete(id)
+    }
+  }
+  let rapido = false
+  for (const g of state.value.groups) {
+    try {
+      const rt = await openRuntime(g.groupId)
+      await rt.group.sync()
+      if (rt.group.status !== 'ready') rapido = true
+      else {
+        // Las estadísticas del grupo se mantienen al día aunque la app esté cerrada.
+        try { await publicarEscuchas(g.groupId, { desdeFondo: true }) } catch { /* se reintenta */ }
+        if (rt.group.membershipView().activeInvites(Date.now()).length) rapido = true
+      }
+    } catch { /* un grupo sin red no frena a los demás */ }
+  }
+  return rapido ? 15_000 : 300_000
+}
+
+/** Cierra todo lo abierto antes de ceder el paso a la app (bg.html). */
+export function backgroundRelease () {
+  liberarRuntimes()
 }
 
 export function useLocalLeague () {

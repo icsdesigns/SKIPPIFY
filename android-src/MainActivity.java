@@ -18,6 +18,7 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(NotifListenerPlugin.class);
         registerPlugin(UpdaterPlugin.class);
+        registerPlugin(LocalHostBgPlugin.class);
         super.onCreate(savedInstanceState);
     }
 
@@ -45,9 +46,20 @@ public class MainActivity extends BridgeActivity {
         }
     }
 
+    /**
+     * Con la app a la vista, el WebView del servicio (Comunidad sin servidor)
+     * debe parar: sólo uno escribe a la vez. Ver LocalHostBackground.
+     */
+    @Override
+    public void onPause() {
+        super.onPause();
+        LocalHostBackground.onMainPaused(this);
+    }
+
     @Override
     public void onResume() {
         super.onResume();
+        LocalHostBackground.onMainResumed(this);
         // Notify plugin that activity resumed (user may have granted permission)
         NotifListenerPlugin instance = NotifListenerPlugin.getInstance();
         if (instance != null) {

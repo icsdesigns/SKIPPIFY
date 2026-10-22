@@ -34,7 +34,14 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
-    emptyOutDir: true
+    emptyOutDir: true,
+    // bg.html: página sin interfaz del servicio en segundo plano (LocalHost).
+    rollupOptions: {
+      input: {
+        main: resolve(__dirname, 'index.html'),
+        bg: resolve(__dirname, 'bg.html')
+      }
+    }
   },
   server: {
     port: 5173

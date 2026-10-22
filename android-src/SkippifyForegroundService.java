@@ -199,6 +199,13 @@ public class SkippifyForegroundService extends Service {
         } catch (Throwable ignored) {
         }
 
+        // Comunidad sin servidor: si el proceso se reinició sin la app abierta,
+        // reanuda el WebView que sigue sincronizando los grupos.
+        try {
+            LocalHostBackground.latido(getApplicationContext());
+        } catch (Throwable ignored) {
+        }
+
         // Los widgets: el modo puede haber cambiado y, con el latido, el día.
         WidgetsSkippify.actualizar(getApplicationContext());
 
