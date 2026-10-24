@@ -227,6 +227,26 @@
 
     <section class="overflow-hidden sk-card">
       <header class="sk-card-head">
+        <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-400/[0.18] text-brand-400">
+          <GrupoIcono name="users" class="h-5 w-5" />
+        </span>
+        <div class="min-w-0">
+          <h2 class="text-sm font-bold text-white">Comunidad sin servidor</h2>
+          <p class="text-[11px] text-slate-400">Cómo funcionan los grupos que no usan Firebase.</p>
+        </div>
+      </header>
+
+      <div class="p-5">
+        <p class="text-xs leading-relaxed text-slate-300">
+          Los grupos viven en los propios móviles y se sincronizan cifrados por relays públicos.
+          No dependen de ninguna base de datos. El ranking lo calcula cada móvil y se confirma
+          cuando todos los miembros han abierto la app.
+        </p>
+      </div>
+    </section>
+
+    <section class="overflow-hidden sk-card">
+      <header class="sk-card-head">
         <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-400/[0.18] text-base">⚙️</span>
         <div class="min-w-0">
           <h2 class="text-sm font-bold text-white">Umbrales de esta versión</h2>
@@ -261,6 +281,7 @@ import { useEventStore } from '@/stores/events'
 import { useFeatures, sanitizeListeningMode, sanitizeSkipInterval } from '@/composables/useFeatures'
 import { useAppUpdate } from '@/composables/useAppUpdate'
 import UpdateIcon from '@/components/UpdateIcon.vue'
+import GrupoIcono from '@/components/grupos/GrupoIcono.js'
 import {
   REGISTER_DUPLICATE_PROGRESS_RATIO,
   REGISTER_NEW_SONG_PROGRESS_RATIO,

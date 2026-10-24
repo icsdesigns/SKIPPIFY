@@ -1,14 +1,5 @@
 <template>
   <div class="space-y-4">
-    <section class="sk-card p-5">
-      <h2 class="sk-title">Comunidad sin servidor</h2>
-      <p class="sk-subtitle">
-        Los grupos viven en los propios móviles y se sincronizan cifrados por relays públicos.
-        No dependen de ninguna base de datos. El ranking lo calcula cada móvil y se confirma
-        cuando todos los miembros han abierto la app.
-      </p>
-    </section>
-
     <template v-if="activeGroup">
       <!-- Todos los grupos a la vista, cada uno con sus cifras de la semana. -->
       <section class="sk-card p-5">
