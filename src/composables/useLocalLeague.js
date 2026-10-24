@@ -23,6 +23,7 @@ import { LocalNotifications } from '@capacitor/local-notifications'
 import { useEventStore } from '@/stores/events'
 import { IdbStorage, deleteSlot } from '@/lib/localhost/idbStorage'
 import { NostrTransport, DEFAULT_RELAYS } from '@/lib/localhost/nostrTransport'
+import { esCodigoExpres, formatearCodigo, generarCodigo, publicarExpres, resolverExpres, EXPRES_TTL_MS } from '@/lib/localhost/expres'
 import { decodeEscuchas, encodeEscuchas, partirEnLotes, ventanaSemana, puntuarSemana } from '@/lib/localhost/escuchas'
 
 const STATE_KEY = 'skippify-localhost-state'
@@ -306,10 +307,25 @@ async function joinGroup ({ inviteCode, displayName } = {}) {
     error.value = `Puedes estar en ${MAX_GROUPS} grupos como máximo.`
     return null
   }
-  const code = (inviteCode || '').toString().trim()
+  let code = (inviteCode || '').toString().trim()
   const slot = newSlot()
   try {
     const kit = await loadKit()
+    if (esCodigoExpres(code)) {
+      // Código corto: la invitación larga está cifrada en los relays bajo ese código.
+      let hallada = null
+      try {
+        hallada = await resolverExpres(new NostrTransport(() => DEFAULT_RELAYS), code)
+      } catch {
+        error.value = 'No hay conexión con los relays. Inténtalo de nuevo en un momento.'
+        return null
+      }
+      if (!hallada) {
+        error.value = 'No encontramos ese código: puede haber caducado (valen 30 minutos) o estar mal escrito.'
+        return null
+      }
+      code = hallada.invitacion
+    }
     let invite
     try {
       invite = kit.decodeInvite(code)
@@ -378,6 +394,34 @@ async function createInvite (groupId = state.value.activeGroupId) {
   } catch (err) {
     error.value = mapError(err, 'No fue posible crear la invitación (sólo pueden los administradores).')
     return ''
+  }
+}
+
+/**
+ * Invitación exprés: un código corto de un solo uso y 30 minutos. Debajo va una
+ * invitación normal del kit; el código sólo sirve para encontrarla en los relays.
+ * Devuelve { codigo, caduca } o null (y deja el motivo en `error`).
+ */
+async function createExpressInvite (groupId = state.value.activeGroupId) {
+  clearStatus()
+  const meta = findGroup(groupId)
+  const mismos = (a, b) => a.length === b.length && a.every((r, i) => r === b[i])
+  if (meta?.relays?.length && !mismos(meta.relays, DEFAULT_RELAYS)) {
+    error.value = 'Este grupo usa relays propios: el código exprés sólo funciona con los de siempre. Usa la invitación larga.'
+    return null
+  }
+  try {
+    const { group, transport } = await openRuntime(groupId)
+    const invitacion = await group.createInvite()
+    const codigo = generarCodigo()
+    const { caduca } = await publicarExpres(transport, invitacion, codigo)
+    acelerar()
+    return { codigo: formatearCodigo(codigo), caduca }
+  } catch (err) {
+    error.value = /relay/i.test(err?.message || '')
+      ? 'No se pudo publicar el código: sin conexión con los relays. Inténtalo de nuevo.'
+      : mapError(err, 'No fue posible crear la invitación exprés (sólo pueden los administradores).')
+    return null
   }
 }
 
@@ -686,9 +730,10 @@ function syncAll (options = {}) {
       if (r) n += 1
       try { await avisarSiSemanaNueva(g.groupId) } catch { /* sin datos aún */ }
     }
-    const active = state.value.activeGroupId
-    if (active && runtimes.has(active)) {
-      await loadLeaderboard({ groupId: active, cual: leaderboards[active]?.cual || 'actual' })
+    // Todos los grupos llevan sus cifras de la semana: las tarjetas las enseñan.
+    for (const g of state.value.groups) {
+      if (!runtimes.has(g.groupId)) continue
+      try { await loadLeaderboard({ groupId: g.groupId, cual: leaderboards[g.groupId]?.cual || 'actual' }) } catch { /* sin datos aún */ }
     }
     return n
   })().finally(() => { syncing.value = false; syncAllPromise = null })
@@ -790,6 +835,8 @@ export function useLocalLeague () {
     leaveGroup,
     setActiveGroup,
     createInvite,
+    createExpressInvite,
+    EXPRES_TTL_MS,
     createLinkCode,
     linkDevice,
     exportBackup,

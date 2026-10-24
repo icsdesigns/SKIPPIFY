@@ -149,7 +149,7 @@ async function main () {
   console.log('\nFichas del ranking')
   check('aparece el ranking y no el aviso de «sin publicar»',
     !html.includes('Todavía no hay ranking publicado'))
-  check('cifras de la ficha completa', html.includes('10h 12m') && html.includes('184 canciones'),
+  check('cifras de la ficha completa', html.includes('10 h 12 min') && html.includes('184 canciones'),
     'no se encontraron minutos/canciones de Ana')
   check('artista y canción top', html.includes('Rosalía') && html.includes('Despechá'))
   check('repertorio distinto', html.includes('42 artistas') && html.includes('118 temas'))
@@ -164,17 +164,19 @@ async function main () {
   // El artista y la canción top van en líneas propias y recortadas: juntos y
   // sin recorte, un título largo se partía en tres renglones y el punto medio
   // de separación quedaba en mitad del texto.
-  const LINEA_RECORTADA = 'class="mt-0.5 truncate text-[11px] text-slate-500"'
   check('el artista top va en su propia línea recortada',
-    /mt-0\.5 truncate text-\[11px\] text-slate-500"[^>]*>\s*🎤/u.test(html),
-    `no se encontró «<p ${LINEA_RECORTADA} …>🎤 …»: un nombre largo se sale de la tarjeta`)
+    /title="Nick Cave and the Bad Seeds feat\. Kylie Minogue"[^>]*>(?:(?!<\/p>)[\s\S])*<span class="truncate">Nick Cave/.test(html),
+    'un nombre largo se sale de la tarjeta')
   check('la canción top va en su propia línea recortada',
-    /mt-0\.5 truncate text-\[11px\] text-slate-500"[^>]*>\s*🎵/u.test(html))
+    /<span class="truncate">Despechá<\/span>/.test(html))
   check('el nombre entero queda accesible en el title',
     html.includes('title="Everything Is Embarrassing (Sky Ferreira Extended Remix Version)"'))
   check('sin artista ni canción no se rellena con «sin datos»',
     !html.includes('sin datos'),
     'la ficha de quien no tiene top gastaba dos renglones en decir que no hay nada')
+  check('sin emoji en las fichas', !/[🌀-🫿]/u.test(html))
+  check('las tarjetas de grupo enseñan sus cifras', html.includes('Los del garaje') && html.includes('Va primero'))
+  check('el listado de miembros trae su aportación', html.includes('Sin escuchas esta semana') === false && html.includes('esta semana'))
   check('un nombre de miembro largo se lee en dos líneas, no recortado',
     /<p class="sk-clamp-2 text-sm font-semibold text-white"/.test(html))
 

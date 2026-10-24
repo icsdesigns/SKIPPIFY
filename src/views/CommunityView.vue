@@ -33,171 +33,65 @@
          que se hace una vez. Si no perteneces a ningún grupo, este bloque
          entero desaparece y la pantalla se queda en las dos opciones. -->
     <template v-if="activeGroup">
-      <section v-if="groups.length > 1" class="sk-card p-5">
+      <!-- Todos los grupos a la vista, cada uno con sus cifras de la semana. -->
+      <section class="sk-card p-5">
         <header class="flex flex-wrap items-center justify-between gap-2">
           <h2 class="sk-title">Tus grupos</h2>
           <span class="sk-chip">{{ groups.length }} / {{ MAX_GROUPS }}</span>
         </header>
-        <div class="mt-3.5 flex flex-wrap gap-2">
-          <button
+        <div class="mt-3.5 grid gap-2.5 sm:grid-cols-2">
+          <GrupoTarjeta
             v-for="group in groups"
             :key="group.groupId"
-            type="button"
-            class="flex max-w-full items-center gap-2 rounded-full border border-transparent px-3.5 py-2 text-left transition-colors"
-            :class="group.groupId === activeGroupId
-              ? 'bg-white text-black'
-              : 'bg-white/[0.08] text-slate-200 hover:bg-white/[0.16]'"
-            @click="onSelectGroup(group.groupId)"
+            :nombre="groupLabel(group)"
+            :miembros="memberCount(group.groupId)"
+            :minutos="resumenDe(group.groupId).minutos"
+            :canciones="resumenDe(group.groupId).canciones"
+            :lider="resumenDe(group.groupId).lider"
+            :activo="group.groupId === activeGroupId"
+            @elegir="onSelectGroup(group.groupId)"
+          />
+        </div>
+      </section>
+
+      <GrupoDetalle
+        :nombre="groupLabel(activeGroup)"
+        :meta="metaGrupo"
+        :miembros="miembrosVista"
+        :ranking="rankingVista"
+        :semana="weekLabel"
+        sin-ranking="Todavía no hay ranking publicado para este grupo. Se publica cada domingo a las 15:00."
+      >
+        <template #acciones>
+          <button
+            class="sk-btn sk-btn-ghost sk-btn-sm"
+            :disabled="!activeGroup.inviteCode"
+            @click="copyInviteCode"
           >
-            <span class="min-w-0 truncate text-sm font-bold">{{ groupLabel(group) }}</span>
-            <span v-if="memberCount(group.groupId)" class="shrink-0 text-[10px] opacity-70">
-              {{ memberCount(group.groupId) }} miembro{{ memberCount(group.groupId) === 1 ? '' : 's' }}
-            </span>
-            <span class="shrink-0 font-mono text-[10px] opacity-60">{{ group.inviteCode || '······' }}</span>
+            <GrupoIcono :name="copied ? 'check' : 'copy'" class="h-3.5 w-3.5" />{{ copied ? 'Copiado' : `Código ${activeGroup.inviteCode || ''}`.trim() }}
           </button>
-        </div>
-      </section>
-
-      <section class="sk-card sk-card-lit p-5">
-        <header class="flex flex-wrap items-start justify-between gap-3">
-          <div class="min-w-0">
-            <h2 class="sk-clamp-2 text-xl font-extrabold tracking-tightest text-white">{{ groupLabel(activeGroup) }}</h2>
-            <p class="mt-1 text-xs text-slate-400">Próxima publicación: {{ nextPublishLabel }}</p>
-            <p class="mt-0.5 text-xs text-slate-500">Cuenta atrás: {{ nextPublishCountdown }}</p>
-            <p v-if="activeLastUpdate" class="mt-0.5 text-xs text-slate-500">
-              Última actualización: {{ fechaLarga(activeLastUpdate) }}
-            </p>
-          </div>
-
-          <div class="flex flex-wrap gap-2">
-            <button
-              class="sk-btn sk-btn-ghost sk-btn-sm"
-              :disabled="!activeGroup.inviteCode"
-              @click="copyInviteCode"
-            >
-              {{ copied ? '¡Copiado!' : 'Copiar código' }}
-            </button>
-            <button class="sk-btn sk-btn-ghost sk-btn-sm" :disabled="syncing || loadingLeaderboard" @click="onRefresh">
-              {{ syncing || loadingLeaderboard ? 'Actualizando…' : 'Actualizar' }}
-            </button>
-            <button
-              v-if="accesoRechazado"
-              class="sk-btn sk-btn-sm bg-amber-400/[0.18] text-amber-100 hover:bg-amber-400/30"
-              :disabled="reparando"
-              @click="onRepair"
-            >
-              {{ reparando ? 'Reparando…' : 'Reparar acceso' }}
-            </button>
-            <button class="sk-btn sk-btn-danger sk-btn-sm" @click="onLeave(activeGroup)">
-              {{ confirmLeaveId === activeGroup.groupId ? '¿Seguro? Pulsa otra vez' : 'Salir del grupo' }}
-            </button>
-          </div>
-        </header>
-
-        <div class="sk-divider my-4" />
-
-        <!-- ── Quién compone el grupo ──────────────────────────────────────
-             Son las fichas de `members`, las mismas que puntúa la función
-             semanal: si alguien sale aquí, cuenta en el ranking. -->
-        <div class="flex flex-wrap items-center justify-between gap-2">
-          <h3 class="text-sm font-bold text-white">Miembros</h3>
-          <span class="sk-chip">{{ activeMembers.length || '—' }}</span>
-        </div>
-
-        <p v-if="!activeMembers.length" class="mt-3 text-xs text-slate-500">
-          Todavía no se ha podido leer la lista de miembros.
-        </p>
-
-        <ul v-else class="mt-3 flex flex-wrap gap-2">
-          <li
-            v-for="miembro in activeMembers"
-            :key="miembro.uid"
-            class="flex max-w-full items-center gap-2 rounded-full px-2.5 py-1.5"
-            :class="miembro.uid === state.uid
-              ? 'bg-brand-400/[0.16]'
-              : 'bg-white/[0.06]'"
+          <button class="sk-btn sk-btn-ghost sk-btn-sm" :disabled="syncing || loadingLeaderboard" @click="onRefresh">
+            <GrupoIcono name="refresh" class="h-3.5 w-3.5" />{{ syncing || loadingLeaderboard ? 'Actualizando…' : 'Actualizar' }}
+          </button>
+          <button
+            v-if="accesoRechazado"
+            class="sk-btn sk-btn-sm bg-amber-400/[0.18] text-amber-100 hover:bg-amber-400/30"
+            :disabled="reparando"
+            @click="onRepair"
           >
-            <span
-              class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold uppercase"
-              :class="miembro.uid === state.uid
-                ? 'bg-brand-400 text-black'
-                : 'bg-white/[0.12] text-slate-300'"
-            >{{ inicial(miembro) }}</span>
-            <span class="min-w-0">
-              <span class="block truncate text-xs text-slate-200">
-                {{ miembro.displayName || shortenUid(miembro.uid) }}
-                <span v-if="miembro.uid === state.uid" class="text-[10px] uppercase tracking-wider text-brand-400">tú</span>
-              </span>
-              <span class="block text-[10px] text-slate-500">
-                {{ miembro.role === 'owner' ? 'Propietario' : 'Miembro' }}<template v-if="miembro.joinedAt"> · desde {{ fechaCorta(miembro.joinedAt) }}</template>
-              </span>
-            </span>
-          </li>
-        </ul>
+            {{ reparando ? 'Reparando…' : 'Reparar acceso' }}
+          </button>
+          <button class="sk-btn sk-btn-danger sk-btn-sm" @click="onLeave(activeGroup)">
+            {{ confirmLeaveId === activeGroup.groupId ? '¿Seguro? Pulsa otra vez' : 'Salir del grupo' }}
+          </button>
+        </template>
 
-        <div class="sk-divider my-4" />
-
-        <div class="flex flex-wrap items-center justify-between gap-2">
-          <h3 class="text-sm font-bold text-white">Resultados semanales</h3>
-          <span v-if="weekLabel" class="sk-chip">{{ weekLabel }}</span>
-        </div>
-
-        <p v-if="activeResultPending" class="mt-3 rounded-md bg-white/[0.06] px-3 py-2 text-xs text-slate-300">
-          Los resultados de esta semana aún se están calculando. Te avisaremos en cuanto estén.
-        </p>
-
-        <p v-if="!weeklyMembers.length" class="mt-3 text-xs text-slate-500">
-          Todavía no hay ranking publicado para este grupo. Se publica cada domingo a las 15:00.
-        </p>
-
-        <ul v-else class="mt-3.5 space-y-2">
-          <li
-            v-for="(item, idx) in weeklyMembers"
-            :key="`${item.uid}-${idx}`"
-            class="flex items-center justify-between gap-3 rounded-md px-3 py-2.5 transition-colors"
-            :class="item.uid === state.uid
-              ? 'bg-brand-400/[0.14]'
-              : 'bg-white/[0.05] hover:bg-white/[0.09]'"
-          >
-            <div class="min-w-0">
-              <!-- Dos líneas en vez de recorte: un nombre de 24 caracteres
-                   —el máximo que admite el formulario— no cabe en una sola a
-                   ancho de móvil, y cortarlo dejaba a medio grupo sin saber
-                   quién era quién. -->
-              <p class="sk-clamp-2 text-sm font-semibold text-white">
-                {{ rankLabel(idx) }} {{ item.displayName || shortenUid(item.uid) }}
-                <span v-if="item.uid === state.uid" class="ml-1 text-[10px] uppercase tracking-wider text-brand-400">tú</span>
-              </p>
-              <p class="mt-0.5 text-[11px] text-slate-400">
-                {{ formatHours(item.totalMinutes) }} · {{ getTrackCount(item) }} canciones
-              </p>
-              <!-- Artista y canción top, cada uno en su línea y recortado.
-                   Iban juntos en una sola línea sin recorte: un título como
-                   «Everything Is Embarrassing (Sky Ferreira Extended Remix
-                   Version)» se partía en tres renglones y, con el punto medio
-                   de separación en mitad del texto, no se sabía dónde acababa
-                   el artista y empezaba la canción. El `title` deja leer el
-                   nombre entero al pasar por encima. -->
-              <p v-if="getTopArtist(item)" class="mt-0.5 truncate text-[11px] text-slate-500" :title="getTopArtist(item)">
-                🎤 {{ getTopArtist(item) }}
-              </p>
-              <p v-if="getTopTrack(item)" class="mt-0.5 truncate text-[11px] text-slate-500" :title="getTopTrack(item)">
-                🎵 {{ getTopTrack(item) }}
-              </p>
-
-              <!-- Repertorio, variedad y hora punta. Se ocultan por separado: un
-                   resultado publicado antes de la v4.0.1 no los trae, y más vale
-                   enseñar la ficha de siempre que una fila de guiones. -->
-              <p v-if="hasNewStats(item)" class="mt-1 flex flex-wrap gap-x-2 gap-y-0.5 text-[11px] text-slate-500">
-                <span v-if="getDistinct(item)">🎚️ {{ getDistinct(item) }}</span>
-                <span v-if="getVariety(item)" :title="VARIETY_HINT">🔀 {{ getVariety(item) }}</span>
-                <span v-if="getPeakHour(item)">🕒 {{ getPeakHour(item) }}</span>
-              </p>
-            </div>
-            <span class="shrink-0 font-mono text-sm font-bold tabular-nums text-brand-400">{{ formatScore(item.score) }}</span>
-          </li>
-        </ul>
-      </section>
+        <template #avisoRanking>
+          <p v-if="activeResultPending" class="mt-3 rounded-md bg-white/[0.06] px-3 py-2 text-xs text-slate-300">
+            Los resultados de esta semana aún se están calculando. Te avisaremos en cuanto estén.
+          </p>
+        </template>
+      </GrupoDetalle>
     </template>
 
     <!-- ══ Crear grupo · Unirme a grupo ═════════════════════════════════════ -->
@@ -228,9 +122,11 @@
           />
           <div class="relative">
             <span
-              class="flex h-10 w-10 items-center justify-center rounded-full text-lg transition-colors"
-              :class="accion === opcion.id ? 'bg-brand-400/25' : 'bg-white/[0.08]'"
-            >{{ opcion.icon }}</span>
+              class="flex h-10 w-10 items-center justify-center rounded-full transition-colors"
+              :class="accion === opcion.id ? 'bg-brand-400/25 text-brand-200' : 'bg-white/[0.08] text-slate-300'"
+            >
+              <GrupoIcono :name="opcion.icon" class="h-5 w-5" />
+            </span>
             <p class="mt-2.5 text-sm font-bold text-white">
               {{ opcion.title }}
             </p>
@@ -342,7 +238,11 @@
  */
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { defineAsyncComponent } from 'vue'
-import { useLeague, normalizeInviteCode } from '@/composables/useLeague'
+import { useLeague, normalizeInviteCode, resultadoVisible } from '@/composables/useLeague'
+import GrupoDetalle from '@/components/grupos/GrupoDetalle.vue'
+import GrupoTarjeta from '@/components/grupos/GrupoTarjeta.vue'
+import GrupoIcono from '@/components/grupos/GrupoIcono.js'
+import { resumirRanking } from '@/lib/gruposResumen'
 
 // El modo sin servidor arrastra libsodium (WASM): se carga sólo al elegirlo.
 const LocalHostPanel = defineAsyncComponent(() => import('@/components/LocalHostPanel.vue'))
@@ -374,6 +274,8 @@ const {
   activeGroupId,
   activeLeaderboard,
   activeMembers,
+  members,
+  leaderboards,
   activeLastUpdate,
   memberCount,
   loadGroupMembers,
@@ -418,13 +320,13 @@ const accesoRechazado = computed(() => /rechazó el acceso/i.test(error.value ||
 const opciones = [
   {
     id: 'crear',
-    icon: '➕',
+    icon: 'plus',
     title: 'Crear grupo',
     description: 'Abres un grupo nuevo y repartes su código.'
   },
   {
     id: 'unirme',
-    icon: '🔑',
+    icon: 'key',
     title: 'Unirme a grupo',
     description: 'Entras en uno que ya existe con su código.'
   }
@@ -456,11 +358,6 @@ const lastSyncLabel = computed(() => {
   return Number.isNaN(d.getTime()) ? '—' : d.toLocaleString('es-ES')
 })
 
-function inicial (miembro) {
-  const nombre = (miembro?.displayName || '').trim()
-  return nombre ? nombre.slice(0, 1) : '·'
-}
-
 function fechaCorta (fecha) {
   try {
     return fecha.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })
@@ -487,23 +384,9 @@ function groupLabel (group) {
   return group.name || (group.inviteCode ? `Grupo ${group.inviteCode}` : `Grupo ${group.groupId.slice(0, 6)}`)
 }
 
-function formatHours (minutesValue) {
-  const totalMinutes = Math.max(0, Math.round(Number(minutesValue || 0)))
-  const hours = Math.floor(totalMinutes / 60)
-  const minutes = totalMinutes % 60
-  return `${hours}h ${minutes.toString().padStart(2, '0')}m`
-}
-
 function formatScore (value) {
   const n = Number(value || 0)
   return Number.isFinite(n) ? n.toFixed(1) : '0.0'
-}
-
-function rankLabel (idx) {
-  if (idx === 0) return '🥇'
-  if (idx === 1) return '🥈'
-  if (idx === 2) return '🥉'
-  return `#${idx + 1}`
 }
 
 function getTrackCount (item) {
@@ -578,6 +461,55 @@ function getPeakHour (item) {
   const siguiente = (hora + 1) % 24
   return `${hora}–${siguiente} h`
 }
+
+// ── Datos para las tarjetas y el detalle ─────────────────────────────────────
+//
+// Las dos piezas sólo pintan: aquí se traduce lo que publica Firebase al formato
+// común de los dos modos. Un resultado anterior a la v4.0.1 no trae repertorio,
+// variedad ni hora punta, y esas etiquetas simplemente no salen.
+
+function fichasDe (groupId) {
+  const visible = resultadoVisible(leaderboards[groupId], Date.now())
+  return (visible?.members || []).map(item => ({
+    id: item.uid,
+    nombre: item.displayName || shortenUid(item.uid),
+    yo: item.uid === state.value.uid,
+    minutos: Number(item.totalMinutes || 0),
+    canciones: getTrackCount(item),
+    puntos: formatScore(item.score),
+    artista: getTopArtist(item),
+    tema: getTopTrack(item),
+    extras: [
+      getDistinct(item) && { texto: getDistinct(item) },
+      getVariety(item) && { texto: getVariety(item), pista: VARIETY_HINT },
+      getPeakHour(item) && { texto: getPeakHour(item) }
+    ].filter(Boolean)
+  }))
+}
+
+function resumenDe (groupId) {
+  return resumirRanking(fichasDe(groupId))
+}
+
+const rankingVista = computed(() => fichasDe(activeGroupId.value))
+
+const miembrosVista = computed(() => {
+  const minutos = new Map(rankingVista.value.map(f => [f.id, f.minutos]))
+  return activeMembers.value.map(m => ({
+    id: m.uid,
+    nombre: m.displayName || shortenUid(m.uid),
+    yo: m.uid === state.value.uid,
+    admin: m.role === 'owner',
+    desde: m.joinedAt ? fechaCorta(m.joinedAt) : '',
+    minutos: minutos.get(m.uid) || 0
+  }))
+})
+
+const metaGrupo = computed(() => [
+  `Próxima publicación: ${nextPublishLabel.value}`,
+  `Cuenta atrás: ${nextPublishCountdown.value}`,
+  activeLastUpdate.value ? `Última actualización: ${fechaLarga(activeLastUpdate.value)}` : ''
+].filter(Boolean))
 
 async function handleCreateGroup () {
   const groupId = await createGroup({
