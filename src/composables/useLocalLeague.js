@@ -40,6 +40,14 @@ const TICK_MS = 15_000
  * la entrada depende de que los dos móviles coincidan en los relays.
  */
 const FAST_WINDOW_MS = 10 * 60_000
+/**
+ * Tras pedir entrar (invitación, vinculación o copia) no se espera al ritmo
+ * normal ni a que el usuario pulse «Actualizar»: se sincroniza cada pocos
+ * segundos hasta que el grupo queda listo, o durante este tiempo como máximo.
+ * Pasado el plazo sigue el vigilante de siempre.
+ */
+const ENTRADA_CADA_MS = 4_000
+const ENTRADA_DURANTE_MS = 3 * 60_000
 /** Sólo se publican las escuchas de los últimos días: el ranking mira dos semanas. */
 const PUBLISH_WINDOW_MS = 15 * 24 * 3600 * 1000
 /** Margen tras el final teórico de la canción para dar su `ms_played` por definitivo. */
@@ -350,7 +358,7 @@ async function joinGroup ({ inviteCode, displayName } = {}) {
     runtimes.set(slot, { kit, storage, transport, group })
     statuses[slot] = group.status
     message.value = 'Solicitud enviada. Entrarás cuando algún miembro del grupo abra la app.'
-    void syncGroup(slot)
+    void vigilarEntrada(slot)
     acelerar()
     return slot
   } catch (err) {
@@ -465,7 +473,7 @@ async function linkDevice ({ code, displayName } = {}) {
     saveState()
     runtimes.set(slot, { kit, storage, transport, group })
     statuses[slot] = group.status
-    void syncGroup(slot)
+    void vigilarEntrada(slot)
     acelerar()
     return slot
   } catch (err) {
@@ -507,7 +515,7 @@ async function restoreBackup ({ backup, password, displayName } = {}) {
     saveState()
     runtimes.set(slot, { kit, storage, transport, group })
     statuses[slot] = group.status
-    void syncGroup(slot)
+    void vigilarEntrada(slot)
     acelerar()
     return slot
   } catch (err) {
@@ -710,6 +718,38 @@ async function syncGroup (groupId, { silent = true } = {}) {
     if (!silent) error.value = mapError(err, 'No fue posible sincronizar.')
     return null
   }
+}
+
+/** groupId → promesa del bucle que insiste hasta que el grupo queda listo. */
+const entrando = new Map()
+
+/**
+ * Fuerza sincronizaciones repetidas mientras el grupo no está listo y avisa
+ * cuando entra. Es idempotente: una segunda llamada para el mismo grupo no
+ * abre otro bucle.
+ */
+function vigilarEntrada (groupId) {
+  if (entrando.has(groupId)) return entrando.get(groupId)
+  const hasta = Date.now() + ENTRADA_DURANTE_MS
+  const espera = ms => new Promise(resolve => setTimeout(resolve, ms))
+  const listo = () => (statuses[groupId] || 'ready') === 'ready'
+  const bucle = (async () => {
+    while (findGroup(groupId) && !listo() && Date.now() < hasta) {
+      await syncAll({ silent: true })
+      if (!findGroup(groupId) || listo()) break
+      await espera(ENTRADA_CADA_MS)
+    }
+    const meta = findGroup(groupId)
+    if (!meta) return
+    if (listo()) {
+      message.value = `Ya estás dentro de «${meta.name}».`
+      error.value = ''
+    } else {
+      message.value = 'Todavía no te han dejado entrar. Se sigue comprobando mientras la app esté abierta: avisa a un miembro de que abra Skippify.'
+    }
+  })().finally(() => entrando.delete(groupId))
+  entrando.set(groupId, bucle)
+  return bucle
 }
 
 /** Activa el ritmo rápido y se asegura de que el vigilante está en marcha. */
