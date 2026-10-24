@@ -126,5 +126,33 @@ check('compresión: ida y vuelta exacta', JSON.stringify(ida.l) === JSON.stringi
 check('datos ajenos o corruptos se descartan', (await decodeEscuchas({ v: 9 })) === null && (await decodeEscuchas({ v: 1, u: 'x', z: '%%%' })) === null)
 check('el lote comprimido cabe de sobra en una nota', JSON.stringify(lote).length < 12_000, String(JSON.stringify(lote).length))
 
+// ── Invitación exprés ───────────────────────────────────────────────────────
+titulo('Invitación exprés: un código corto abre la invitación larga')
+{
+  const {
+    EXPRES_TTL_MS, esCodigoExpres, formatearCodigo, generarCodigo, normalizarCodigo, publicarExpres, resolverExpres
+  } = await import('../src/lib/localhost/expres.js')
+
+  const cod = generarCodigo()
+  check('el código tiene 8 caracteres válidos', esCodigoExpres(cod) && cod.length === 8, cod)
+  check('se muestra en dos bloques', /^[0-9A-Z]{4}-[0-9A-Z]{4}$/.test(formatearCodigo(cod)))
+  check('dictarlo con minúsculas, guion u O/I/L sigue valiendo', normalizarCodigo('k7qm-4tXd') === 'K7QM4TXD' && normalizarCodigo('O1IL') === '0111')
+  check('una invitación larga no se confunde con un exprés', !esCodigoExpres(codigo) && !esCodigoExpres('abc123'))
+
+  const redExp = new MemoryTransport(RELAYS, 11)
+  const inv = await ana.createInvite()
+  const t0e = Date.now()
+  await publicarExpres(redExp, inv, cod, t0e)
+  const hallada = await resolverExpres(redExp, formatearCodigo(cod).toLowerCase(), t0e + 60_000)
+  check('con el código se recupera la invitación larga', hallada?.invitacion === inv)
+  check('un código distinto no encuentra nada', (await resolverExpres(redExp, generarCodigo(), t0e + 60_000)) === null)
+  check('pasados 30 minutos ya no vale', (await resolverExpres(redExp, cod, t0e + EXPRES_TTL_MS + 1000)) === null)
+
+  const luis2 = await LocalHost.joinGroup({ storage: new IdbStorage('luis2'), transport: red }, hallada.invitacion, 'Marta')
+  for (let i = 0; i < 4 && luis2.status !== 'ready'; i += 1) { await luis2.sync(); await ana.sync() }
+  await luis2.sync()
+  check('quien entra con el exprés queda dentro del grupo', luis2.status === 'ready', luis2.status)
+}
+
 console.log(`\n${total - fallos}/${total} comprobaciones correctas`)
 process.exit(fallos ? 1 : 0)
