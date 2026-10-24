@@ -38,6 +38,8 @@ function installBrowserGlobals () {
 }
 
 const GROUP_ID = 'grupo-simulado'
+const GRUPO_LOCAL = 'lh_0011223344556677'
+const NOMBRE_LOCAL_LARGO = 'Los del garaje de la calle Reyes'
 
 /** Tres fichas: una con todas las cifras nuevas y dos anteriores a la v4.0.1. */
 const MIEMBROS = [
@@ -95,6 +97,14 @@ const MIEMBROS = [
 
 async function main () {
   installBrowserGlobals()
+
+  // Un grupo sin servidor en la caché de useLocalLeague: el árbol lo lee de ahí
+  // sin cargar ese modo. Nombre de 32 caracteres, el máximo del formulario.
+  localStorage.setItem('skippify-localhost-state', JSON.stringify({
+    displayName: 'Ana',
+    groups: [{ groupId: GRUPO_LOCAL, name: NOMBRE_LOCAL_LARGO, role: 'owner', relays: [] }],
+    activeGroupId: GRUPO_LOCAL
+  }))
 
   const { useLeague } = await import('../src/composables/useLeague.js')
   const liga = useLeague()
@@ -175,10 +185,40 @@ async function main () {
     !html.includes('sin datos'),
     'la ficha de quien no tiene top gastaba dos renglones en decir que no hay nada')
   check('sin emoji en las fichas', !/[🌀-🫿]/u.test(html))
-  check('las tarjetas de grupo enseñan sus cifras', html.includes('Los del garaje') && html.includes('Va primero'))
+  check('el detalle del grupo enseña quién va primero', html.includes('Los del garaje') && html.includes('Va primero'))
   check('el listado de miembros trae su aportación', html.includes('Sin escuchas esta semana') === false && html.includes('esta semana'))
   check('un nombre de miembro largo se lee en dos líneas, no recortado',
     /<p class="sk-clamp-2 text-sm font-semibold text-white"/.test(html))
+
+  console.log('\nÁrbol de modos y grupos')
+  {
+    const inicio = html.indexOf('aria-label="Grupos de Comunidad"')
+    const arbol = html.slice(inicio, html.indexOf('</nav>', inicio))
+    const migas = (arbol.match(/<ol[^>]*data-migas[^>]*>([\s\S]*?)<\/ol>/) || [])[1] || ''
+    const texto = (s) => s.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
+    check('las migas dicen modo y grupo', /Con servidor .*Los del garaje/.test(texto(migas)),
+      `migas: «${texto(migas)}»`)
+    check('las dos raíces están en el árbol',
+      arbol.includes('data-raiz="servidor"') && arbol.includes('data-raiz="local"'))
+    check('el grupo abierto se marca como la ubicación actual',
+      new RegExp(`aria-current="location"[^>]*data-grupo="${GROUP_ID}"`).test(arbol))
+    // El otro modo empieza plegado, pero su raíz ya dice cuántos grupos tiene y
+    // a cuál se volvería, leído de la caché sin cargar el modo sin servidor.
+    check('la raíz sin servidor resume sus grupos sin abrir ese modo',
+      texto(arbol).includes(`Sin servidor 1 grupo · ${NOMBRE_LOCAL_LARGO}`), texto(arbol).slice(-300))
+    check('sólo se despliega el modo actual',
+      arbol.includes(`data-grupo="${GROUP_ID}"`) && !arbol.includes(`data-grupo="${GRUPO_LOCAL}"`) &&
+      arbol.includes('data-desplegar="local"'))
+    check('el grupo sin servidor no se marca como actual estando en el otro modo',
+      !new RegExp(`aria-current="location"[^>]*data-grupo="${GRUPO_LOCAL}"`).test(arbol))
+    check('el modo actual tiene su entrada para crear o unirse', arbol.includes('data-alta="servidor"'))
+    check('el nodo trae miembros y cifras de la semana', /3 miembros · \d+ h \d{2} de escucha/.test(texto(arbol)),
+      texto(arbol).slice(0, 300))
+    check('la cuenta de grupos por modo', texto(arbol).includes('1 / 5'))
+    check('el panel sin servidor (libsodium) no se monta en el modo con servidor',
+      !html.includes('comunidad-alta-local'))
+    check('ya no queda la lista duplicada «Tus grupos»', !html.includes('Tus grupos'))
+  }
 
   console.log('\nDesvelado del domingo a las 15:00')
   {

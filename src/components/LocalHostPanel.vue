@@ -1,28 +1,7 @@
 <template>
   <div class="space-y-4">
     <template v-if="activeGroup">
-      <!-- Todos los grupos a la vista, cada uno con sus cifras de la semana. -->
-      <section class="sk-card p-5">
-        <header class="flex flex-wrap items-center justify-between gap-2">
-          <h2 class="sk-title">Tus grupos</h2>
-          <span class="sk-chip">{{ groups.length }} / {{ MAX_GROUPS }}</span>
-        </header>
-        <div class="mt-3.5 grid gap-2.5 sm:grid-cols-2">
-          <GrupoTarjeta
-            v-for="group in groups"
-            :key="group.groupId"
-            :nombre="group.name"
-            :miembros="(members[group.groupId] || []).length"
-            :minutos="resumenDe(group.groupId).minutos"
-            :canciones="resumenDe(group.groupId).canciones"
-            :lider="resumenDe(group.groupId).lider"
-            :estado="estadoCorto(group.groupId)"
-            :activo="group.groupId === activeGroupId"
-            @elegir="onSelectGroup(group.groupId)"
-          />
-        </div>
-      </section>
-
+      <!-- La lista de grupos vive en el árbol de CommunityView: aquí sólo el abierto. -->
       <GrupoDetalle
         :nombre="activeGroup.name"
         :meta="lastSync ? [`Última sincronización: ${lastSync}`] : []"
@@ -158,7 +137,7 @@
     </template>
 
     <!-- Crear / unirme / vincular / restaurar -->
-    <section class="sk-card p-5">
+    <section id="comunidad-alta-local" class="sk-card scroll-mt-4 p-5">
       <header class="flex flex-wrap items-baseline justify-between gap-2">
         <h2 class="sk-title">{{ groups.length ? 'Entrar en otro grupo' : 'Empieza aquí' }}</h2>
         <span class="text-[11px] text-slate-500">Se sincroniza cada minuto con la app abierta</span>
@@ -245,16 +224,14 @@
  * Panel de Comunidad sin servidor (modo LocalHost). Vive junto al de Firebase
  * en CommunityView y no comparte estado con él: un grupo es de un modo o del otro.
  */
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useLocalLeague } from '@/composables/useLocalLeague'
 import GrupoDetalle from '@/components/grupos/GrupoDetalle.vue'
-import GrupoTarjeta from '@/components/grupos/GrupoTarjeta.vue'
 import InvitacionExpres from '@/components/grupos/InvitacionExpres.vue'
 import GrupoIcono from '@/components/grupos/GrupoIcono.js'
-import { resumirRanking } from '@/lib/gruposResumen'
+import { conectarLocal, grupoLocalPedido } from '@/lib/comunidadLocal'
 
 const {
-  MAX_GROUPS,
   state,
   groups,
   activeGroup,
@@ -339,17 +316,6 @@ function fichasDe (groupId) {
     tema: item.topTrack || '',
     extras: []
   }))
-}
-
-function resumenDe (groupId) {
-  return resumirRanking(fichasDe(groupId))
-}
-
-function estadoCorto (groupId) {
-  const st = statuses[groupId] || 'ready'
-  if (st === 'joining') return 'Esperando a entrar'
-  if (st === 'restoring') return 'Restaurando'
-  return ''
 }
 
 const rankingVista = computed(() => fichasDe(activeGroupId.value))
@@ -481,6 +447,19 @@ async function onRefresh () {
   await refreshAll({ silent: false })
   await loadLeaderboard({ cual: vista.value })
 }
+
+// El árbol de CommunityView lee desde ahora el estado en vivo (estado de
+// entrada, miembros, cifras) en vez de la caché de localStorage. Se le pasan
+// los objetos reactivos, no una copia, para que siga al día con el panel cerrado.
+conectarLocal({ state, statuses, members, leaderboards })
+
+// Un grupo elegido en el árbol: se atiende al montar (si se eligió con el panel
+// todavía sin cargar) o al momento si ya estaba a la vista.
+watch(grupoLocalPedido, (id) => {
+  if (!id) return
+  grupoLocalPedido.value = ''
+  if (id !== activeGroupId.value) void onSelectGroup(id)
+}, { immediate: true })
 
 onMounted(async () => {
   startWatch()

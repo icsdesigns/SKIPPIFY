@@ -66,6 +66,19 @@ const TRAZOS = {
   ],
   bolt: [['path', { d: 'M13 2 4.5 13.5H11l-1 8.5L18.5 10.5H12l1-8.5z' }]],
   check: [['path', { d: 'm5 12.5 4.5 4.5L19 7' }]],
+  // Raíces del árbol de Comunidad: un servidor central frente a móviles que se
+  // hablan entre sí sin nadie en medio.
+  server: [
+    ['rect', { x: 4, y: 4, width: 16, height: 6.5, rx: 2 }],
+    ['rect', { x: 4, y: 13.5, width: 16, height: 6.5, rx: 2 }],
+    ['path', { d: 'M8 7.25h.01M8 16.75h.01' }]
+  ],
+  mesh: [
+    ['circle', { cx: 6, cy: 7, r: 2.5 }],
+    ['circle', { cx: 18, cy: 7, r: 2.5 }],
+    ['circle', { cx: 12, cy: 18, r: 2.5 }],
+    ['path', { d: 'M8.5 7h7M7.2 9.2l3.6 6.6M16.8 9.2l-3.6 6.6' }]
+  ],
   chevron: [['path', { d: 'm9 6 6 6-6 6' }]]
 }
 

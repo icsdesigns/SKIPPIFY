@@ -1,20 +1,13 @@
 <template>
   <div class="sk-stagger space-y-4">
-    <!-- ── Modo: con servidor (Firebase) o sin servidor (LocalHost) ───────── -->
-    <div class="sk-card flex items-center gap-1.5 p-1.5" role="tablist" aria-label="Tipo de comunidad">
-      <button
-        v-for="op in modos"
-        :key="op.id"
-        type="button"
-        role="tab"
-        :aria-selected="modo === op.id"
-        class="min-w-0 flex-1 rounded-full px-3 py-2 text-xs font-bold transition-colors"
-        :class="modo === op.id ? 'bg-white text-black' : 'text-slate-300 hover:bg-white/[0.08]'"
-        @click="elegirModo(op.id)"
-      >
-        {{ op.label }}
-      </button>
-    </div>
+    <!-- ── Árbol: modo (con o sin servidor) › grupo ───────────────────────── -->
+    <ComunidadArbol
+      :modo="modo"
+      :raices="raices"
+      @modo="elegirModo"
+      @grupo="onArbolGrupo"
+      @alta="onArbolAlta"
+    />
 
     <LocalHostPanel v-if="modo === 'local'" />
 
@@ -33,27 +26,7 @@
          que se hace una vez. Si no perteneces a ningún grupo, este bloque
          entero desaparece y la pantalla se queda en las dos opciones. -->
     <template v-if="activeGroup">
-      <!-- Todos los grupos a la vista, cada uno con sus cifras de la semana. -->
-      <section class="sk-card p-5">
-        <header class="flex flex-wrap items-center justify-between gap-2">
-          <h2 class="sk-title">Tus grupos</h2>
-          <span class="sk-chip">{{ groups.length }} / {{ MAX_GROUPS }}</span>
-        </header>
-        <div class="mt-3.5 grid gap-2.5 sm:grid-cols-2">
-          <GrupoTarjeta
-            v-for="group in groups"
-            :key="group.groupId"
-            :nombre="groupLabel(group)"
-            :miembros="memberCount(group.groupId)"
-            :minutos="resumenDe(group.groupId).minutos"
-            :canciones="resumenDe(group.groupId).canciones"
-            :lider="resumenDe(group.groupId).lider"
-            :activo="group.groupId === activeGroupId"
-            @elegir="onSelectGroup(group.groupId)"
-          />
-        </div>
-      </section>
-
+      <!-- La lista de grupos vive en el árbol de arriba: aquí sólo el abierto. -->
       <GrupoDetalle
         :nombre="groupLabel(activeGroup)"
         :meta="metaGrupo"
@@ -95,7 +68,7 @@
     </template>
 
     <!-- ══ Crear grupo · Unirme a grupo ═════════════════════════════════════ -->
-    <section class="sk-card p-5">
+    <section id="comunidad-alta-servidor" class="sk-card scroll-mt-4 p-5">
       <header class="flex flex-wrap items-baseline justify-between gap-2">
         <h2 class="sk-title">{{ groups.length ? 'Entrar en otro grupo' : 'Empieza aquí' }}</h2>
         <span class="text-[11px] text-slate-500">Se sincroniza cada 30 min</span>
@@ -232,26 +205,29 @@
  * varios grupos y salirse de cualquiera de ellos, y el ranking se lee de la
  * última publicación real del grupo.
  *
- * La pantalla se ordena por lo que se viene a hacer: arriba los resultados del
- * grupo (si se pertenece a alguno) y debajo las dos únicas acciones posibles,
- * crear o unirse, que despliegan su formulario al elegirlas.
+ * La pantalla se ordena por lo que se viene a hacer: arriba el árbol de modos y
+ * grupos (dónde estás y a dónde puedes saltar, de un modo o del otro), luego los
+ * resultados del grupo abierto y debajo las dos únicas acciones posibles, crear
+ * o unirse, que despliegan su formulario al elegirlas.
  */
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { defineAsyncComponent } from 'vue'
 import { useLeague, normalizeInviteCode, resultadoVisible } from '@/composables/useLeague'
 import GrupoDetalle from '@/components/grupos/GrupoDetalle.vue'
-import GrupoTarjeta from '@/components/grupos/GrupoTarjeta.vue'
+import ComunidadArbol from '@/components/grupos/ComunidadArbol.vue'
 import GrupoIcono from '@/components/grupos/GrupoIcono.js'
-import { resumirRanking } from '@/lib/gruposResumen'
+import { resumirRanking, formatearHorasCorto } from '@/lib/gruposResumen'
+// Los grupos sin servidor se leen de un módulo ligero, no de useLocalLeague:
+// así el árbol los enseña sin cargar libsodium (ver src/lib/comunidadLocal.js).
+import { gruposLocales, grupoLocalActivo, pedirGrupoLocal, releerCopiaLocal } from '@/lib/comunidadLocal'
 
 // El modo sin servidor arrastra libsodium (WASM): se carga sólo al elegirlo.
 const LocalHostPanel = defineAsyncComponent(() => import('@/components/LocalHostPanel.vue'))
 
+/** Igual en los dos modos (MAX_GROUPS de cada composable); el local no se importa aquí. */
+const MAX_GROUPS_LOCAL = 5
+
 const MODO_KEY = 'skippify-community-mode'
-const modos = [
-  { id: 'servidor', label: 'Con servidor' },
-  { id: 'local', label: 'Sin servidor' }
-]
 function modoInicial () {
   try {
     const guardado = localStorage.getItem(MODO_KEY)
@@ -511,6 +487,84 @@ const metaGrupo = computed(() => [
   activeLastUpdate.value ? `Última actualización: ${fechaLarga(activeLastUpdate.value)}` : ''
 ].filter(Boolean))
 
+// ── Árbol de modos y grupos ──────────────────────────────────────────────────
+
+/**
+ * «3 miembros · 10 h 12 de escucha»: sólo lo que se sabe, nada de rellenos. Sin
+ * «esta semana» porque en el modo con servidor la cifra es la del último ranking
+ * publicado, que suele ser el de la semana anterior.
+ */
+function detalleNodo (miembros, minutos) {
+  return [
+    miembros ? `${miembros} ${miembros === 1 ? 'miembro' : 'miembros'}` : '',
+    minutos ? `${formatearHorasCorto(minutos)} de escucha` : ''
+  ].filter(Boolean).join(' · ')
+}
+
+const AVISOS_LOCAL = { joining: 'Esperando a entrar', restoring: 'Restaurando' }
+
+const raices = computed(() => [
+  {
+    id: 'servidor',
+    titulo: 'Con servidor',
+    icono: 'server',
+    max: MAX_GROUPS,
+    activoId: activeGroupId.value,
+    nota: enabled.value ? '' : 'Sin configurar en esta versión',
+    grupos: groups.value.map(g => ({
+      id: g.groupId,
+      nombre: groupLabel(g),
+      detalle: detalleNodo(memberCount(g.groupId), resumenDe(g.groupId).minutos)
+    }))
+  },
+  {
+    id: 'local',
+    titulo: 'Sin servidor',
+    icono: 'mesh',
+    max: MAX_GROUPS_LOCAL,
+    activoId: grupoLocalActivo.value,
+    grupos: gruposLocales.value.map(g => ({
+      id: g.id,
+      nombre: g.nombre,
+      aviso: AVISOS_LOCAL[g.estado] || '',
+      detalle: detalleNodo(g.miembros, g.minutos)
+    }))
+  }
+])
+
+async function onArbolGrupo (modoGrupo, groupId) {
+  elegirModo(modoGrupo)
+  if (modoGrupo === 'local') pedirGrupoLocal(groupId)
+  else if (groupId !== activeGroupId.value) await onSelectGroup(groupId)
+}
+
+/**
+ * «Crear o unirme» lleva a la tarjeta de alta de ese modo. La del modo sin
+ * servidor llega con el panel diferido, así que se espera a que exista.
+ */
+async function onArbolAlta (modoAlta) {
+  elegirModo(modoAlta)
+  await nextTick()
+  const id = `comunidad-alta-${modoAlta}`
+  const limite = Date.now() + 4000
+  const buscar = () => {
+    const el = document.getElementById(id)
+    if (!el) {
+      if (Date.now() < limite) requestAnimationFrame(buscar)
+      return
+    }
+    // Con el panel sin servidor recién montado, Chrome cancela el desplazamiento
+    // suave (el panel sigue recolocándose mientras sincroniza). Si no ha llegado
+    // a moverse, se salta de golpe: mejor sin animación que quedarse arriba.
+    const antes = window.scrollY
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    setTimeout(() => {
+      if (window.scrollY === antes) el.scrollIntoView({ block: 'start' })
+    }, 400)
+  }
+  buscar()
+}
+
 async function handleCreateGroup () {
   const groupId = await createGroup({
     displayName: displayName.value,
@@ -611,6 +665,7 @@ function updateCountdown () {
 }
 
 onMounted(async () => {
+  releerCopiaLocal()
   updateCountdown()
   countdownTimer = setInterval(updateCountdown, 30000)
   autoSyncTimer = setInterval(() => { refreshAll({ silent: true }) }, AUTO_SYNC_MS)
