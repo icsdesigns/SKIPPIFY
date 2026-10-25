@@ -673,6 +673,34 @@ public class SpotifyNotificationListener extends NotificationListenerService
         return false;
     }
 
+    /** ¿Está el servicio realmente enlazado? El permiso concedido no lo garantiza. */
+    static boolean isConnected() {
+        return sServiceInstance != null;
+    }
+
+    /**
+     * Con el acceso concedido, algunas capas (MIUI/HyperOS sobre todo) dejan el
+     * servicio sin enlazar tras instalar, actualizar o matar el proceso, y no
+     * llega ninguna notificación. Alternar el componente fuerza al sistema a
+     * enlazarlo de nuevo; requestRebind sólo no basta en esos equipos.
+     */
+    static void ensureBound(@Nullable android.content.Context context) {
+        if (context == null || sServiceInstance != null) return;
+        try {
+            ComponentName cn = new ComponentName(context, SpotifyNotificationListener.class);
+            android.content.pm.PackageManager pm = context.getPackageManager();
+            pm.setComponentEnabledSetting(cn,
+                    android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+                    android.content.pm.PackageManager.DONT_KILL_APP);
+            pm.setComponentEnabledSetting(cn,
+                    android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
+                    android.content.pm.PackageManager.DONT_KILL_APP);
+            NotificationListenerService.requestRebind(cn);
+        } catch (Throwable t) {
+            Log.w(TAG, "no se pudo reenlazar el listener", t);
+        }
+    }
+
     // ── Ciclo de vida del servicio ────────────────────────────────────────────
 
     /** Suelta el listener sólo si sigue siendo ése (una actividad nueva ya pudo poner el suyo). */
