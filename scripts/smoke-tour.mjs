@@ -20,6 +20,8 @@ import AppTour from '../src/components/AppTour.vue'
 import { useFeatures, sanitizeListeningMode } from '../src/composables/useFeatures.js'
 import { useNotifListener } from '../src/composables/useNotifListener.js'
 import { useTour, TOUR_STEPS, TOUR_KEY } from '../src/composables/useTour.js'
+import MacrosGuide from '../src/components/MacrosGuide.vue'
+import { useMacrosGuide, MACROS_GUIDE_STEPS, MACROS_GUIDE_KEY } from '../src/composables/useMacrosGuide.js'
 
 const failures = []
 const FEATURES_KEY = 'skippify-features'
@@ -247,6 +249,46 @@ async function main () {
     permisosResueltos(concedido, true) === true)
   check('basta con que UNO quede sin tocar para seguir bloqueando',
     permisosResueltos([...intentado, ...ninguno], true) === false)
+
+  console.log('\nGuía animada de Macros')
+
+  const g = useMacrosGuide()
+  g.reset()
+  check('antes de la primera visita no hay icono en la cabecera', g.showHeaderIcon.value === false)
+  check('la primera visita la abre sola', g.autoStart() === true && g.state.open === true)
+  check('desde el primer paso', g.state.step === 0)
+  check('con el panel abierto no se enseña el icono', g.showHeaderIcon.value === false)
+
+  const pintarG = () => renderToString(createSSRApp({ components: { MacrosGuide }, template: '<MacrosGuide />' }))
+  const htmlG = await pintarG()
+  check('el panel se pinta', htmlG.includes('Cómo funciona la pestaña Macros'))
+  check('son tres pasos', htmlG.includes('1 / 3') && (htmlG.match(/class="[^"]*mg-dot[ "]/g) || []).length === MACROS_GUIDE_STEPS)
+  check('el primero es conectar la cuenta', htmlG.includes('Conecta tu cuenta de Spotify') && htmlG.includes('mg-typed'))
+
+  g.next()
+  const htmlMacro = await pintarG()
+  check('el segundo monta novedades → copiar → Tus me gusta',
+    htmlMacro.includes('Novedades de una playlist') && htmlMacro.includes('Copiar') && htmlMacro.includes('Tus me gusta'))
+
+  g.next()
+  const htmlBoton = await pintarG()
+  check('el tercero vincula la macro al botón de los auriculares',
+    htmlBoton.includes('botón de los auriculares') && htmlBoton.includes('mg-toast'))
+  check('y en el último «Siguiente» pasa a «Entendido»', htmlBoton.includes('Entendido'))
+  g.next()
+  check('no se pasa del último paso', g.state.step === MACROS_GUIDE_STEPS - 1)
+
+  g.minimize()
+  check('al cerrarla queda el icono en la cabecera', g.showHeaderIcon.value === true)
+  check('conservando el paso', g.state.step === MACROS_GUIDE_STEPS - 1)
+  g.open()
+  check('el icono la reabre en el mismo paso', g.state.open === true && g.state.step === MACROS_GUIDE_STEPS - 1)
+  g.finish()
+  check('terminarla la cierra y la próxima empieza de cero', g.state.open === false && g.state.step === 0)
+  check('pero el icono se queda para repasarla', g.showHeaderIcon.value === true)
+  check('y ya no se abre sola', g.autoStart() === false && g.state.open === false)
+  const guardadoG = JSON.parse(globalThis.localStorage.getItem(MACROS_GUIDE_KEY) || '{}')
+  check('lo visto se guarda', guardadoG.seen === true)
 
   console.log(`\nGuía rápida: ${failures.length ? `${failures.length} fallo(s)` : 'todo correcto'}.`)
   // Salida explícita: montar la app deja temporizadores vivos (el reloj de

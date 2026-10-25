@@ -1,6 +1,10 @@
 <template>
   <div class="sk-stagger space-y-8">
 
+    <!-- Guía animada: se abre sola la primera vez; después, desde el icono de
+         la cabecera. -->
+    <MacrosGuide />
+
     <!-- ══ Conexión con Spotify ══════════════════════════════════════════════
          Sin cuenta vinculada no hay nada que hacer aquí, así que la pantalla se
          reduce a los tres pasos de la conexión y a una demostración de para qué
@@ -707,6 +711,9 @@
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useSpotify } from '@/composables/useSpotify'
 import FeatureIcon from '@/components/FeatureIcon.vue'
+import MacrosGuide from '@/components/MacrosGuide.vue'
+import { useMacrosGuide } from '@/composables/useMacrosGuide'
+import { useTour } from '@/composables/useTour'
 import {
   useMacros,
   describeMacro,
@@ -1203,7 +1210,14 @@ async function onVisibilityChange () {
   if (!handled && !connected.value) cancelConnecting()
 }
 
+const macrosGuide = useMacrosGuide()
+const tour = useTour()
+
 onMounted(async () => {
+  // Primera visita a la pestaña: la guía se abre sola, una única vez. Si el
+  // tour de la app está a la vista, espera: dos paneles a la vez no se leen.
+  if (!tour.state.open) macrosGuide.autoStart()
+
   // Vuelta del navegador: en la app llega por evento nativo; en el navegador,
   // en la propia barra de direcciones.
   const NL = window.Capacitor?.Plugins?.NotifListener
