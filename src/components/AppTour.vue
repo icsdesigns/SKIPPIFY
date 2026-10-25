@@ -73,7 +73,7 @@
         <button v-if="!esUltimo" class="sk-btn sk-btn-primary" @click="next">
           Siguiente
         </button>
-        <button v-else class="sk-btn sk-btn-primary" @click="finish">
+        <button v-else class="sk-btn sk-btn-primary" @click="terminar">
           Terminar el tour
         </button>
       </div>
@@ -193,6 +193,12 @@ function abrirVentana () {
   const destino = paso.value.route
   minimize()
   if (router.currentRoute.value.path !== destino) router.push(destino)
+}
+
+/** Al terminar, el tour deja al usuario en Configuración: permisos y ajustes. */
+function terminar () {
+  finish()
+  if (router.currentRoute.value.path !== '/settings') router.push('/settings')
 }
 
 // Al abrir, el foco pasa al panel para que Escape y el teclado funcionen.
