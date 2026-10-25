@@ -245,7 +245,9 @@ export function useAppUpdate () {
       })
     }
 
-    await check()
+    // Al abrir la app sólo se avisa los domingos; el resto de días la
+    // actualización se busca a mano desde Ajustes (`check({ manual: true })`).
+    if (new Date().getDay() === 0) await check()
   }
 
   return {
