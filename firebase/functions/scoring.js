@@ -56,6 +56,34 @@ function topOf (map) {
   return { name, plays }
 }
 
+/**
+ * Lo que suena en Spotify pero no es música: anuncios y la locución del DJ de
+ * Spotify («Up next» / «Next up», con artista «DJ» o «DJ X»). Sin esto, quien
+ * usa el DJ salía con «Up next» como canción más escuchada del grupo. Es el
+ * mismo criterio que usan las estadísticas personales (StatsView).
+ */
+function normalizaTexto (value) {
+  return (value || '')
+    .toString()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+}
+
+function esNoMusical (track, artist) {
+  const t = normalizaTexto(track)
+  const a = normalizaTexto(artist)
+  const junto = `${t} ${a}`.trim()
+  if (!junto) return false
+  if (junto.includes('publicidad') || junto.includes('anuncio') || junto.includes('spotify')) return true
+  if (/(^| )dj x( |$)/.test(t) || /(^| )dj x( |$)/.test(a)) return true
+  if (a === 'dj') return true
+  if ((t === 'up next' || t === 'next up') && a.includes('dj')) return true
+  return false
+}
+
 function scoreMember (events) {
   let validMinutes = 0
   let completedTracks = 0
@@ -73,6 +101,7 @@ function scoreMember (events) {
   }
 
   for (const e of events) {
+    if (esNoMusical(e.track, e.artist)) continue
     const playedAt = new Date(e.playedAt || 0)
     if (!Number.isFinite(playedAt.getTime())) continue
 
@@ -150,4 +179,4 @@ function scoreMember (events) {
   }
 }
 
-module.exports = { scoreMember, horaLocalDeEscucha, topOf }
+module.exports = { scoreMember, horaLocalDeEscucha, topOf, esNoMusical }

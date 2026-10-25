@@ -16,7 +16,7 @@ import { actividadPorPersona, elegirExpulsados } from '../src/lib/localhost/inac
 import {
   decodeEscuchas, encodeEscuchas, partirEnLotes, puntuarSemana, ventanaSemana, tuplaAEvento
 } from '../src/lib/localhost/escuchas.js'
-import { scoreMember } from '../firebase/functions/scoring.js'
+import { scoreMember, esNoMusical } from '../firebase/functions/scoring.js'
 
 let fallos = 0
 let total = 0
@@ -199,6 +199,19 @@ titulo('Autoexpulsión a los 30 días sin actividad')
   for (let i = 0; i < 3; i += 1) { await a.sync(); await b.sync() }
   check('Luis ve que ya no es miembro', b.removedInOwnView())
   check('Ana sigue siendo miembro y puede escribir', !a.removedInOwnView() && a.canSeal())
+}
+
+titulo('El DJ de Spotify y los anuncios no cuentan como música')
+{
+  const base = Date.UTC(2026, 9, 5, 12)
+  const e = (track, artist, i) => ({ playedAt: new Date(base + i * 600_000).toISOString(), track, artist, durationMs: 200_000, msPlayed: 190_000, measuredMs: 190_000, countedForRegister: true })
+  const eventos = [...Array.from({ length: 9 }, (_, i) => e('Up next', 'DJ', i)), e('Canción', 'Artista', 20), e('Canción', 'Artista', 30), e('Otra', 'Otro', 40)]
+  const r = scoreMember(eventos)
+  check('«Up next» del DJ no es la canción más escuchada', r.topTrack === 'Canción', r.topTrack)
+  check('el DJ no es el artista más escuchado', r.topArtist === 'Artista', r.topArtist)
+  check('la locución no suma escuchas', r.totalTracks === 3, String(r.totalTracks))
+  check('una canción llamada «Up next» de un artista real sí cuenta', !esNoMusical('Up Next', 'Un Artista'))
+  check('artistas con «DJ» en el nombre sí cuentan', !esNoMusical('Hola', 'DJ Snake') && esNoMusical('Anuncio', 'x') && esNoMusical('Hey', 'DJ X'))
 }
 
 console.log(`\n${total - fallos}/${total} comprobaciones correctas`)
