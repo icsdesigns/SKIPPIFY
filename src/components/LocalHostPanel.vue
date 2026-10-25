@@ -25,9 +25,20 @@
             <template v-if="activeStatus === 'joining'">
               Esperando a que un miembro del grupo tenga la app abierta y te deje entrar. Mantén esta app abierta: se comprueba cada pocos segundos. La invitación vale 24 horas.
             </template>
+            <template v-else-if="activeStatus === 'expelled'">
+              Ya no formas parte de este grupo: un administrador te ha expulsado, o llevabas 30 días sin
+              enviar nada y se te dio de baja. Lo que ya tenías sigue en este móvil. Pulsa «Salir del grupo»
+              para quitarlo y pide una invitación nueva si quieres volver.
+            </template>
             <template v-else>
               Restaurando: este móvil recibirá las llaves del grupo en cuanto otro miembro sincronice.
             </template>
+          </p>
+          <p
+            v-if="activeGroup?.expulsados?.length"
+            class="mt-2 text-[11px] text-slate-500"
+          >
+            Baja automática por 30 días sin actividad: {{ activeGroup.expulsados.map(e => e.nombre).join(', ') }}.
           </p>
         </template>
 

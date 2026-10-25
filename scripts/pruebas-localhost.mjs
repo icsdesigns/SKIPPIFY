@@ -12,6 +12,7 @@
 import 'fake-indexeddb/auto'
 import { LocalHost, MemoryTransport } from '../src/vendor/localhost-core/index.ts'
 import { IdbStorage } from '../src/lib/localhost/idbStorage.js'
+import { actividadPorPersona, elegirExpulsados } from '../src/lib/localhost/inactividad.js'
 import {
   decodeEscuchas, encodeEscuchas, partirEnLotes, puntuarSemana, ventanaSemana, tuplaAEvento
 } from '../src/lib/localhost/escuchas.js'
@@ -152,6 +153,52 @@ titulo('Invitación exprés: un código corto abre la invitación larga')
   for (let i = 0; i < 4 && luis2.status !== 'ready'; i += 1) { await luis2.sync(); await ana.sync() }
   await luis2.sync()
   check('quien entra con el exprés queda dentro del grupo', luis2.status === 'ready', luis2.status)
+}
+
+// ── Inactividad ─────────────────────────────────────────────────────────────
+titulo('Autoexpulsión a los 30 días sin actividad')
+{
+  const DIA = 24 * 3600 * 1000
+  const ahora = 1_800_000_000_000
+  const ev = (author, dias, type = 'rec.add', body = {}) => ({ author, hlc: `${String(ahora - dias * DIA).padStart(15, '0')}:00000`, type, body })
+  const personaDe = d => ({ dA: 'A', dB: 'B', dC: 'C' })[d]
+  const m = (person, admin = false, removed = false) => ({ person, admin, removed })
+
+  const act = actividadPorPersona([ev('dA', 1), ev('dB', 40), ev('dC', 2), ev('dA', 0, 'member.add', { person: 'B' })], personaDe, ahora)
+  check('un alta cuenta como actividad de quien entra', act.get('B') === ahora)
+  const act2 = actividadPorPersona([ev('dA', 1), ev('dB', 40), ev('dC', 2)], personaDe, ahora)
+  check('la última señal de cada persona gana', act2.get('A') === ahora - DIA && act2.get('B') === ahora - 40 * DIA)
+  check('expulsa al que lleva más de 30 días callado', JSON.stringify(elegirExpulsados({ miembros: [m('A', true), m('B'), m('C')], actividad: act2, ahora, yo: 'A' })) === '["B"]')
+  check('no expulsa a quien está dentro del plazo', elegirExpulsados({ miembros: [m('A', true), m('C')], actividad: act2, ahora, yo: 'A' }).length === 0)
+  check('sólo actúa el primer administrador activo', elegirExpulsados({ miembros: [m('A', true), m('C', true), m('B')], actividad: act2, ahora, yo: 'C' }).length === 0)
+  const callados = new Map([['A', ahora], ['D', ahora], ['C', ahora - 40 * DIA], ['B', ahora - 40 * DIA]])
+  check('si el primer administrador está callado, actúa el siguiente', JSON.stringify(elegirExpulsados({ miembros: [m('B', true), m('A', true), m('C'), m('D')], actividad: callados, ahora, yo: 'A' })) === '["B","C"]')
+  check('un no administrador nunca expulsa', elegirExpulsados({ miembros: [m('A', true), m('B'), m('C')], actividad: act2, ahora, yo: 'C' }).length === 0)
+  check('no expulsa a todos los demás en un grupo de más de dos (vista atrasada)', elegirExpulsados({ miembros: [m('A', true), m('B'), m('C')], actividad: new Map([['A', ahora], ['B', ahora - 40 * DIA], ['C', ahora - 40 * DIA]]), ahora, yo: 'A' }).length === 0)
+  check('un reloj adelantado no da vida de más', actividadPorPersona([ev('dA', -400)], personaDe, ahora).get('A') === ahora)
+
+  // Con el kit de verdad y un reloj que avanza 31 días.
+  const reloj = { t: Date.parse('2027-01-01T10:00:00Z'), now () { return this.t } }
+  const rd = new MemoryTransport(RELAYS, 11)
+  const storageAna = new IdbStorage('ia')
+  const a = await LocalHost.createGroup({ storage: storageAna, transport: rd, clock: reloj }, { name: 'G', relays: RELAYS, deviceName: 'Ana' })
+  const inv = await a.createInvite()
+  const b = await LocalHost.joinGroup({ storage: new IdbStorage('ib'), transport: rd, clock: reloj }, inv, 'Luis')
+  for (let i = 0; i < 4 && b.status !== 'ready'; i += 1) { await b.sync(); await a.sync() }
+  check('Luis entra en el grupo con reloj simulado', b.status === 'ready')
+  reloj.t += 10 * DIA
+  await a.records('presencia').add({ u: a.me.person, t: reloj.now() })
+  reloj.t += 21 * DIA // 31 días desde el alta de Luis
+  await a.records('presencia').add({ u: a.me.person, t: reloj.now() })
+  await a.sync()
+  const evs = await storageAna.getEvents({})
+  const actividadReal = actividadPorPersona(evs, d => a.membershipView().personOf(d), reloj.now())
+  const aExpulsar = elegirExpulsados({ miembros: a.members(), actividad: actividadReal, ahora: reloj.now(), yo: a.me.person })
+  check('con el kit: se elige a Luis tras 31 días en silencio', aExpulsar.length === 1 && aExpulsar[0] === b.me.person, JSON.stringify(aExpulsar))
+  await a.removePerson(aExpulsar[0])
+  for (let i = 0; i < 3; i += 1) { await a.sync(); await b.sync() }
+  check('Luis ve que ya no es miembro', b.removedInOwnView())
+  check('Ana sigue siendo miembro y puede escribir', !a.removedInOwnView() && a.canSeal())
 }
 
 console.log(`\n${total - fallos}/${total} comprobaciones correctas`)
