@@ -113,6 +113,11 @@ async function main () {
     activeGroupId: GRUPO_LOCAL
   }))
 
+  // Los grupos con servidor están apagados por defecto; las comprobaciones de
+  // abajo son las del modo con servidor, así que se encienden. Más abajo se
+  // comprueba también el estado por defecto.
+  localStorage.setItem('skippify-community-firebase-groups', '1')
+
   const { useLeague } = await import('../src/composables/useLeague.js')
   const liga = useLeague()
 
@@ -264,6 +269,45 @@ async function main () {
       !resultadoPendiente(doc, a('2026-10-18T13:05:00Z')))
     check('el martes ya no se dice «calculando»',
       !resultadoPendiente({ weekKey: 'x', members: [] }, a('2026-10-20T13:05:00Z')))
+  }
+
+  console.log('\nGrupos con servidor: apagados por defecto')
+  {
+    const { useAjustesComunidad } = await import('../src/composables/useAjustesComunidad.js')
+    const { gruposConServidor } = useAjustesComunidad()
+    gruposConServidor.value = false
+    localStorage.setItem('skippify-community-mode', 'servidor')
+    const router2 = createRouter({ history: createMemoryHistory(), routes })
+    const app2 = createSSRApp(App)
+    app2.use(router2)
+    await router2.push('/comunidad')
+    await router2.isReady()
+    const html2 = await renderToString(app2)
+    check('sin el ajuste no sale la raíz «Con servidor»', !html2.includes('data-raiz="servidor"') && html2.includes('data-raiz="local"'))
+    check('ni el ranking de Firebase aunque hubiera uno guardado', !html2.includes('Despechá'))
+    check('tampoco la alta de grupos con servidor', !html2.includes('comunidad-alta-servidor'))
+
+    const router3 = createRouter({ history: createMemoryHistory(), routes })
+    const app3 = createSSRApp(App)
+    app3.use(router3)
+    await router3.push('/settings')
+    await router3.isReady()
+    const html3 = await renderToString(app3)
+    const i3 = html3.indexOf('aria-label="Mostrar los grupos con servidor"')
+    check('Ajustes trae el interruptor de los grupos con servidor', i3 > 0 && html3.includes('Grupos con servidor'))
+    check('y viene apagado por defecto', i3 > 0 && /aria-checked="false"/.test(html3.slice(Math.max(0, i3 - 120), i3 + 120)),
+      html3.slice(Math.max(0, i3 - 120), i3 + 120))
+
+    // Encendido, vuelve el modo con servidor.
+    gruposConServidor.value = true
+    const router4 = createRouter({ history: createMemoryHistory(), routes })
+    const app4 = createSSRApp(App)
+    app4.use(router4)
+    await router4.push('/comunidad')
+    await router4.isReady()
+    const html4 = await renderToString(app4)
+    check('con el ajuste encendido vuelve la raíz «Con servidor»', html4.includes('data-raiz="servidor"'))
+    gruposConServidor.value = true
   }
 
   if (fallos) {

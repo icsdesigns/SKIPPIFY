@@ -279,6 +279,36 @@
       </div>
     </section>
 
+    <section class="overflow-hidden sk-card" data-ajuste="grupos-con-servidor">
+      <header class="sk-card-head">
+        <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-400/[0.18] text-brand-400">
+          <GrupoIcono name="server" class="h-5 w-5" />
+        </span>
+        <div class="min-w-0">
+          <h2 class="text-sm font-bold text-white">Grupos con servidor</h2>
+          <p class="text-[11px] text-slate-400">Los grupos que usan Firebase, en la pestaña Comunidad.</p>
+        </div>
+      </header>
+
+      <div class="flex items-start justify-between gap-4 p-5">
+        <p class="text-xs leading-relaxed text-slate-300">
+          Están desactivados por defecto: en Comunidad sólo aparecen los grupos sin servidor.
+          Al activarlos vuelve el modo «Con servidor» y se pueden crear grupos o unirse a uno.
+          Desactivarlos sólo los oculta; no borra ningún grupo ni dato.
+        </p>
+        <button
+          role="switch"
+          :aria-checked="gruposConServidor"
+          aria-label="Mostrar los grupos con servidor"
+          class="sk-switch mt-0.5 shrink-0"
+          :class="gruposConServidor ? 'border-transparent bg-brand-400' : 'border-transparent bg-white/[0.18]'"
+          @click="gruposConServidor = !gruposConServidor"
+        >
+          <span class="sk-switch-knob" :class="gruposConServidor ? 'translate-x-6' : 'translate-x-1'" />
+        </button>
+      </div>
+    </section>
+
     <section class="overflow-hidden sk-card">
       <header class="sk-card-head">
         <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-400/[0.18] text-brand-400">
@@ -336,6 +366,7 @@ import { useFeatures, sanitizeListeningMode, sanitizeSkipInterval } from '@/comp
 import { useAppUpdate } from '@/composables/useAppUpdate'
 import { usePlayLog } from '@/composables/usePlayLog'
 import { useTour } from '@/composables/useTour'
+import { useAjustesComunidad } from '@/composables/useAjustesComunidad'
 import UpdateIcon from '@/components/UpdateIcon.vue'
 import GrupoIcono from '@/components/grupos/GrupoIcono.js'
 import {
@@ -374,6 +405,7 @@ const APP_SIGNATURE = `Skippify ${APP_VERSION}`
 // ── Actualizaciones ─────────────────────────────────────────────────────────
 const appUpdate = useAppUpdate()
 const tour = useTour()
+const { gruposConServidor } = useAjustesComunidad()
 const updateBusy = ref(false)
 const updateCheckMessage = ref('')
 const updateCheckFailed = ref(false)

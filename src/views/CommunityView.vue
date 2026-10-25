@@ -210,9 +210,10 @@
  * resultados del grupo abierto y debajo las dos únicas acciones posibles, crear
  * o unirse, que despliegan su formulario al elegirlas.
  */
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { defineAsyncComponent } from 'vue'
 import { useLeague, normalizeInviteCode, resultadoVisible } from '@/composables/useLeague'
+import { useAjustesComunidad } from '@/composables/useAjustesComunidad'
 import { extrasNuevos, ordenarPorTiempo } from '@/lib/gruposExtras'
 import GrupoDetalle from '@/components/grupos/GrupoDetalle.vue'
 import ComunidadArbol from '@/components/grupos/ComunidadArbol.vue'
@@ -228,8 +229,13 @@ const LocalHostPanel = defineAsyncComponent(() => import('@/components/LocalHost
 /** Igual en los dos modos (MAX_GROUPS de cada composable); el local no se importa aquí. */
 const MAX_GROUPS_LOCAL = 5
 
+// Los grupos con servidor (Firebase) están apagados por defecto; se encienden en
+// Ajustes. Apagados, sólo existe el modo sin servidor.
+const { gruposConServidor } = useAjustesComunidad()
+
 const MODO_KEY = 'skippify-community-mode'
 function modoInicial () {
+  if (!gruposConServidor.value) return 'local'
   try {
     const guardado = localStorage.getItem(MODO_KEY)
     if (guardado === 'local' || guardado === 'servidor') return guardado
@@ -237,7 +243,11 @@ function modoInicial () {
   return 'servidor'
 }
 const modo = ref(modoInicial())
+watch(gruposConServidor, (activo) => {
+  if (!activo && modo.value === 'servidor') modo.value = 'local'
+})
 function elegirModo (id) {
+  if (id === 'servidor' && !gruposConServidor.value) return
   modo.value = id
   try { localStorage.setItem(MODO_KEY, id) } catch { /* sin almacenamiento */ }
 }
@@ -505,7 +515,7 @@ function detalleNodo (miembros, minutos) {
 const AVISOS_LOCAL = { joining: 'Esperando a entrar', restoring: 'Restaurando' }
 
 const raices = computed(() => [
-  {
+  gruposConServidor.value && {
     id: 'servidor',
     titulo: 'Con servidor',
     icono: 'server',
@@ -531,7 +541,7 @@ const raices = computed(() => [
       detalle: detalleNodo(g.miembros, g.minutos)
     }))
   }
-])
+].filter(Boolean))
 
 async function onArbolGrupo (modoGrupo, groupId) {
   elegirModo(modoGrupo)
@@ -669,8 +679,12 @@ onMounted(async () => {
   releerCopiaLocal()
   updateCountdown()
   countdownTimer = setInterval(updateCountdown, 30000)
-  autoSyncTimer = setInterval(() => { refreshAll({ silent: true }) }, AUTO_SYNC_MS)
+  autoSyncTimer = setInterval(() => {
+    if (gruposConServidor.value) refreshAll({ silent: true })
+  }, AUTO_SYNC_MS)
 
+  // Con los grupos con servidor apagados no se toca Firebase desde esta pantalla.
+  if (!gruposConServidor.value) return
   await ensureAuth()
   if (!displayName.value) displayName.value = state.value.displayName || ''
   if (groups.value.length) await refreshAll({ silent: true })
