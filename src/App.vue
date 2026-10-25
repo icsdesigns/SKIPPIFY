@@ -157,6 +157,7 @@ import BrandMark from '@/components/BrandMark.vue'
 import NotifAccessGate from '@/components/NotifAccessGate.vue'
 import { useNotifListener } from '@/composables/useNotifListener'
 import { useFeatures } from '@/composables/useFeatures'
+import { useEventStore } from '@/stores/events'
 import { useAppUpdate } from '@/composables/useAppUpdate'
 import { useLeague } from '@/composables/useLeague'
 import { useLocalLeague } from '@/composables/useLocalLeague'
@@ -167,7 +168,8 @@ import { useLocalLeague } from '@/composables/useLocalLeague'
 // declarando la prop: quitarlo obligaría a tocar ese contrato a cambio de nada.
 const sidebarOpen = ref(false)
 const notif = useNotifListener()
-const { initializeNativeFeatures } = useFeatures()
+const { initializeNativeFeatures, syncNativeHistoryFromEvents } = useFeatures()
+const eventStore = useEventStore()
 const update = useAppUpdate()
 const league = useLeague()
 const localLeague = useLocalLeague()
@@ -274,6 +276,7 @@ onMounted(async () => {
 
   await initializeNativeFeatures()
   await notif.checkAndInit(setNowPlaying)
+  syncNativeHistoryFromEvents(eventStore.state.events).catch(() => {})
   await notif.refreshSystemPermissions()
   document.addEventListener('visibilitychange', onVisibleAgain)
   window.addEventListener('scroll', onScroll, { passive: true })
@@ -333,6 +336,7 @@ function onVisibleAgain () {
   // publicación: el temporizador no corre mientras el proceso está dormido.
   void league.checkPublishedResults()
   void localLeague.syncAll()
+  syncNativeHistoryFromEvents(eventStore.state.events).catch(() => {})
 }
 
 onBeforeUnmount(() => {

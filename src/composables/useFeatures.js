@@ -165,7 +165,10 @@ const IMPORT_BATCH_SIZE = 750
  *
  * @returns {Promise<number>} escuchas nuevas anotadas; 0 en la web.
  */
+let lastImportFailed = false
+
 async function importPlaysToNativeHistory (events) {
+  lastImportFailed = false
   const plugin = getPlugin()
   if (!plugin?.importDuplicateHistory || !Array.isArray(events)) return 0
 
@@ -195,10 +198,54 @@ async function importPlaysToNativeHistory (events) {
     } catch (e) {
       // Que falle un lote no debe abortar la importación entera: lo que ya se
       // sembró sigue siendo válido y el resto se reintenta en el siguiente lote.
+      lastImportFailed = true
       console.warn('[skippify] lote de historial no importado', e)
     }
   }
 
+  return imported
+}
+
+const HISTORY_SYNC_KEY = 'skippify-native-history-synced-at'
+
+/**
+ * Mantiene el historial del motor al día con el de la app.
+ *
+ * El motor decide contra su propia base de datos, y ésta sólo se alimentaba con
+ * las escuchas que él mismo veía y con los respaldos importados. Todo lo que la
+ * app tenía en sus estadísticas y la base no (base reiniciada, escuchas de antes
+ * del motor actual, otro dispositivo) salía como «escuchado» en pantalla pero se
+ * colaba sin saltarse. Aquí se vuelcan las escuchas posteriores a la última
+ * sincronización; si la base nativa está vacía se vuelca todo.
+ *
+ * @returns {Promise<number>} escuchas nuevas anotadas.
+ */
+async function syncNativeHistoryFromEvents (events) {
+  const plugin = getPlugin()
+  if (!plugin?.importDuplicateHistory || !Array.isArray(events) || !events.length) return 0
+
+  let watermark = 0
+  try { watermark = Number(localStorage.getItem(HISTORY_SYNC_KEY)) || 0 } catch { /* ignorado */ }
+
+  try {
+    const info = await plugin.getPlayLog?.({ offset: 0, limit: 1 })
+    if (info?.history && Number(info.history.rows || 0) === 0) watermark = 0
+  } catch { /* ignorado */ }
+
+  let newest = watermark
+  const pending = []
+  for (const event of events) {
+    const ms = Date.parse(event?.played_at)
+    if (!Number.isFinite(ms) || ms <= watermark) continue
+    pending.push(event)
+    if (ms > newest) newest = ms
+  }
+  if (!pending.length) return 0
+
+  const imported = await importPlaysToNativeHistory(pending)
+  if (!lastImportFailed) {
+    try { localStorage.setItem(HISTORY_SYNC_KEY, String(newest)) } catch { /* ignorado */ }
+  }
   return imported
 }
 
@@ -329,6 +376,7 @@ export function useFeatures () {
     applyNativeFeatureConfig,
     isSkipDuplicatesLocked,
     getSkipDuplicatesLockReason,
-    importPlaysToNativeHistory
+    importPlaysToNativeHistory,
+    syncNativeHistoryFromEvents
   }
 }

@@ -103,6 +103,8 @@ final class DuplicateSkipEngine {
     private static final long INDEX_HORIZON_MS = 400L * 86_400_000L;
     /** Marcas de tiempo guardadas por canción (basta con las más recientes). */
     private static final int INDEX_SLOTS = 3;
+    /** Vecindad en la que dos marcas de la misma canción son la misma escucha. */
+    private static final long IMPORT_DEDUP_WINDOW_MS = 90_000L;
 
     private static final long SKIP_VERIFY_RETRY_DELAY_MS = 350L;
     private static final long PAUSE_TO_SKIP_MAX_HOLD_MS = 4000L;
@@ -1252,15 +1254,21 @@ final class DuplicateSkipEngine {
 
         @Override
         public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
-            // El esquema anterior guardaba track/artista por separado; se
-            // reconstruye desde los NDJSON, que siguen en disco.
-            db.execSQL("DROP TABLE IF EXISTS " + TABLE);
+            // Sólo el esquema 1 (track/artista por separado) era incompatible. De
+            // la versión 2 en adelante NUNCA se borra la tabla: los NDJSON de los
+            // que se reconstruía los vacía la app al abrirse, así que borrarla
+            // aquí equivalía a perder todo el historial de duplicadas.
+            if (oldVersion < 2) {
+                db.execSQL("DROP TABLE IF EXISTS " + TABLE);
+            }
             onCreate(db);
         }
 
         @Override
         public void onDowngrade(SQLiteDatabase db, int oldVersion, int newVersion) {
-            onUpgrade(db, oldVersion, newVersion);
+            // Volver a una versión anterior de la app no debe tocar los datos: el
+            // esquema es compatible hacia atrás.
+            onCreate(db);
         }
     }
 
@@ -1589,13 +1597,19 @@ final class DuplicateSkipEngine {
         return inserted;
     }
 
-    /** ¿Está ya anotada esa escucha exacta? El índice de la tabla lo hace barato. */
+    /**
+     * ¿Está ya anotada esa escucha? El motor y la app miden el inicio de la misma
+     * reproducción con unos segundos de diferencia, así que no se exige la marca
+     * exacta sino una vecindad: sin ella cada sincronización duplicaría filas.
+     */
     private boolean playAlreadyStored(SQLiteDatabase db, String key, long playedAtMs) {
         Cursor c = null;
         try {
             c = db.query(TABLE, new String[]{ "id" },
-                    "track_key=? AND played_at_epoch=?",
-                    new String[]{ key, Long.toString(playedAtMs) },
+                    "track_key=? AND played_at_epoch BETWEEN ? AND ?",
+                    new String[]{ key,
+                            Long.toString(playedAtMs - IMPORT_DEDUP_WINDOW_MS),
+                            Long.toString(playedAtMs + IMPORT_DEDUP_WINDOW_MS) },
                     null, null, null, "1");
             return c != null && c.moveToFirst();
         } catch (Throwable ignored) {
