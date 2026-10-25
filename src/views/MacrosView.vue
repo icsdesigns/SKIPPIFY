@@ -255,6 +255,14 @@
                 </option>
               </select>
 
+              <p v-if="selectedSource?.needsPlaylist" class="mt-1.5 text-[11px] text-slate-500">
+                ¿No ves una playlist?
+                <button type="button" class="font-semibold text-brand-300 underline-offset-2 hover:underline" :disabled="loadingPlaylists" @click="loadPlaylists">
+                  {{ loadingPlaylists ? 'Actualizando…' : 'Actualizar la lista' }}
+                </button>.
+                Las que genera Spotify (Descubrimiento semanal, Release Radar) no las deja leer a las apps: cópiala a una playlist tuya.
+              </p>
+
               <p
                 v-if="selectedSource?.needsPlaylist && exigeOrigenEscribible && readOnlyCount"
                 class="mt-1.5 text-[11px] text-slate-500"
@@ -313,6 +321,13 @@
                   {{ pl.name }} ({{ playlistCount(pl) }})
                 </option>
               </select>
+
+              <p v-if="selectedTarget?.needsPlaylist" class="mt-1.5 text-[11px] text-slate-500">
+                ¿No ves una playlist?
+                <button type="button" class="font-semibold text-brand-300 underline-offset-2 hover:underline" :disabled="loadingPlaylists" @click="loadPlaylists">
+                  {{ loadingPlaylists ? 'Actualizando…' : 'Actualizar la lista' }}
+                </button>.
+              </p>
 
               <p v-if="selectedTarget?.needsPlaylist && readOnlyCount" class="mt-1.5 text-[11px] text-slate-500">
                 No aparecen {{ readOnlyCount }} playlist(s) que solo sigues: Spotify no deja
@@ -824,6 +839,7 @@ const clientIdInput = ref(clientId.value)
 const playlists = ref([])
 const library = reactive({ liked: null, recent: null, top: null, following: null })
 const loadingLibrary = ref(false)
+const loadingPlaylists = ref(false)
 const libraryError = ref('')
 const running = ref(false)
 const results = reactive({})
@@ -1141,22 +1157,40 @@ async function onRunAll () {
   running.value = false
 }
 
+/**
+ * Relee las playlists de la cuenta. Se llama también al volver a la app: quien
+ * acaba de crear o copiar una playlist en Spotify la espera en el desplegable,
+ * y la lista se leía sólo al entrar en la pestaña.
+ */
+async function loadPlaylists () {
+  if (!connected.value) return
+  loadingPlaylists.value = true
+  try {
+    // `/me/playlists` devuelve también las que solo sigues (editoriales, de
+    // otras personas). Sobre esas Spotify responde 403 al escribir, así que se
+    // marca aquí quién puede modificar cada una y la interfaz lo respeta.
+    const profile = state.profile || await loadProfile()
+    playlists.value = (await apiPaged('/me/playlists?limit=50', 1000))
+      .filter(Boolean)
+      .map(pl => ({
+        ...pl,
+        writable: (!!profile?.id && pl.owner?.id === profile.id) || pl.collaborative === true
+      }))
+    libraryError.value = ''
+  } catch (error) {
+    libraryError.value = error?.message || 'No se pudieron cargar tus playlists.'
+  } finally {
+    loadingPlaylists.value = false
+  }
+}
+
 async function loadLibrary () {
   if (!connected.value) return
   loadingLibrary.value = true
   libraryError.value = ''
 
   try {
-    // `/me/playlists` devuelve también las que solo sigues (editoriales, de
-    // otras personas). Sobre esas Spotify responde 403 al escribir, así que se
-    // marca aquí quién puede modificar cada una y la interfaz lo respeta.
-    const profile = state.profile || await loadProfile()
-    playlists.value = (await apiPaged('/me/playlists?limit=50', 200))
-      .filter(Boolean)
-      .map(pl => ({
-        ...pl,
-        writable: (!!profile?.id && pl.owner?.id === profile.id) || pl.collaborative === true
-      }))
+    await loadPlaylists()
 
     // Sólo interesa el total de cada colección: se pide una página mínima y se
     // lee el campo `total`, en lugar de descargar miles de canciones.
@@ -1208,6 +1242,8 @@ async function onVisibilityChange () {
   // Se ha vuelto a la app sin traer ningún código: el usuario canceló o cerró
   // el navegador. Liberar el botón en vez de dejarlo girando para siempre.
   if (!handled && !connected.value) cancelConnecting()
+  // Vuelta desde Spotify: puede haber playlists nuevas.
+  if (connected.value && !loadingPlaylists.value) await loadPlaylists()
 }
 
 const macrosGuide = useMacrosGuide()
