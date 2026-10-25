@@ -219,39 +219,39 @@ async function main () {
     !html.includes('sin datos'),
     'la ficha de quien no tiene top gastaba dos renglones en decir que no hay nada')
   check('sin emoji en las fichas', !/[🌀-🫿]/u.test(html))
-  check('el detalle del grupo enseña quién va primero', html.includes('Los del garaje') && html.includes('Va primero'))
+  check('el detalle del grupo enseña quién va primero', html.includes('Los del garaje') && html.includes('Líder'))
   check('el listado de miembros trae su aportación', html.includes('Sin escuchas esta semana') === false && html.includes('esta semana'))
   check('un nombre de miembro largo se lee en dos líneas, no recortado',
     /<span class="sk-clamp-2 text-sm font-semibold text-white"[^>]*>Bartolomé/.test(html))
 
-  console.log('\nÁrbol de modos y grupos')
+  console.log('\nSelector de modos y grupos')
   {
     const inicio = html.indexOf('aria-label="Grupos de Comunidad"')
-    const arbol = html.slice(inicio, html.indexOf('</nav>', inicio))
-    const migas = (arbol.match(/<ol[^>]*data-migas[^>]*>([\s\S]*?)<\/ol>/) || [])[1] || ''
-    const texto = (s) => s.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
-    check('las migas dicen modo y grupo', /Con servidor .*Los del garaje/.test(texto(migas)),
-      `migas: «${texto(migas)}»`)
-    check('las dos raíces están en el árbol',
-      arbol.includes('data-raiz="servidor"') && arbol.includes('data-raiz="local"'))
+    const selector = html.slice(inicio, html.indexOf('</nav>', inicio))
+    const texto = (t) => t.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
+    check('con los grupos con servidor activos se elige el modo', selector.includes('data-raiz="servidor"') && selector.includes('data-raiz="local"'))
+    check('el modo actual va marcado', /aria-selected="true"[^>]*data-raiz="servidor"/.test(selector))
     check('el grupo abierto se marca como la ubicación actual',
-      new RegExp(`aria-current="location"[^>]*data-grupo="${GROUP_ID}"`).test(arbol))
-    // El otro modo empieza plegado, pero su raíz ya dice cuántos grupos tiene y
-    // a cuál se volvería, leído de la caché sin cargar el modo sin servidor.
-    check('la raíz sin servidor resume sus grupos sin abrir ese modo',
-      texto(arbol).includes(`Sin servidor 1 grupo · ${NOMBRE_LOCAL_LARGO}`), texto(arbol).slice(-300))
-    check('sólo se despliega el modo actual',
-      arbol.includes(`data-grupo="${GROUP_ID}"`) && !arbol.includes(`data-grupo="${GRUPO_LOCAL}"`) &&
-      arbol.includes('data-desplegar="local"'))
-    check('el grupo sin servidor no se marca como actual estando en el otro modo',
-      !new RegExp(`aria-current="location"[^>]*data-grupo="${GRUPO_LOCAL}"`).test(arbol))
-    check('el modo actual tiene su entrada para crear o unirse', arbol.includes('data-alta="servidor"'))
-    check('el nodo trae miembros y cifras de la semana', /3 miembros · \d+ h \d{2} de escucha/.test(texto(arbol)),
-      texto(arbol).slice(0, 300))
-    check('la cuenta de grupos por modo', texto(arbol).includes('1 / 5'))
+      new RegExp(`aria-current="location"[^>]*data-grupo="${GROUP_ID}"`).test(selector))
+    check('sólo salen los grupos del modo actual',
+      selector.includes(`data-grupo="${GROUP_ID}"`) && !selector.includes(`data-grupo="${GRUPO_LOCAL}"`))
+    check('el modo actual tiene su entrada para crear o unirse', selector.includes('data-alta="servidor"'))
+    check('la píldora trae miembros y cifras de la semana', /3 miembros · \d+ h \d{2} de escucha/.test(texto(selector)),
+      texto(selector).slice(0, 300))
+    check('la cuenta de grupos por modo', texto(selector).includes('1 / 5'))
     check('el panel sin servidor (libsodium) no se monta en el modo con servidor',
       !html.includes('comunidad-alta-local'))
-    check('ya no queda la lista duplicada «Tus grupos»', !html.includes('Tus grupos'))
+    check('ya no queda el árbol desplegable', !html.includes('data-migas') && !html.includes('data-desplegar'))
+  }
+
+  console.log('\nPestañas del grupo y panel informativo')
+  {
+    check('el grupo tiene pestañas de ranking y en común', html.includes('data-pestana="ranking"') && html.includes('data-pestana="comun"'))
+    check('el modo con servidor no trae pestaña de invitar', !html.includes('data-pestana="grupo"'))
+    check('la pestaña «En común» cuenta sus parejas', /data-pestana="comun"[\s\S]{0,400}>1</.test(html))
+    check('la portada lleva la pila de avatares y el líder', html.includes('3 miembros') && html.includes('Líder'))
+    check('el panel «¿Cómo funciona?» vuelve a la pestaña', html.includes('data-info-comunidad') && html.includes('¿Cómo funciona?'))
+    check('con grupos va plegado', /data-info-comunidad[\s\S]{0,400}aria-expanded="false"/.test(html))
   }
 
   console.log('\nDesvelado del domingo a las 15:00')

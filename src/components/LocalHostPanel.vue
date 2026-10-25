@@ -61,8 +61,6 @@
           </p>
         </template>
 
-        <div class="sk-divider my-4" />
-
         <!-- Invitar -->
         <div class="flex flex-wrap items-center justify-between gap-2">
           <h3 class="text-sm font-bold text-white">Invitar</h3>
@@ -223,10 +221,6 @@
       </div>
     </section>
 
-    <p class="px-1 text-[11px] text-slate-500">
-      Los relays solo ven direcciones IP, horas y tamaños de mensaje; nunca el contenido ni quién es quién.
-      Si sales de un grupo se borra la copia de este móvil.
-    </p>
   </div>
 </template>
 

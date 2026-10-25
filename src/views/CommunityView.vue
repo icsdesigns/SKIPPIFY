@@ -1,13 +1,16 @@
 <template>
   <div class="sk-stagger space-y-4">
-    <!-- ── Árbol: modo (con o sin servidor) › grupo ───────────────────────── -->
-    <ComunidadArbol
+    <!-- ── Modo (con o sin servidor) y sus grupos en píldoras ─────────────── -->
+    <ComunidadSelector
+      v-if="raices.length > 1 || !sinGruposEnModo"
       :modo="modo"
       :raices="raices"
       @modo="elegirModo"
       @grupo="onArbolGrupo"
       @alta="onArbolAlta"
     />
+
+    <ComunidadInfo v-if="sinGruposEnModo" :modo="modo" :sin-grupos="true" />
 
     <LocalHostPanel v-if="modo === 'local'" />
 
@@ -194,6 +197,10 @@
       <template v-if="state.lastSyncAt"> · última sincronización: {{ lastSyncLabel }}</template>
     </p>
     </template>
+
+    <!-- ── ¿Cómo funciona? Sin grupos va arriba y abierto: es lo primero que
+         necesita quien llega; con grupos, al final y plegado. -->
+    <ComunidadInfo v-if="!sinGruposEnModo" :modo="modo" :sin-grupos="false" />
   </div>
 </template>
 
@@ -216,7 +223,8 @@ import { useLeague, normalizeInviteCode, resultadoVisible } from '@/composables/
 import { useAjustesComunidad } from '@/composables/useAjustesComunidad'
 import { extrasNuevos, ordenarPorTiempo } from '@/lib/gruposExtras'
 import GrupoDetalle from '@/components/grupos/GrupoDetalle.vue'
-import ComunidadArbol from '@/components/grupos/ComunidadArbol.vue'
+import ComunidadSelector from '@/components/grupos/ComunidadSelector.vue'
+import ComunidadInfo from '@/components/grupos/ComunidadInfo.vue'
 import GrupoIcono from '@/components/grupos/GrupoIcono.js'
 import { resumirRanking, formatearHorasCorto } from '@/lib/gruposResumen'
 // Los grupos sin servidor se leen de un módulo ligero, no de useLocalLeague:
@@ -514,6 +522,8 @@ function detalleNodo (miembros, minutos) {
 }
 
 const AVISOS_LOCAL = { joining: 'Esperando a entrar', restoring: 'Restaurando' }
+
+const sinGruposEnModo = computed(() => (modo.value === 'local' ? gruposLocales.value.length : groups.value.length) === 0)
 
 const raices = computed(() => [
   gruposConServidor.value && {
