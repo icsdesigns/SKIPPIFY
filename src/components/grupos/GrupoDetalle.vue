@@ -34,53 +34,13 @@
 
     <div class="sk-divider my-4" />
 
-    <!-- ── Miembros ───────────────────────────────────────────────────────
-         Quien aparece aquí cuenta en el ranking. La barra fina es su tiempo
-         de escucha esta semana respecto al que más ha escuchado. -->
+    <!-- ── Miembros y resultados de la semana ───────────────────────────────
+         Un solo panel: cada miembro es una fila del ranking (por tiempo de
+         escucha) con su papel y su antigüedad. Quien aún no tiene escuchas esta
+         semana va al final, para que la lista siga siendo la del grupo. La barra
+         fina es su tiempo respecto al que más ha escuchado. -->
     <div class="flex flex-wrap items-center justify-between gap-2">
-      <h3 class="text-sm font-bold text-white">Miembros</h3>
-      <span class="sk-chip">{{ miembros.length || '—' }}</span>
-    </div>
-
-    <p v-if="!miembros.length" class="mt-3 text-xs text-slate-500">
-      Todavía no se ha podido leer la lista de miembros.
-    </p>
-
-    <ul v-else class="mt-3 grid gap-2 sm:grid-cols-2">
-      <li
-        v-for="m in miembros"
-        :key="m.id"
-        class="flex items-center gap-3 rounded-card px-3 py-2.5"
-        :class="m.yo ? 'bg-brand-400/[0.14]' : 'bg-white/[0.05]'"
-      >
-        <span
-          class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-bold"
-          :class="m.yo ? 'bg-brand-400 text-black' : 'bg-white/[0.12] text-slate-200'"
-        >{{ inicialDe(m.nombre) }}</span>
-        <span class="min-w-0 flex-1">
-          <span class="flex items-center gap-1.5">
-            <span class="min-w-0 truncate text-sm font-semibold text-white">{{ m.nombre }}</span>
-            <span v-if="m.yo" class="shrink-0 text-[10px] font-bold uppercase tracking-wider text-brand-400">tú</span>
-            <span v-if="m.admin" class="sk-chip shrink-0 !px-2 !py-0.5 !text-[10px]">Admin</span>
-          </span>
-          <span class="mt-0.5 block truncate text-[11px] text-slate-500">
-            {{ m.minutos ? formatearHoras(m.minutos) + ' esta semana' : 'Sin escuchas esta semana' }}<template v-if="m.desde"> · desde {{ m.desde }}</template>
-          </span>
-          <span class="mt-1.5 block h-1 overflow-hidden rounded-full bg-white/[0.08]">
-            <span
-              class="block h-full rounded-full bg-brand-400"
-              :style="{ width: `${Math.round((aporte.get(m.id) || 0) * 100)}%` }"
-            />
-          </span>
-        </span>
-      </li>
-    </ul>
-
-    <div class="sk-divider my-4" />
-
-    <!-- ── Ranking semanal ──────────────────────────────────────────────── -->
-    <div class="flex flex-wrap items-center justify-between gap-2">
-      <h3 class="text-sm font-bold text-white">Resultados semanales</h3>
+      <h3 class="text-sm font-bold text-white">Miembros y resultados</h3>
       <slot name="vistas">
         <span v-if="semana" class="sk-chip">{{ semana }}</span>
       </slot>
@@ -88,29 +48,34 @@
 
     <slot name="avisoRanking" />
 
-    <p v-if="!ranking.length" class="mt-3 text-xs text-slate-500">{{ sinRanking }}</p>
+    <p v-if="!filas.length" class="mt-3 text-xs text-slate-500">
+      Todavía no se ha podido leer la lista de miembros.
+    </p>
+    <p v-else-if="!ranking.length" class="mt-3 text-xs text-slate-500">{{ sinRanking }}</p>
 
-    <ul v-else class="mt-3.5 space-y-2">
+    <ul v-if="filas.length" class="mt-3.5 space-y-2">
       <li
-        v-for="(item, idx) in ranking"
+        v-for="(item, idx) in filas"
         :key="`${item.id}-${idx}`"
         class="flex items-center justify-between gap-3 rounded-card px-3 py-2.5 transition-colors"
         :class="item.yo ? 'bg-brand-400/[0.14]' : 'bg-white/[0.05] hover:bg-white/[0.09]'"
       >
-        <div class="flex min-w-0 items-start gap-3">
+        <div class="flex min-w-0 flex-1 items-start gap-3">
           <span
             class="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full font-mono text-[11px] font-bold tabular-nums"
-            :class="idx === 0 ? 'bg-brand-400 text-black' : idx < 3 ? 'bg-brand-400/25 text-brand-200' : 'bg-white/[0.10] text-slate-300'"
-          >{{ idx + 1 }}</span>
-          <div class="min-w-0">
+            :class="!item.minutos ? 'bg-white/[0.06] text-slate-500' : idx === 0 ? 'bg-brand-400 text-black' : idx < 3 ? 'bg-brand-400/25 text-brand-200' : 'bg-white/[0.10] text-slate-300'"
+          >{{ item.minutos ? idx + 1 : '·' }}</span>
+          <div class="min-w-0 flex-1">
             <!-- Dos líneas en vez de recorte: un nombre de 24 caracteres, el
                  máximo del formulario, no cabe en una a ancho de móvil. -->
             <p class="sk-clamp-2 text-sm font-semibold text-white">
               {{ item.nombre }}
               <span v-if="item.yo" class="ml-1 text-[10px] uppercase tracking-wider text-brand-400">tú</span>
+              <span v-if="item.admin" class="sk-chip ml-1 !px-2 !py-0.5 align-middle !text-[10px]">Admin</span>
             </p>
             <p class="mt-0.5 text-[11px] text-slate-400">
-              {{ item.canciones }} canciones
+              <template v-if="item.minutos">{{ item.canciones }} canciones</template>
+              <template v-else>Sin escuchas esta semana</template><template v-if="item.desde"> · desde {{ item.desde }}</template>
             </p>
             <!-- Cada línea en su renglón y recortada; el title deja leer el
                  nombre entero al pasar por encima. -->
@@ -123,9 +88,15 @@
             <p v-if="item.extras && item.extras.length" class="mt-1 flex flex-wrap gap-x-2.5 gap-y-0.5 text-[11px] text-slate-500">
               <span v-for="e in item.extras" :key="e.texto" :title="e.pista">{{ e.texto }}</span>
             </p>
+            <span class="mt-1.5 block h-1 overflow-hidden rounded-full bg-white/[0.08]">
+              <span
+                class="block h-full rounded-full bg-brand-400"
+                :style="{ width: `${Math.round((aporte.get(item.id) || 0) * 100)}%` }"
+              />
+            </span>
           </div>
         </div>
-        <span class="shrink-0 text-right font-mono text-sm font-bold tabular-nums text-brand-400">{{ formatearHoras(item.minutos) }}</span>
+        <span class="shrink-0 text-right font-mono text-sm font-bold tabular-nums" :class="item.minutos ? 'text-brand-400' : 'text-slate-600'">{{ item.minutos ? formatearHoras(item.minutos) : '—' }}</span>
       </li>
     </ul>
 
@@ -189,6 +160,25 @@ const props = defineProps({
 })
 
 const resumen = computed(() => resumirRanking(props.ranking))
-const aporte = computed(() => proporciones(props.miembros))
+/**
+ * Una fila por miembro: primero quienes tienen cifras esta semana (el ranking,
+ * ya ordenado por tiempo), con su papel y antigüedad; después el resto del
+ * grupo, para que la lista siga siendo la de todos.
+ */
+const filas = computed(() => {
+  const porId = new Map(props.miembros.map(m => [m.id, m]))
+  const vistas = new Set()
+  const filas = props.ranking.map((r) => {
+    vistas.add(r.id)
+    const m = porId.get(r.id)
+    return { ...r, admin: !!m?.admin, desde: m?.desde || '', yo: r.yo || !!m?.yo }
+  })
+  const resto = props.miembros
+    .filter(m => !vistas.has(m.id))
+    .map(m => ({ id: m.id, nombre: m.nombre, yo: m.yo, admin: m.admin, desde: m.desde, minutos: 0, canciones: 0, extras: [] }))
+    .sort((a, b) => String(a.nombre).localeCompare(String(b.nombre), 'es'))
+  return [...filas, ...resto]
+})
+const aporte = computed(() => proporciones(filas.value))
 const pares = computed(() => paresEnComun(props.ranking))
 </script>

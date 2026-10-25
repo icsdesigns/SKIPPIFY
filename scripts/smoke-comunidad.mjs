@@ -172,6 +172,8 @@ async function main () {
   check('el ranking va por tiempo de escucha', html.indexOf('Ana') < html.indexOf('Bartolomé') && html.indexOf('Bartolomé') < html.indexOf('Carlos'))
   check('aparece la escucha en común entre dos miembros con datos', html.includes('Escucha en común') && html.includes('Ana · Bartolomé de las Casas Fernández'))
   check('una ficha antigua no genera una pareja', !html.includes('Carlos ·') && !html.includes('· Carlos'))
+  check('miembros y resultados son un solo panel', html.includes('Miembros y resultados') && !html.includes('Resultados semanales') && html.split('Miembros y resultados').length === 2)
+  check('el papel de administrador va en la fila del ranking', html.split('>Admin<').length === 2 && html.indexOf('>Admin<') > html.indexOf('Miembros y resultados'))
   check('aparece el ranking y no el aviso de «sin publicar»',
     !html.includes('Todavía no hay ranking publicado'))
   check('cifras de la ficha completa', html.includes('10 h 12 min') && html.includes('184 canciones'),
