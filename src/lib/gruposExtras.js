@@ -143,3 +143,68 @@ export function paresEnComun (fichas) {
 export function ordenarPorTiempo (fichas) {
   return [...fichas].sort((a, b) => (b.minutos - a.minutos) || String(a.nombre).localeCompare(String(b.nombre), 'es'))
 }
+
+/** Icono que acompaña a cada perfil horario. */
+const ICONO_PERFIL = { 'Mañanero': 'sun', 'De tarde': 'sunset', 'De noche': 'moon', 'Noctámbulo': 'stars' }
+
+/**
+ * Mosaico de cifras de la ficha de un miembro, a partir de su resultado
+ * semanal (`scoreMember`). Cada una sale sólo si el resultado la trae.
+ * `progreso` (0-1) dibuja una barra bajo el valor.
+ *
+ * @returns {Array<{ clave: string, icono: string, valor: string, etiqueta: string, detalle?: string, progreso?: number }>}
+ */
+export function cifrasDe (datos) {
+  if (!datos) return []
+  const out = []
+
+  const tasa = numero(datos.completionRate)
+  if (tasa !== null) {
+    const r = Math.max(0, Math.min(1, tasa))
+    out.push({ clave: 'terminadas', icono: 'finish', valor: `${Math.round(r * 100)} %`, etiqueta: 'terminadas', detalle: 'hasta el final', progreso: r })
+  }
+
+  const variedad = numero(datos.varietyIndex)
+  if (variedad !== null) {
+    const r = Math.max(0, Math.min(1, variedad))
+    out.push({ clave: 'variedad', icono: 'shuffle', valor: `${Math.round(r * 100)} %`, etiqueta: 'variedad', detalle: 'temas sin repetir', progreso: r })
+  }
+
+  const dia = diaCorto(datos.busiestDay)
+  const minutosDia = numero(datos.busiestDayMinutes)
+  if (dia && minutosDia !== null && minutosDia > 0) {
+    out.push({ clave: 'dia', icono: 'calendar', valor: dia, etiqueta: 'día top', detalle: formatearHoras(minutosDia) })
+  }
+
+  const perfil = perfilHorario(datos.peakHour)
+  if (perfil) {
+    const h = numero(datos.peakHour)
+    out.push({ clave: 'perfil', icono: ICONO_PERFIL[perfil] || 'clock', valor: perfil, etiqueta: 'perfil', detalle: `más a las ${h}–${(h + 1) % 24} h` })
+  }
+
+  const sesion = numero(datos.longestSessionMinutes)
+  if (sesion !== null && sesion > 0) {
+    const n = numero(datos.sessionCount)
+    out.push({
+      clave: 'sesion',
+      icono: 'timer',
+      valor: formatearHoras(sesion),
+      etiqueta: 'sesión más larga',
+      detalle: n ? `${n} ${n === 1 ? 'sesión' : 'sesiones'}` : ''
+    })
+  }
+
+  const artistas = numero(datos.distinctArtists)
+  const temas = numero(datos.distinctTracks)
+  if (artistas !== null || temas !== null) {
+    out.push({
+      clave: 'repertorio',
+      icono: 'library',
+      valor: artistas !== null ? `${artistas} ${artistas === 1 ? 'artista' : 'artistas'}` : `${temas} temas`,
+      etiqueta: 'repertorio',
+      detalle: artistas !== null && temas !== null ? `${temas} ${temas === 1 ? 'tema' : 'temas'}` : ''
+    })
+  }
+
+  return out
+}

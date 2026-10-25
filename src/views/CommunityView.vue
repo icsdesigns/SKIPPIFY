@@ -463,6 +463,7 @@ function fichasDe (groupId) {
       artista: getTopArtist(item),
       tema: getTopTrack(item),
       ...nuevos,
+      datos: item,
       extras: [
         getDistinct(item) && { texto: getDistinct(item) },
         getVariety(item) && { texto: getVariety(item), pista: VARIETY_HINT },

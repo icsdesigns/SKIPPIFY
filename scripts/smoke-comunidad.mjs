@@ -158,7 +158,7 @@ async function main () {
   // `--html` vuelca el fragmento del ranking: es la forma de mirar el marcado
   // real cuando algo «se ve mal» y no se tiene el móvil delante.
   if (process.argv.includes('--html')) {
-    const i = html.indexOf('Resultados semanales')
+    const i = html.indexOf('Miembros y resultados')
     console.log(html.slice(i, i + 4000).replace(/></g, '>\n<'))
   }
 
@@ -169,8 +169,20 @@ async function main () {
   }
 
   console.log('\nFichas del ranking')
-  check('las cifras nuevas de la ficha completa', html.includes('82 % terminadas') && html.includes('Día top: mié 16 sept') && html.includes('Sesión más larga: 1 h 35 min'),
-    html.slice(html.indexOf('terminadas') - 80, html.indexOf('terminadas') + 200))
+  const cifra = (clave) => {
+    const i = html.indexOf(`data-cifra="${clave}"`)
+    return i < 0 ? '' : html.slice(i, html.indexOf('</li>', i))
+  }
+  check('las cifras nuevas van en el mosaico de la ficha',
+    cifra('terminadas').includes('82 %') && cifra('dia').includes('mié 16 sept') && cifra('dia').includes('2 h 10 min') &&
+    cifra('sesion').includes('1 h 35 min') && cifra('sesion').includes('11 sesiones'),
+    cifra('terminadas') + ' | ' + cifra('dia'))
+  check('cada cifra lleva su icono y su etiqueta', cifra('perfil').includes('<svg') && cifra('perfil').includes('perfil'))
+  check('los porcentajes llevan su barra', /h-1 overflow-hidden/.test(cifra('terminadas')) && !/h-1 overflow-hidden/.test(cifra('dia')))
+  check('la ficha propia viene desplegada y las demás plegadas',
+    /data-miembro="uid-ana"[\s\S]*?aria-expanded="true"/.test(html) && /data-miembro="uid-largo"[\s\S]*?aria-expanded="false"/.test(html))
+  check('el podio lleva medallas', html.includes(' medalla ') && /oro text-black/.test(html) && /plata text-black/.test(html) && /bronce text-black/.test(html))
+  check('el anillo del avatar está presente', html.includes('class="anillo text-brand-400"'))
   check('el perfil horario sale de la hora punta', html.includes('De noche') && html.includes('Noctámbulo'))
   check('las veces repetido van junto al artista y al tema', html.includes('×31') && html.includes('×12'))
   check('ya no se enseñan puntos', !html.includes('700.9') && !html.includes('700,9') && !html.includes('460.0'))
@@ -185,7 +197,7 @@ async function main () {
     'no se encontraron minutos/canciones de Ana')
   check('artista y canción top', html.includes('Rosalía') && html.includes('Despechá'))
   check('repertorio distinto', html.includes('42 artistas') && html.includes('118 temas'))
-  check('índice de variedad en porcentaje', html.includes('64 % variedad'))
+  check('índice de variedad en porcentaje', cifra('variedad').includes('64 %'))
   check('hora punta como franja', html.includes('21–22 h'))
   check('la medianoche (peakHour = 0) se pinta', html.includes('0–1 h'),
     'peakHour 0 es falsy: si se comprueba por verdadero/falso desaparece')
@@ -197,10 +209,10 @@ async function main () {
   // sin recorte, un título largo se partía en tres renglones y el punto medio
   // de separación quedaba en mitad del texto.
   check('el artista top va en su propia línea recortada',
-    /title="Nick Cave and the Bad Seeds feat\. Kylie Minogue"[^>]*>(?:(?!<\/p>)[\s\S])*<span class="truncate">Nick Cave/.test(html),
+    /title="Nick Cave and the Bad Seeds feat\. Kylie Minogue"[^>]*>(?:(?!<\/p>)[\s\S])*class="block truncate[^"]*"[^>]*>Nick Cave/.test(html),
     'un nombre largo se sale de la tarjeta')
   check('la canción top va en su propia línea recortada',
-    /<span class="truncate">Despechá<\/span>/.test(html))
+    /class="block truncate[^"]*"[^>]*>Despechá<\/span>/.test(html))
   check('el nombre entero queda accesible en el title',
     html.includes('title="Everything Is Embarrassing (Sky Ferreira Extended Remix Version)"'))
   check('sin artista ni canción no se rellena con «sin datos»',
@@ -210,7 +222,7 @@ async function main () {
   check('el detalle del grupo enseña quién va primero', html.includes('Los del garaje') && html.includes('Va primero'))
   check('el listado de miembros trae su aportación', html.includes('Sin escuchas esta semana') === false && html.includes('esta semana'))
   check('un nombre de miembro largo se lee en dos líneas, no recortado',
-    /<p class="sk-clamp-2 text-sm font-semibold text-white"/.test(html))
+    /<span class="sk-clamp-2 text-sm font-semibold text-white"[^>]*>Bartolomé/.test(html))
 
   console.log('\nÁrbol de modos y grupos')
   {

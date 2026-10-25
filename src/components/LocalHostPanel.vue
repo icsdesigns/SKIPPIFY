@@ -328,6 +328,7 @@ function fichasDe (groupId) {
       artista: item.topArtist || '',
       tema: item.topTrack || '',
       ...nuevos,
+      datos: item,
       extras: [...extrasBase(item), ...nuevos.extras]
     }
   })
