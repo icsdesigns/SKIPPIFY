@@ -24,6 +24,7 @@ import { useEventStore } from '@/stores/events'
 import { IdbStorage, deleteSlot } from '@/lib/localhost/idbStorage'
 import { NostrTransport, DEFAULT_RELAYS } from '@/lib/localhost/nostrTransport'
 import { esCodigoExpres, formatearCodigo, generarCodigo, publicarExpres, resolverExpres, EXPRES_TTL_MS } from '@/lib/localhost/expres'
+import { actividadPorPersona, elegirExpulsados, LATIDO_MS, REVISION_MS } from '@/lib/localhost/inactividad'
 import { decodeEscuchas, encodeEscuchas, partirEnLotes, ventanaSemana, puntuarSemana } from '@/lib/localhost/escuchas'
 
 const STATE_KEY = 'skippify-localhost-state'
@@ -31,6 +32,7 @@ const MAX_GROUPS = 5
 const COLL = 'escuchas'
 const COLL_GRUPO = 'grupo'
 const COLL_PERFIL = 'perfil'
+const COLL_PRESENCIA = 'presencia'
 const SYNC_INTERVAL_MS = 60_000
 /** Cada cuánto se mira si toca sincronizar (el ritmo real lo decide `tick`). */
 const TICK_MS = 15_000
@@ -213,8 +215,14 @@ async function openRuntime (groupId) {
   const group = await kit.LocalHost.openGroup({ storage, transport })
   const rt = { kit, storage, transport, group }
   runtimes.set(groupId, rt)
-  statuses[groupId] = group.status
+  statuses[groupId] = estadoDe(group)
   return rt
+}
+
+/** Estado del grupo para la interfaz: `expelled` si ya no somos miembros. */
+function estadoDe (group) {
+  try { if (group.removedInOwnView()) return 'expelled' } catch { /* sin vista aún */ }
+  return group.status
 }
 
 /** Nombre del grupo: lo escribe el creador en la colección `grupo` (gana el más antiguo). */
@@ -249,7 +257,7 @@ async function asegurarPerfil (group) {
 }
 
 function refreshMembers (groupId, group) {
-  statuses[groupId] = group.status
+  statuses[groupId] = estadoDe(group)
   const nombres = nombresDe(group)
   const list = group.members()
     .filter(m => !m.removed)
@@ -356,7 +364,7 @@ async function joinGroup ({ inviteCode, displayName } = {}) {
     state.value.activeGroupId = slot
     saveState()
     runtimes.set(slot, { kit, storage, transport, group })
-    statuses[slot] = group.status
+    statuses[slot] = estadoDe(group)
     message.value = 'Solicitud enviada. Entrarás cuando algún miembro del grupo abra la app.'
     void vigilarEntrada(slot)
     acelerar()
@@ -472,7 +480,7 @@ async function linkDevice ({ code, displayName } = {}) {
     state.value.activeGroupId = slot
     saveState()
     runtimes.set(slot, { kit, storage, transport, group })
-    statuses[slot] = group.status
+    statuses[slot] = estadoDe(group)
     void vigilarEntrada(slot)
     acelerar()
     return slot
@@ -514,7 +522,7 @@ async function restoreBackup ({ backup, password, displayName } = {}) {
     state.value.activeGroupId = slot
     saveState()
     runtimes.set(slot, { kit, storage, transport, group })
-    statuses[slot] = group.status
+    statuses[slot] = estadoDe(group)
     void vigilarEntrada(slot)
     acelerar()
     return slot
@@ -693,6 +701,64 @@ async function avisarSiSemanaNueva (groupId) {
   return true
 }
 
+// ── Presencia y expulsión por inactividad ───────────────────────────────────
+//
+// Un dispositivo que no envía nada en 30 días sale del grupo. Cada móvil
+// anota como mucho una vez al día que sigue vivo (colección `presencia`), y el
+// primer administrador activo revisa cada pocas horas quién lleva demasiado
+// callado y lo expulsa con el mecanismo normal del kit (cambio de llave
+// incluido). Las reglas de decisión viven en lib/localhost/inactividad.js.
+
+async function latidoDePresencia (group, ahora) {
+  const yo = group.me.person
+  let ultimo = 0
+  for (const item of group.records(COLL_PRESENCIA).items()) {
+    if (!item.removed && item.data?.u === yo && Number.isFinite(item.data.t)) ultimo = Math.max(ultimo, item.data.t)
+  }
+  if (ahora - ultimo < LATIDO_MS) return
+  await group.records(COLL_PRESENCIA).add({ u: yo, t: ahora })
+}
+
+async function revisarInactivos (groupId, rt, report, ahora) {
+  const meta = findGroup(groupId)
+  const { group } = rt
+  if (!meta || ahora - (meta.ultimaRevision || 0) < REVISION_MS) return
+  // Sólo con una vista fiable: casi todos los relays contestaron y el reloj de
+  // este móvil no se aleja del del grupo. Si no, otros parecerían callados sólo
+  // porque aquí falta lo que han publicado.
+  const fallados = (report?.failedRelays || []).length
+  const total = (meta.relays?.length || DEFAULT_RELAYS.length)
+  if (!report || fallados > Math.floor(total / 2)) return
+  if (Math.abs(group.groupTime() - ahora) > 24 * 3600 * 1000) return
+
+  meta.ultimaRevision = ahora
+  const yo = group.members().find(m => m.person === group.me.person)
+  if (!yo?.admin) { saveState(); return }
+
+  const eventos = await rt.storage.getEvents({})
+  const actividad = actividadPorPersona(eventos, d => group.membershipView().personOf(d), ahora)
+  const nombres = nombresDe(group)
+  const lista = elegirExpulsados({ miembros: group.members(), actividad, ahora, yo: group.me.person })
+  const hechas = []
+  for (const persona of lista) {
+    try {
+      await group.removePerson(persona)
+      hechas.push({ nombre: nombres.get(persona) || 'Miembro', at: ahora })
+    } catch { /* ya expulsado, o es un administrador superior: no pasa nada */ }
+  }
+  if (hechas.length) meta.expulsados = [...hechas, ...(meta.expulsados || [])].slice(0, 10)
+  saveState()
+  if (hechas.length) refreshMembers(groupId, group)
+}
+
+async function mantenimiento (groupId, rt, report) {
+  const { group } = rt
+  if (group.status !== 'ready' || !group.canSeal() || group.removedInOwnView()) return
+  const ahora = Date.now()
+  await latidoDePresencia(group, ahora)
+  await revisarInactivos(groupId, rt, report, ahora)
+}
+
 // ── Sincronización ──────────────────────────────────────────────────────────
 
 async function syncGroup (groupId, { silent = true } = {}) {
@@ -705,9 +771,10 @@ async function syncGroup (groupId, { silent = true } = {}) {
   }
   try {
     const report = await rt.group.sync()
-    if (rt.group.status === 'ready') {
+    if (rt.group.status === 'ready' && !rt.group.removedInOwnView()) {
       await asegurarPerfil(rt.group)
       await publicarEscuchas(groupId)
+      try { await mantenimiento(groupId, rt, report) } catch { /* se reintenta en la siguiente */ }
     }
     refreshMembers(groupId, rt.group)
     lastSyncByGroup[groupId] = Date.now()
@@ -732,7 +799,7 @@ function vigilarEntrada (groupId) {
   if (entrando.has(groupId)) return entrando.get(groupId)
   const hasta = Date.now() + ENTRADA_DURANTE_MS
   const espera = ms => new Promise(resolve => setTimeout(resolve, ms))
-  const listo = () => (statuses[groupId] || 'ready') === 'ready'
+  const listo = () => ['ready', 'expelled'].includes(statuses[groupId] || 'ready')
   const bucle = (async () => {
     while (findGroup(groupId) && !listo() && Date.now() < hasta) {
       await syncAll({ silent: true })
@@ -766,6 +833,7 @@ function syncAll (options = {}) {
   syncAllPromise = (async () => {
     let n = 0
     for (const g of [...state.value.groups]) {
+      if (statuses[g.groupId] === 'expelled') continue
       const r = await syncGroup(g.groupId, options)
       if (r) n += 1
       try { await avisarSiSemanaNueva(g.groupId) } catch { /* sin datos aún */ }
@@ -804,7 +872,7 @@ function tick () {
   if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return
   if (!state.value.groups.length) return
   const ahora = Date.now()
-  const esperando = state.value.groups.some(g => (statuses[g.groupId] || 'ready') !== 'ready')
+  const esperando = state.value.groups.some(g => ['joining', 'restoring'].includes(statuses[g.groupId]))
   if (esperando || ahora < fastUntil || ahora - lastFullSync >= SYNC_INTERVAL_MS) void syncAll()
 }
 
@@ -833,9 +901,11 @@ export async function backgroundTick () {
   for (const g of state.value.groups) {
     try {
       const rt = await openRuntime(g.groupId)
-      await rt.group.sync()
+      const report = await rt.group.sync()
+      if (rt.group.removedInOwnView()) continue
       if (rt.group.status !== 'ready') rapido = true
       else {
+        try { await mantenimiento(g.groupId, rt, report) } catch { /* se reintenta */ }
         // Las estadísticas del grupo se mantienen al día aunque la app esté cerrada.
         try { await publicarEscuchas(g.groupId, { desdeFondo: true }) } catch { /* se reintenta */ }
         if (rt.group.membershipView().activeInvites(Date.now()).length) rapido = true
