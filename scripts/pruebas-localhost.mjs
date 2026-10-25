@@ -17,6 +17,7 @@ import {
   decodeEscuchas, encodeEscuchas, partirEnLotes, puntuarSemana, ventanaSemana, tuplaAEvento
 } from '../src/lib/localhost/escuchas.js'
 import { scoreMember, esNoMusical } from '../firebase/functions/scoring.js'
+import { escuchaComun, extrasNuevos, ordenarPorTiempo, paresEnComun, perfilHorario, diaCorto } from '../src/lib/gruposExtras.js'
 
 let fallos = 0
 let total = 0
@@ -212,6 +213,41 @@ titulo('El DJ de Spotify y los anuncios no cuentan como música')
   check('la locución no suma escuchas', r.totalTracks === 3, String(r.totalTracks))
   check('una canción llamada «Up next» de un artista real sí cuenta', !esNoMusical('Up Next', 'Un Artista'))
   check('artistas con «DJ» en el nombre sí cuentan', !esNoMusical('Hola', 'DJ Snake') && esNoMusical('Anuncio', 'x') && esNoMusical('Hey', 'DJ X'))
+}
+
+titulo('Estadísticas nuevas de cada miembro')
+{
+  const ev = (h, mi, artist, track, msPlayed = 190_000, dia = 5) => ({ playedAt: new Date(Date.UTC(2026, 9, dia, h, mi)).toISOString(), track, artist, durationMs: 200_000, msPlayed, measuredMs: msPlayed, countedForRegister: true })
+  const r = scoreMember([ev(10, 0, 'A', 't1'), ev(10, 3, 'A', 't2'), ev(10, 7, 'B', 't3'), ev(11, 0, 'A', 't1'), ev(15, 0, 'A', 't1'), ev(15, 4, 'C', 't4', 100_000), ev(20, 0, 'A', 't1', 190_000, 6)])
+  check('tasa de finalización: terminadas sobre registradas', r.completionRate === 0.857, String(r.completionRate))
+  check('día de más escucha', r.busiestDay === '2026-10-05', String(r.busiestDay))
+  check('sesiones: separa por silencios de más de 10 min', r.sessionCount === 4, String(r.sessionCount))
+  check('sesión más larga ≈ 9,5 min', Math.abs(r.longestSessionMinutes - 9.5) < 0.05, String(r.longestSessionMinutes))
+  check('artistas con su número de escuchas, de más a menos', r.artistCounts[0][0] === 'A' && r.artistCounts[0][1] === 5, JSON.stringify(r.artistCounts))
+  check('el DJ no aparece entre los artistas', !scoreMember([ev(10, 0, 'DJ', 'Up next')]).artistCounts.length)
+
+  check('perfil horario', perfilHorario(8) === 'Mañanero' && perfilHorario(15) === 'De tarde' && perfilHorario(21) === 'De noche' && perfilHorario(2) === 'Noctámbulo' && perfilHorario(null) === '')
+  check('día corto sin que la zona lo corra', diaCorto('2026-10-05').startsWith('lun'), diaCorto('2026-10-05'))
+  const x = extrasNuevos(r)
+  check('extras: finalización, día top, perfil y sesión', x.extras.length === 4 && x.temaVeces === 4 && x.artistaVeces === 5, JSON.stringify(x.extras.map(e => e.texto)))
+  check('un resultado antiguo no trae extras ni huecos', extrasNuevos({ totalMinutes: 10 }).extras.length === 0)
+
+  const ana = [['Rosalía', 10], ['Bad Bunny', 10]]
+  const luis = [['Rosalía', 10], ['Quevedo', 10]]
+  check('escucha en común: mitad y mitad = 50 %', escuchaComun(ana, luis) === 50)
+  check('mismo reparto = 100 %', escuchaComun(ana, ana) === 100)
+  check('nada en común = 0 %', escuchaComun(ana, [['Otro', 3]]) === 0)
+  check('proporciones, no cantidades: 10 contra 100 escuchas', escuchaComun([['A', 1]], [['A', 100]]) === 100)
+  check('sin datos no hay porcentaje', escuchaComun([], ana) === null)
+  const pares = paresEnComun([
+    { id: '1', nombre: 'Ana', yo: true, conteoArtistas: ana },
+    { id: '2', nombre: 'Luis', conteoArtistas: luis },
+    { id: '3', nombre: 'Mar', conteoArtistas: ana },
+    { id: '4', nombre: 'Sin datos', conteoArtistas: [] }
+  ])
+  check('pares: 3 parejas y la más parecida primero', pares.length === 3 && pares[0].pct === 100 && pares[0].a === 'Ana' && pares[0].b === 'Mar', JSON.stringify(pares))
+  const orden = ordenarPorTiempo([{ nombre: 'B', minutos: 30 }, { nombre: 'A', minutos: 90 }, { nombre: 'C', minutos: 30 }])
+  check('ranking por tiempo de escucha, sin puntos', orden.map(f => f.nombre).join('') === 'ABC')
 }
 
 console.log(`\n${total - fallos}/${total} comprobaciones correctas`)

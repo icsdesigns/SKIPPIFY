@@ -59,7 +59,13 @@ const MIEMBROS = [
     distinctTracks: 118,
     varietyIndex: 0.641,
     peakHour: 21,
-    peakHourPlays: 24
+    peakHourPlays: 24,
+    completionRate: 0.82,
+    busiestDay: '2026-09-16',
+    busiestDayMinutes: 130,
+    longestSessionMinutes: 95,
+    sessionCount: 11,
+    artistCounts: [['Rosalía', 31], ['Bad Bunny', 20], ['Quevedo', 10]]
   },
   {
     uid: 'uid-largo',
@@ -77,7 +83,8 @@ const MIEMBROS = [
     distinctTracks: 60,
     varietyIndex: 0.625,
     peakHour: 0,
-    peakHourPlays: 11
+    peakHourPlays: 11,
+    artistCounts: [['Rosalía', 10], ['Nick Cave and the Bad Seeds feat. Kylie Minogue', 9]]
   },
   {
     // Resultado antiguo: sin repertorio, variedad ni hora punta.
@@ -157,6 +164,14 @@ async function main () {
   }
 
   console.log('\nFichas del ranking')
+  check('las cifras nuevas de la ficha completa', html.includes('82 % terminadas') && html.includes('Día top: mié 16 sept') && html.includes('Sesión más larga: 1 h 35 min'),
+    html.slice(html.indexOf('terminadas') - 80, html.indexOf('terminadas') + 200))
+  check('el perfil horario sale de la hora punta', html.includes('De noche') && html.includes('Noctámbulo'))
+  check('las veces repetido van junto al artista y al tema', html.includes('×31') && html.includes('×12'))
+  check('ya no se enseñan puntos', !html.includes('700.9') && !html.includes('700,9') && !html.includes('460.0'))
+  check('el ranking va por tiempo de escucha', html.indexOf('Ana') < html.indexOf('Bartolomé') && html.indexOf('Bartolomé') < html.indexOf('Carlos'))
+  check('aparece la escucha en común entre dos miembros con datos', html.includes('Escucha en común') && html.includes('Ana · Bartolomé de las Casas Fernández'))
+  check('una ficha antigua no genera una pareja', !html.includes('Carlos ·') && !html.includes('· Carlos'))
   check('aparece el ranking y no el aviso de «sin publicar»',
     !html.includes('Todavía no hay ranking publicado'))
   check('cifras de la ficha completa', html.includes('10 h 12 min') && html.includes('184 canciones'),

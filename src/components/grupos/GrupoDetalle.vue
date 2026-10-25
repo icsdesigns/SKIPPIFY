@@ -110,24 +110,51 @@
               <span v-if="item.yo" class="ml-1 text-[10px] uppercase tracking-wider text-brand-400">tú</span>
             </p>
             <p class="mt-0.5 text-[11px] text-slate-400">
-              {{ formatearHoras(item.minutos) }} · {{ item.canciones }} canciones
+              {{ item.canciones }} canciones
             </p>
             <!-- Cada línea en su renglón y recortada; el title deja leer el
                  nombre entero al pasar por encima. -->
             <p v-if="item.artista" class="mt-0.5 flex items-center gap-1.5 text-[11px] text-slate-500" :title="item.artista">
-              <GrupoIcono name="mic" class="h-3 w-3 shrink-0" /><span class="truncate">{{ item.artista }}</span>
+              <GrupoIcono name="mic" class="h-3 w-3 shrink-0" /><span class="truncate">{{ item.artista }}</span><span v-if="item.artistaVeces > 1" class="shrink-0 text-slate-600">×{{ item.artistaVeces }}</span>
             </p>
             <p v-if="item.tema" class="mt-0.5 flex items-center gap-1.5 text-[11px] text-slate-500" :title="item.tema">
-              <GrupoIcono name="note" class="h-3 w-3 shrink-0" /><span class="truncate">{{ item.tema }}</span>
+              <GrupoIcono name="note" class="h-3 w-3 shrink-0" /><span class="truncate">{{ item.tema }}</span><span v-if="item.temaVeces > 1" class="shrink-0 text-slate-600">×{{ item.temaVeces }}</span>
             </p>
             <p v-if="item.extras && item.extras.length" class="mt-1 flex flex-wrap gap-x-2.5 gap-y-0.5 text-[11px] text-slate-500">
               <span v-for="e in item.extras" :key="e.texto" :title="e.pista">{{ e.texto }}</span>
             </p>
           </div>
         </div>
-        <span class="shrink-0 font-mono text-sm font-bold tabular-nums text-brand-400">{{ item.puntos }}</span>
+        <span class="shrink-0 text-right font-mono text-sm font-bold tabular-nums text-brand-400">{{ formatearHoras(item.minutos) }}</span>
       </li>
     </ul>
+
+    <!-- ── Escucha en común ─────────────────────────────────────────────────
+         La parte de su música que coincide entre dos miembros, artista a
+         artista. Sale sólo cuando hay al menos dos con datos. -->
+    <template v-if="pares.length">
+      <div class="sk-divider my-4" />
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <h3 class="text-sm font-bold text-white">Escucha en común</h3>
+        <span class="text-[11px] text-slate-500" title="La parte de su escucha que coincide, artista a artista">100 % = oís lo mismo</span>
+      </div>
+      <ul class="mt-3 space-y-2">
+        <li
+          v-for="par in pares"
+          :key="`${par.idA}-${par.idB}`"
+          class="rounded-card px-3 py-2.5"
+          :class="par.yo ? 'bg-brand-400/[0.14]' : 'bg-white/[0.05]'"
+        >
+          <div class="flex items-center justify-between gap-3">
+            <span class="min-w-0 truncate text-sm font-semibold text-white">{{ par.a }} · {{ par.b }}</span>
+            <span class="shrink-0 font-mono text-sm font-bold tabular-nums text-brand-400">{{ par.pct }} %</span>
+          </div>
+          <span class="mt-1.5 block h-1 overflow-hidden rounded-full bg-white/[0.08]">
+            <span class="block h-full rounded-full bg-brand-400" :style="{ width: `${par.pct}%` }" />
+          </span>
+        </li>
+      </ul>
+    </template>
 
     <slot />
   </section>
@@ -144,6 +171,7 @@
 import { computed } from 'vue'
 import GrupoIcono from './GrupoIcono.js'
 import { formatearHoras, inicialDe, proporciones, resumirRanking } from '@/lib/gruposResumen'
+import { paresEnComun } from '@/lib/gruposExtras'
 
 const props = defineProps({
   nombre: { type: String, required: true },
@@ -151,7 +179,10 @@ const props = defineProps({
   meta: { type: Array, default: () => [] },
   /** [{ id, nombre, yo, admin, desde, minutos }] */
   miembros: { type: Array, default: () => [] },
-  /** [{ id, nombre, yo, minutos, canciones, puntos, artista, tema, extras: [{ texto, pista }] }] */
+  /**
+   * [{ id, nombre, yo, minutos, canciones, artista, artistaVeces, tema, temaVeces,
+   *    extras: [{ texto, pista }], conteoArtistas }], ya ordenado por tiempo de escucha.
+   */
   ranking: { type: Array, default: () => [] },
   semana: { type: String, default: '' },
   sinRanking: { type: String, default: 'Todavía no hay datos de esta semana.' }
@@ -159,4 +190,5 @@ const props = defineProps({
 
 const resumen = computed(() => resumirRanking(props.ranking))
 const aporte = computed(() => proporciones(props.miembros))
+const pares = computed(() => paresEnComun(props.ranking))
 </script>

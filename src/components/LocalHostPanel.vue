@@ -237,6 +237,7 @@
  */
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useLocalLeague } from '@/composables/useLocalLeague'
+import { extrasBase, extrasNuevos, ordenarPorTiempo } from '@/lib/gruposExtras'
 import GrupoDetalle from '@/components/grupos/GrupoDetalle.vue'
 import InvitacionExpres from '@/components/grupos/InvitacionExpres.vue'
 import GrupoIcono from '@/components/grupos/GrupoIcono.js'
@@ -316,17 +317,21 @@ const lastSync = computed(() => {
 function fichasDe (groupId) {
   const lb = leaderboards[groupId]
   const yo = (members[groupId] || []).find(m => m.you)?.uid
-  return (lb?.members || []).map(item => ({
-    id: item.uid,
-    nombre: item.displayName,
-    yo: item.uid === yo,
-    minutos: Number(item.totalMinutes || 0),
-    canciones: Number(item.totalTracks || 0),
-    puntos: Number(item.score || 0).toFixed(1),
-    artista: item.topArtist || '',
-    tema: item.topTrack || '',
-    extras: []
-  }))
+  const fichas = (lb?.members || []).map((item) => {
+    const nuevos = extrasNuevos(item)
+    return {
+      id: item.uid,
+      nombre: item.displayName,
+      yo: item.uid === yo,
+      minutos: Number(item.totalMinutes || 0),
+      canciones: Number(item.totalTracks || 0),
+      artista: item.topArtist || '',
+      tema: item.topTrack || '',
+      ...nuevos,
+      extras: [...extrasBase(item), ...nuevos.extras]
+    }
+  })
+  return ordenarPorTiempo(fichas)
 }
 
 const rankingVista = computed(() => fichasDe(activeGroupId.value))

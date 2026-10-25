@@ -84,6 +84,24 @@ function esNoMusical (track, artist) {
   return false
 }
 
+/** Día del calendario de Madrid (YYYY-MM-DD): el «día» que ve quien escucha. */
+const FORMATO_DIA_MADRID = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'Europe/Madrid',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit'
+})
+
+function diaLocalDeEscucha (playedAt) {
+  const d = new Date(playedAt || 0)
+  if (!Number.isFinite(d.getTime())) return null
+  return FORMATO_DIA_MADRID.format(d)
+}
+
+/** Silencio que separa dos sesiones, además de lo que dura la canción siguiente. */
+const HUECO_SESION_MS = 10 * 60 * 1000
+const ARTISTAS_PUBLICADOS = 40
+
 function scoreMember (events) {
   let validMinutes = 0
   let completedTracks = 0
@@ -93,6 +111,10 @@ function scoreMember (events) {
   const trackPlays = new Map()
   /** Escuchas por hora del día (0-23), para la hora punta. */
   const horas = new Array(24).fill(0)
+  /** Minutos terminados por día de Madrid, para el día de más escucha. */
+  const minutosPorDia = new Map()
+  /** Escuchas registradas, para agruparlas en sesiones. */
+  const sesiones = []
 
   const addPlay = (map, rawKey) => {
     const key = (rawKey || '').toString().trim()
@@ -120,12 +142,15 @@ function scoreMember (events) {
       addPlay(trackPlays, e.track)
       const hora = horaLocalDeEscucha(e.playedAt)
       if (hora !== null) horas[hora] += 1
+      sesiones.push({ t: playedAt.getTime(), dur: duration, ms: measuredMs })
     }
 
     if (ratio >= 0.8 && msPlayed > 0) {
       validMinutes += msPlayed / 60000
       completedTracks += 1
       days.add(playedAt.toISOString().slice(0, 10))
+      const dia = diaLocalDeEscucha(e.playedAt)
+      if (dia) minutosPorDia.set(dia, (minutosPorDia.get(dia) || 0) + msPlayed / 60000)
     }
   }
 
@@ -161,6 +186,46 @@ function scoreMember (events) {
     }
   }
 
+  // Tasa de finalización: de las canciones que llegaron a registrarse, cuántas
+  // se oyeron hasta el final. Va como razón (0-1), como la variedad.
+  const completionRate = totalTracks > 0 ? Math.min(1, completedTracks / totalTracks) : 0
+
+  // Día de más escucha: gana el de más minutos; con empate, el más antiguo.
+  let busiestDay = null
+  let busiestDayMinutes = 0
+  for (const dia of [...minutosPorDia.keys()].sort()) {
+    const m = minutosPorDia.get(dia)
+    if (m > busiestDayMinutes) {
+      busiestDay = dia
+      busiestDayMinutes = m
+    }
+  }
+
+  // Sesión más larga: escuchas seguidas con menos de 10 min de silencio entre
+  // una y la siguiente (más lo que dura la siguiente, que es lo normal entre
+  // el comienzo de dos canciones consecutivas).
+  sesiones.sort((a, b) => a.t - b.t)
+  let sessionCount = 0
+  let longestSessionMs = 0
+  let actualMs = 0
+  let anterior = null
+  for (const s of sesiones) {
+    if (anterior === null || s.t - anterior.t > Math.max(s.dur, 0) + HUECO_SESION_MS) {
+      sessionCount += 1
+      actualMs = 0
+    }
+    actualMs += Math.max(0, s.ms)
+    if (actualMs > longestSessionMs) longestSessionMs = actualMs
+    anterior = s
+  }
+
+  // Artistas con su número de escuchas (los más escuchados): con ellos cada app
+  // calcula cuánto se parecen dos miembros sin pedir nada más al servidor.
+  const artistCounts = [...artistPlays.entries()]
+    .sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1))
+    .slice(0, ARTISTAS_PUBLICADOS)
+    .map(([name, plays]) => [name.slice(0, 60), plays])
+
   return {
     totalMinutes: Number(validMinutes.toFixed(2)),
     completedTracks,
@@ -175,6 +240,12 @@ function scoreMember (events) {
     peakHour,
     peakHourPlays,
     activeDays,
+    completionRate: Number(completionRate.toFixed(3)),
+    busiestDay,
+    busiestDayMinutes: Number(busiestDayMinutes.toFixed(2)),
+    longestSessionMinutes: Number((longestSessionMs / 60000).toFixed(1)),
+    sessionCount,
+    artistCounts,
     score: Number(score.toFixed(2))
   }
 }

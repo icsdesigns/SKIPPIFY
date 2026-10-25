@@ -213,6 +213,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { defineAsyncComponent } from 'vue'
 import { useLeague, normalizeInviteCode, resultadoVisible } from '@/composables/useLeague'
+import { extrasNuevos, ordenarPorTiempo } from '@/lib/gruposExtras'
 import GrupoDetalle from '@/components/grupos/GrupoDetalle.vue'
 import ComunidadArbol from '@/components/grupos/ComunidadArbol.vue'
 import GrupoIcono from '@/components/grupos/GrupoIcono.js'
@@ -360,11 +361,6 @@ function groupLabel (group) {
   return group.name || (group.inviteCode ? `Grupo ${group.inviteCode}` : `Grupo ${group.groupId.slice(0, 6)}`)
 }
 
-function formatScore (value) {
-  const n = Number(value || 0)
-  return Number.isFinite(n) ? n.toFixed(1) : '0.0'
-}
-
 function getTrackCount (item) {
   for (const value of [item?.totalTracks, item?.completedTracks]) {
     const n = Number(value)
@@ -446,21 +442,26 @@ function getPeakHour (item) {
 
 function fichasDe (groupId) {
   const visible = resultadoVisible(leaderboards[groupId], Date.now())
-  return (visible?.members || []).map(item => ({
-    id: item.uid,
-    nombre: item.displayName || shortenUid(item.uid),
-    yo: item.uid === state.value.uid,
-    minutos: Number(item.totalMinutes || 0),
-    canciones: getTrackCount(item),
-    puntos: formatScore(item.score),
-    artista: getTopArtist(item),
-    tema: getTopTrack(item),
-    extras: [
-      getDistinct(item) && { texto: getDistinct(item) },
-      getVariety(item) && { texto: getVariety(item), pista: VARIETY_HINT },
-      getPeakHour(item) && { texto: getPeakHour(item) }
-    ].filter(Boolean)
-  }))
+  const fichas = (visible?.members || []).map((item) => {
+    const nuevos = extrasNuevos(item)
+    return {
+      id: item.uid,
+      nombre: item.displayName || shortenUid(item.uid),
+      yo: item.uid === state.value.uid,
+      minutos: Number(item.totalMinutes || 0),
+      canciones: getTrackCount(item),
+      artista: getTopArtist(item),
+      tema: getTopTrack(item),
+      ...nuevos,
+      extras: [
+        getDistinct(item) && { texto: getDistinct(item) },
+        getVariety(item) && { texto: getVariety(item), pista: VARIETY_HINT },
+        getPeakHour(item) && { texto: getPeakHour(item) },
+        ...nuevos.extras
+      ].filter(Boolean)
+      }
+  })
+  return ordenarPorTiempo(fichas)
 }
 
 function resumenDe (groupId) {

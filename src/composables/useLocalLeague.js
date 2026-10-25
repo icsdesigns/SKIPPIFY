@@ -656,7 +656,8 @@ async function calcularRanking (groupId, cual = 'actual') {
   const nombres = nombresDe(group)
   const lista = [...nombres.entries()].map(([uid, displayName]) =>
     puntuarSemana(uid, displayName, escuchas.get(uid) || [], ventana))
-  lista.sort((a, b) => b.score - a.score)
+  // Por tiempo de escucha: ya no se enseñan puntos.
+  lista.sort((a, b) => (b.totalMinutes - a.totalMinutes) || String(a.displayName).localeCompare(String(b.displayName), 'es'))
   return {
     weekKey: ventana.weekKey,
     weekStart: ventana.weekStartIso,
