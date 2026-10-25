@@ -1,8 +1,9 @@
 /**
- * La guía rápida obliga a elegir modo de escucha antes de seguir.
+ * Tour de la app (estado, render del panel) y las reglas de modo de escucha y
+ * permisos que siguen vivas en Funciones y Configuración.
  *
- * Lo que se comprueba aquí es la máquina de estados en la que se apoya esa
- * regla —«¿ha elegido el usuario un modo alguna vez?»—, que es la parte capaz
+ * Del modo de escucha se comprueba la máquina de estados en la que se apoya
+ * «¿ha elegido el usuario un modo alguna vez?» —«¿ha elegido el usuario un modo alguna vez?»—, que es la parte capaz
  * de romperse sin hacer ruido: `listeningMode` siempre tiene valor, así que un
  * despiste devolvería «sí» para un usuario recién instalado y el paso dejaría
  * de bloquear sin que se note en pantalla. El render del panel se comprueba
@@ -18,6 +19,7 @@ import { routes } from '../src/router/routes.js'
 import AppTour from '../src/components/AppTour.vue'
 import { useFeatures, sanitizeListeningMode } from '../src/composables/useFeatures.js'
 import { useNotifListener } from '../src/composables/useNotifListener.js'
+import { useTour, TOUR_STEPS, TOUR_KEY } from '../src/composables/useTour.js'
 
 const failures = []
 const FEATURES_KEY = 'skippify-features'
@@ -68,8 +70,12 @@ function installBrowserGlobals () {
 async function renderizarGuia () {
   const app = createSSRApp({
     components: { AppTour },
-    template: '<AppTour :model-value="true" />'
+    template: '<AppTour />'
   })
+  // El panel se pinta si el estado compartido dice «abierto».
+  const t = useTour()
+  t.reset()
+  t.autoStart()
   const router = createRouter({ history: createMemoryHistory(), routes })
   app.use(router)
   await router.push('/')
@@ -117,21 +123,79 @@ async function main () {
 
   const html = await renderizarGuia()
 
-  check('el panel se pinta', html.includes('Guía rápida de Skippify'))
+  check('el panel se pinta', html.includes('Tour de Skippify'))
   check('empieza por la pestaña Inicio', html.includes('>Inicio</h3>'))
-  check('y son seis pasos, uno por pestaña', html.includes('1 / 6'))
-  // Estilo del tour de Salbus: la versión arriba, un punto por paso y el icono
-  // de la pestaña en lugar de un emoji.
-  check('con un punto por paso', (html.match(/class="[^"]*tour-dot"/g) || []).length === 6)
+  check('y son seis pasos, uno por pantalla', html.includes('1 / 6'))
+  check('con un punto por paso', (html.match(/class="[^"]*tour-dot[ "]/g) || []).length === 6)
   check('el primero marcado como actual', /class="(is-current tour-dot|tour-dot is-current)"/.test(html))
   check('muestra la versión', html.includes('tour-badge'))
-  check('y el icono de la pestaña es un SVG', /tour-icon[^>]*><svg/.test(html))
-  // La guía dejó de ser saltable: un «Omitir» al lado dejaría en nada los dos
-  // pasos obligatorios (modo de escucha y permisos).
-  check('sin botón de omitir', !html.includes('Omitir'))
-  // Los permisos sólo se nombran en el último paso: pedirlos antes saca al
-  // usuario a los ajustes del sistema y la guía se queda a medias.
-  check('el primer paso no habla de permisos', !html.toLowerCase().includes('permiso'))
+  check('el esquema es de adorno (inert)', /tour-screen[^>]*inert/.test(html))
+  check('y se construye con los componentes de la app (StatTile)', html.includes('sk-stat-hint') || html.includes('sk-eyebrow'))
+  check('tiene el botón «Abrir esta ventana»', html.includes('Abrir esta ventana'))
+  check('en el primer paso «Anterior» está desactivado', /disabled[^>]*>\s*Anterior/.test(html))
+  const puntos = (html.match(/<li class="flex items-start gap-2\.5/g) || []).length
+  check('con entre dos y cuatro viñetas', puntos >= 2 && puntos <= 4, `(hay ${puntos})`)
+
+  console.log('\nEstado del tour')
+
+  const tour = useTour()
+  tour.reset()
+  globalThis.localStorage.removeItem(TOUR_KEY)
+  tour.load()
+  check('recién instalado: nada empezado', tour.state.started === false && tour.state.open === false)
+  check('y sin icono en la cabecera', tour.showHeaderIcon.value === false)
+
+  tour.autoStart()
+  check('la primera vez se abre solo en el paso 1', tour.state.open === true && tour.state.step === 0)
+  tour.autoStart()
+  check('y no se reabre a la fuerza si ya se empezó', tour.state.step === 0)
+
+  tour.next(); tour.next()
+  check('Siguiente avanza', tour.state.step === 2)
+  tour.prev()
+  check('Anterior retrocede', tour.state.step === 1)
+  tour.goTo(99)
+  check('saltar más allá del final se queda en el último paso', tour.state.step === TOUR_STEPS - 1)
+  tour.goTo(-3)
+  check('y antes del principio, en el primero', tour.state.step === 0)
+
+  tour.goTo(3)
+  tour.minimize()
+  check('cerrar sin terminar minimiza', tour.state.open === false && tour.state.minimized === true)
+  check('la cabecera ofrece retomarlo', tour.showHeaderIcon.value === true)
+  check('en el mismo paso', tour.state.step === 3)
+
+  // Recargar la página: el estado en memoria se pierde, lo guardado no.
+  tour.reset()
+  tour.load()
+  check('al recargar se recuerda el paso', tour.state.step === 3)
+  check('y sigue minimizado', tour.showHeaderIcon.value === true)
+
+  tour.resume()
+  check('retomar abre el panel', tour.state.open === true && tour.state.minimized === false)
+  tour.reset()
+  tour.load()
+  check('recargar con el panel abierto lo deja abierto', tour.state.open === true && tour.state.step === 3)
+
+  tour.goTo(TOUR_STEPS - 1)
+  tour.finish()
+  check('terminar cierra el panel', tour.state.open === false && tour.state.finished === true)
+  check('y quita el icono de la cabecera', tour.showHeaderIcon.value === false)
+  tour.reset()
+  tour.load()
+  check('al recargar sigue terminado y no se reabre', tour.state.finished === true && tour.state.open === false)
+  const guardadoTour = JSON.parse(globalThis.localStorage.getItem(TOUR_KEY) || '{}')
+  check('del progreso sólo queda la marca de terminado', guardadoTour.finished === true && guardadoTour.step === undefined)
+
+  tour.start()
+  check('desde Configuración se puede repetir, desde el paso 1',
+    tour.state.open === true && tour.state.finished === false && tour.state.step === 0)
+  tour.minimize()
+  tour.goTo(2)
+  tour.start()
+  check('y si iba a medias, Configuración lo retoma donde estaba', tour.state.step === 2)
+  tour.reset()
+  globalThis.localStorage.removeItem(TOUR_KEY)
 
   // ── Permisos: intento, ayuda manual y regla para poder terminar ───────────
   //
@@ -183,10 +247,6 @@ async function main () {
     permisosResueltos(concedido, true) === true)
   check('basta con que UNO quede sin tocar para seguir bloqueando',
     permisosResueltos([...intentado, ...ninguno], true) === false)
-
-  const htmlFinal = await renderizarGuia()
-  check('sigue sin haber salida de emergencia',
-    !htmlFinal.includes('No puedo activarlo ahora'))
 
   console.log(`\nGuía rápida: ${failures.length ? `${failures.length} fallo(s)` : 'todo correcto'}.`)
   // Salida explícita: montar la app deja temporizadores vivos (el reloj de

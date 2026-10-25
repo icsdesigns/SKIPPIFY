@@ -85,6 +85,23 @@
             {{ statusPill.label }}
           </span>
 
+          <!-- Tour a medias: este icono lo retoma en el mismo paso. Desaparece al
+               terminarlo; para repetirlo está Configuración → Ayuda. -->
+          <button
+            v-if="tour.showHeaderIcon.value"
+            type="button"
+            data-tour="resume"
+            class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-400/[0.18] text-brand-300 transition-colors hover:bg-brand-400/[0.28]"
+            aria-label="Retomar el tour de la app"
+            @click="tour.resume()"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="9" />
+              <path d="M12 11v5.5" />
+              <circle cx="12" cy="7.8" r="0.6" fill="currentColor" />
+            </svg>
+          </button>
+
           <!-- Configuración no cabe en la barra de pestañas: vive aquí, como el
                engranaje de Spotify. -->
           <button
@@ -108,7 +125,7 @@
              Un permiso sin conceder deja el motor a medias sin decir nada. El
              banner es el aviso, y pulsarlo lleva a donde se arregla. -->
         <button
-          v-if="ajustesPendientes.length && !showTour && route.path !== '/settings'"
+          v-if="ajustesPendientes.length && !tour.state.open && route.path !== '/settings'"
           type="button"
           class="flex w-full items-center gap-3 bg-amber-400/[0.14] px-4 py-2.5 text-left transition-colors hover:bg-amber-400/[0.22] sm:px-6"
           @click="router.push('/settings')"
@@ -138,11 +155,7 @@
 
       <UpdateBanner />
 
-      <AppTour
-        v-model="showTour"
-        @complete="completeTour"
-        @toggle-sidebar="handleTourSidebarToggle"
-      />
+      <AppTour :suppressed="accesoBloqueado" />
     </div>
   </div>
 </template>
@@ -161,11 +174,11 @@ import { useEventStore } from '@/stores/events'
 import { useAppUpdate } from '@/composables/useAppUpdate'
 import { useLeague } from '@/composables/useLeague'
 import { useLocalLeague } from '@/composables/useLocalLeague'
+import { useTour } from '@/composables/useTour'
 
 // Vestigio del cajón lateral que había en móvil, ahora sustituido por la barra
-// de pestañas inferior. Se conserva porque la guía rápida sigue emitiendo
-// «ciérralo» al arrancar (AppTour → toggle-sidebar) y AppSidebar sigue
-// declarando la prop: quitarlo obligaría a tocar ese contrato a cambio de nada.
+// de pestañas inferior. AppSidebar sigue declarando la prop: quitarlo obligaría
+// a tocar ese contrato a cambio de nada.
 const sidebarOpen = ref(false)
 const notif = useNotifListener()
 const { initializeNativeFeatures, syncNativeHistoryFromEvents } = useFeatures()
@@ -176,10 +189,9 @@ const localLeague = useLocalLeague()
 const nowPlaying = ref({ mode: 'stopped' })
 const router = useRouter()
 const route = useRoute()
-const showTour = ref(false)
+const tour = useTour()
 const showSplash = ref(true)
 const scrolled = ref(false)
-const TOUR_DONE_KEY = `skippify.tour.build.${__APP_BUILD_ID__}.completed`
 const SPLASH_MS = 1500
 const splashLetters = 'Skippify'.split('')
 
@@ -190,9 +202,6 @@ const splashLetters = 'Skippify'.split('')
 const accesoBloqueado = computed(() =>
   notif.isCapacitor.value && notif.notifChecked.value && !notif.notifEnabled.value
 )
-
-/** La guía rápida espera a que se conceda el acceso; no compite con el bloqueo. */
-const tourEnEspera = ref(false)
 
 /** Ajustes del sistema pendientes; alimenta el banner de aviso. */
 const ajustesPendientes = notif.missingSystemSettings
@@ -235,17 +244,6 @@ function setNowPlaying (state) {
   nowPlaying.value = state
 }
 
-function handleTourSidebarToggle (open) {
-  sidebarOpen.value = !!open
-}
-
-function completeTour () {
-  localStorage.setItem(TOUR_DONE_KEY, '1')
-  // La guía ha terminado (en su paso de permisos): a partir de aquí el aviso de
-  // permisos del arranque vuelve a poder aparecer.
-  notif.setPermissionsPromptSuppressed(false)
-}
-
 /**
  * La cabecera se vuelve sólida en cuanto hay contenido por debajo. El umbral es
  * bajo a propósito: con 8 px basta para que ya no se solape nada legible.
@@ -261,11 +259,11 @@ let userNavigated = false
 const stopNavWatch = router.afterEach(() => { userNavigated = true })
 
 onMounted(async () => {
-  // Se decide antes de tocar el nativo: si la guía va a salir, el aviso de
-  // permisos no debe adelantársele. Conceder permisos manda al usuario fuera de
-  // la app y la guía no se recupera, así que va al final y sin competencia.
-  const tourPending = localStorage.getItem(TOUR_DONE_KEY) !== '1'
-  notif.setPermissionsPromptSuppressed(tourPending)
+  // Se decide antes de tocar el nativo: si el tour va a salir, el aviso de
+  // permisos no debe adelantársele.
+  tour.load()
+  const tourPending = !tour.state.started
+  notif.setPermissionsPromptSuppressed(tourPending || tour.state.open)
 
   splashTimer = setTimeout(() => {
     if (!userNavigated && router.currentRoute.value.path !== '/') {
@@ -295,24 +293,18 @@ onMounted(async () => {
   // Grupos «sin servidor» (LocalHost): sincroniza y publica escuchas. Sin grupos no hace nada.
   localLeague.startWatch()
 
+  // Primera vez: el tour se abre solo tras el splash. Si el acceso a
+  // notificaciones sigue bloqueando la app, queda abierto pero apartado
+  // (AppTour.suppressed) y aparece en cuanto se concede.
   if (tourPending) {
-    tourTimer = setTimeout(() => {
-      if (accesoBloqueado.value) tourEnEspera.value = true
-      else showTour.value = true
-    }, SPLASH_MS + 350)
+    tourTimer = setTimeout(() => tour.autoStart(), SPLASH_MS + 350)
   }
 })
 
-watch(accesoBloqueado, (bloqueado) => {
-  // Si se retira el permiso con la guía abierta, la guía se aparta y vuelve
-  // cuando el acceso esté de nuevo concedido.
-  if (bloqueado && showTour.value) {
-    showTour.value = false
-    tourEnEspera.value = true
-  } else if (!bloqueado && tourEnEspera.value) {
-    tourEnEspera.value = false
-    showTour.value = true
-  }
+// El aviso de permisos del arranque no compite con el tour: se aparta mientras
+// el panel está a la vista y vuelve al cerrarlo o terminarlo.
+watch(() => tour.state.open, (abierto) => {
+  notif.setPermissionsPromptSuppressed(abierto)
 })
 
 watch(() => notif.pendingOpenRoute.value, (route) => {

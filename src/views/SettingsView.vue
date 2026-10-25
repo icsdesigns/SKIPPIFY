@@ -252,6 +252,33 @@
       </div>
     </section>
 
+    <!-- Punto fijo de entrada al tour: aquí se repite cuando ya se terminó. -->
+    <section class="overflow-hidden sk-card" data-tour="help">
+      <header class="sk-card-head">
+        <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-sky-400/[0.18] text-sky-300">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="9" />
+            <path d="M9.5 9.5a2.5 2.5 0 1 1 3.6 2.2c-.7.4-1.1.9-1.1 1.8" />
+            <circle cx="12" cy="17" r="0.6" fill="currentColor" />
+          </svg>
+        </span>
+        <div class="min-w-0">
+          <h2 class="text-sm font-bold text-white">Ayuda</h2>
+          <p class="text-[11px] text-slate-400">Un repaso rápido, pantalla a pantalla.</p>
+        </div>
+      </header>
+
+      <div class="flex items-center justify-between gap-3 p-5">
+        <div class="min-w-0">
+          <p class="text-sm font-bold text-white">Tour de la app</p>
+          <p class="mt-0.5 text-[11px] text-slate-400">Seis pasos para conocer cada pestaña.</p>
+        </div>
+        <button type="button" class="sk-btn sk-btn-ghost sk-btn-sm shrink-0" @click="tour.start()">
+          Ver el tour
+        </button>
+      </div>
+    </section>
+
     <section class="overflow-hidden sk-card">
       <header class="sk-card-head">
         <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-400/[0.18] text-brand-400">
@@ -308,6 +335,7 @@ import { useEventStore } from '@/stores/events'
 import { useFeatures, sanitizeListeningMode, sanitizeSkipInterval } from '@/composables/useFeatures'
 import { useAppUpdate } from '@/composables/useAppUpdate'
 import { usePlayLog } from '@/composables/usePlayLog'
+import { useTour } from '@/composables/useTour'
 import UpdateIcon from '@/components/UpdateIcon.vue'
 import GrupoIcono from '@/components/grupos/GrupoIcono.js'
 import {
@@ -345,6 +373,7 @@ const APP_SIGNATURE = `Skippify ${APP_VERSION}`
 
 // ── Actualizaciones ─────────────────────────────────────────────────────────
 const appUpdate = useAppUpdate()
+const tour = useTour()
 const updateBusy = ref(false)
 const updateCheckMessage = ref('')
 const updateCheckFailed = ref(false)
