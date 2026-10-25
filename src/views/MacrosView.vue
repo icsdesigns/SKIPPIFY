@@ -243,6 +243,15 @@
                 </button>
               </div>
 
+              <input
+                v-if="selectedSource?.needsPlaylist"
+                v-model="busquedaOrigen"
+                type="search"
+                placeholder="Buscar playlist…"
+                aria-label="Buscar playlist de origen"
+                class="mt-2.5 w-full sk-input px-3 py-2.5 text-xs text-slate-200 placeholder:text-slate-600"
+              >
+
               <select
                 v-if="selectedSource?.needsPlaylist"
                 v-model="draft.source.playlistId"
@@ -250,7 +259,7 @@
                 @change="syncSourcePlaylistName"
               >
                 <option value="">Elige la playlist de origen…</option>
-                <option v-for="pl in sourcePlaylists" :key="pl.id" :value="pl.id">
+                <option v-for="pl in origenesFiltrados" :key="pl.id" :value="pl.id">
                   {{ pl.name }} ({{ playlistCount(pl) }}){{ pl.writable ? '' : ' · solo lectura' }}
                 </option>
               </select>
@@ -310,6 +319,15 @@
                 </button>
               </div>
 
+              <input
+                v-if="selectedTarget?.needsPlaylist"
+                v-model="busquedaDestino"
+                type="search"
+                placeholder="Buscar playlist…"
+                aria-label="Buscar playlist de destino"
+                class="mt-2.5 w-full sk-input px-3 py-2.5 text-xs text-slate-200 placeholder:text-slate-600"
+              >
+
               <select
                 v-if="selectedTarget?.needsPlaylist"
                 v-model="draft.target.playlistId"
@@ -317,7 +335,7 @@
                 @change="syncTargetPlaylistName"
               >
                 <option value="">Elige la playlist de destino…</option>
-                <option v-for="pl in writablePlaylists" :key="pl.id" :value="pl.id">
+                <option v-for="pl in destinosFiltrados" :key="pl.id" :value="pl.id">
                   {{ pl.name }} ({{ playlistCount(pl) }})
                 </option>
               </select>
@@ -867,6 +885,21 @@ const lacksPremium = computed(() => {
 
 /** Playlists en las que Spotify permite escribir: propias o colaborativas. */
 const writablePlaylists = computed(() => playlists.value.filter(pl => pl.writable))
+/** Buscadores de los dos desplegables. Sin acentos ni mayúsculas, como se escribe. */
+const busquedaOrigen = ref('')
+const busquedaDestino = ref('')
+
+function normalizar (texto) {
+  return String(texto || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim()
+}
+
+/** Filtra por nombre; la playlist ya elegida se queda siempre, aunque no case. */
+function filtrar (lista, busqueda, elegidaId) {
+  const q = normalizar(busqueda)
+  if (!q) return lista
+  return lista.filter(pl => pl.id === elegidaId || normalizar(pl.name).includes(q))
+}
+
 const readOnlyCount = computed(() => playlists.value.length - writablePlaylists.value.length)
 
 /** «Mover» y «quitar del origen» borran de la playlist de origen. */
@@ -875,6 +908,11 @@ const exigeOrigenEscribible = computed(() =>
 
 const sourcePlaylists = computed(() =>
   exigeOrigenEscribible.value ? writablePlaylists.value : playlists.value)
+
+const origenesFiltrados = computed(() =>
+  filtrar(sourcePlaylists.value, busquedaOrigen.value, draft.source.playlistId))
+const destinosFiltrados = computed(() =>
+  filtrar(writablePlaylists.value, busquedaDestino.value, draft.target.playlistId))
 
 const selectedSource = computed(() => sourceMeta(draft.source.type))
 const selectedAction = computed(() => actionMeta(draft.action.type))
