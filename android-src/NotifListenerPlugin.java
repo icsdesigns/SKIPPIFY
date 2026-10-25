@@ -113,8 +113,10 @@ public class NotifListenerPlugin extends Plugin
         captureAuthRedirectFromIntent();
 
         boolean enabled = isNotificationListenerEnabled();
+        if (enabled) SpotifyNotificationListener.ensureBound(getContext());
         JSObject data = new JSObject();
         data.put("enabled", enabled);
+        data.put("connected", SpotifyNotificationListener.isConnected());
         notifyListeners("permissionChanged", data, true);
         emitFeatureConfigChanged();
 
@@ -267,6 +269,7 @@ public class NotifListenerPlugin extends Plugin
     public void getPermissionsState(PluginCall call) {
         JSObject result = new JSObject();
         result.put("listenerEnabled", isNotificationListenerEnabled());
+        result.put("listenerConnected", SpotifyNotificationListener.isConnected());
         result.put("postNotificationsGranted", isPostNotificationsGranted());
         result.put("batteryOptimizationIgnored", isBatteryOptimizationIgnored());
         call.resolve(result);
