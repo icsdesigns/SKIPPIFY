@@ -72,6 +72,7 @@ final class DuplicateSkipEngine {
     private static final String PREFS_NAME = "skippify-native-features";
     private static final String PREF_SKIP_DUPLICATES = "skipDuplicates";
     private static final String PREF_SKIP_INTERVAL = "skipDuplicatesInterval";
+    private static final String PREF_LISTENING_MODE = "listeningMode";
 
     // ── Ajustes de la pestaña «Calibración» ───────────────────────────────────
     static final String PREF_DEV_DECISION_WINDOW_MS = "devDecisionWindowMs";
@@ -244,6 +245,18 @@ final class DuplicateSkipEngine {
     private String mSessionArtist = "";
     private long mSessionDurationMs = 0L;
 
+    // Datos de la sesión para el registro persistente (PlayLogStore). Se rellenan
+    // bajo mSessionLock y se vuelcan al cerrar la sesión.
+    private String mLogDecision = "";
+    private String mLogReason = "";
+    private boolean mLogDuplicateSeen = false;
+    private long mLogMatchedAtMs = 0L;
+    private long mLogPositionMs = -1L;
+    private long mLogAgeMs = -1L;
+    private String mLogSource = "";
+    private boolean mLogIndexReady = false;
+    private String mLogConfigJson = "";
+
     // Silenciado previo. Se pide dentro del lock de sesión pero se APLICA fuera:
     // tocar el AudioManager con el lock cogido invita a bloqueos cruzados.
     private boolean mPremutePending = false;
@@ -381,6 +394,21 @@ final class DuplicateSkipEngine {
 
             decisionJustClosed = !wasDecided && mSessionDecided;
 
+            // Mientras la decisión siga abierta se recuerda la última razón por la
+            // que no se cerró; al cerrarse, la razón y la configuración vigentes.
+            if (!key.isEmpty() && !wasDecided) {
+                mLogReason = reason;
+                mLogPositionMs = obs.positionMs;
+                mLogAgeMs = sessionAgeMs;
+                mLogSource = obs.source;
+                mLogIndexReady = mIndexReady;
+                if (decisionJustClosed) {
+                    mLogDecision = doSkip ? "saltada" : "conservada";
+                    mLogDuplicateSeen = duplicateSeen;
+                    mLogConfigJson = configJson(ctx);
+                }
+            }
+
             // El silenciado previo se re-evalúa en CADA observación mientras la
             // decisión siga abierta, no sólo al abrir la sesión. En el instante
             // del cambio de pista Spotify suele reportar todavía estado «no
@@ -435,7 +463,9 @@ final class DuplicateSkipEngine {
         long intervalMs = parseIntervalMs(skipInterval(ctx));
         long cutoffMs = obs.epochMs - intervalMs;
         long beforeMs = mSessionStartedEpochMs - CURRENT_SESSION_GUARD_MS;
-        return indexHasPlayBetween(key, cutoffMs, beforeMs);
+        long matchedAtMs = indexPlayBetween(key, cutoffMs, beforeMs);
+        mLogMatchedAtMs = matchedAtMs;
+        return matchedAtMs > 0L;
     }
 
     private boolean isDecisionPending(long generation) {
@@ -461,6 +491,15 @@ final class DuplicateSkipEngine {
         mSessionDurationMs = obs.durationMs;
         mSessionPremuteDone = false;
         mPremutePending = false;
+        mLogDecision = "";
+        mLogReason = "";
+        mLogDuplicateSeen = false;
+        mLogMatchedAtMs = 0L;
+        mLogPositionMs = obs.positionMs;
+        mLogAgeMs = 0L;
+        mLogSource = obs.source;
+        mLogIndexReady = mIndexReady;
+        mLogConfigJson = "";
         accumulateLocked(obs.isPlaying, obs.uptimeMs);
 
         if (!mSessionDecided) {
@@ -482,6 +521,72 @@ final class DuplicateSkipEngine {
         if (mSessionKey.isEmpty()) return;
         accumulateLocked(false, nowUptimeMs);
         maybeCommitLocked(nowUptimeMs);
+        logSessionLocked(nowUptimeMs);
+    }
+
+    /**
+     * Vuelca la sesión que se cierra al registro persistente. La escritura va al
+     * hilo de fondo: aquí sólo se copian los datos.
+     */
+    private void logSessionLocked(long nowUptimeMs) {
+        final Context ctx = mContext;
+        if (ctx == null || mSessionStartedEpochMs <= 0L) return;
+
+        final PlayLogStore.Entry e = new PlayLogStore.Entry();
+        e.startedAtMs = mSessionStartedEpochMs;
+        e.endedAtMs = System.currentTimeMillis();
+        e.track = mSessionTrack;
+        e.artist = mSessionArtist;
+        e.key = mSessionKey;
+        e.durationMs = mSessionDurationMs;
+        e.playedMs = playedMsLocked(nowUptimeMs);
+        e.committed = mSessionCommitted && !mSessionSuppressCommit;
+        e.decision = mLogDecision.isEmpty() ? "sin_decidir" : mLogDecision;
+        e.reason = mLogReason;
+        e.duplicateSeen = mLogDuplicateSeen;
+        e.matchedPreviousAtMs = mLogMatchedAtMs;
+        e.positionMs = mLogPositionMs;
+        e.sessionAgeMs = mLogAgeMs;
+        e.source = mLogSource;
+        e.indexReady = mLogIndexReady;
+        // Sin decisión cerrada no hay una configuración guardada: se toma la del
+        // momento del cierre, que es la mejor aproximación.
+        e.configJson = mLogConfigJson.isEmpty() ? configJson(ctx) : mLogConfigJson;
+        e.skipEnabled = isSkipEnabled(ctx);
+        e.interval = skipInterval(ctx);
+        e.mode = listeningMode(ctx);
+        try {
+            JSONObject cfg = new JSONObject(e.configJson);
+            e.skipEnabled = cfg.optBoolean("skipDuplicates", e.skipEnabled);
+            e.interval = cfg.optString("interval", e.interval);
+            e.mode = cfg.optString("listeningMode", e.mode);
+        } catch (Throwable ignored) {
+        }
+        mWriter.execute(() -> PlayLogStore.insert(ctx, e));
+    }
+
+    /** Criterios y calibrado vigentes ahora mismo, tal como los ve el motor. */
+    private static String configJson(@Nullable Context ctx) {
+        JSONObject cfg = new JSONObject();
+        try {
+            cfg.put("skipDuplicates", isSkipEnabled(ctx));
+            cfg.put("interval", skipInterval(ctx));
+            cfg.put("listeningMode", listeningMode(ctx));
+            cfg.put("decisionWindowMs", devDecisionWindowMs(ctx));
+            cfg.put("minStableMs", devMinStableMs(ctx));
+            cfg.put("premute", devPremute(ctx));
+            cfg.put("premuteMaxMs", devPremuteMaxMs(ctx));
+            cfg.put("restartOnKeep", devRestartOnKeep(ctx));
+            cfg.put("unmuteDelayMs", devUnmuteDelayMs(ctx));
+            cfg.put("pauseToSkip", devPauseToSkip(ctx));
+        } catch (Throwable ignored) {
+        }
+        return cfg.toString();
+    }
+
+    private static String listeningMode(@Nullable Context ctx) {
+        SharedPreferences sp = prefs(ctx);
+        return sp == null ? "" : safeTrim(sp.getString(PREF_LISTENING_MODE, "custom"));
     }
 
     private void accumulateLocked(boolean playing, long nowUptimeMs) {
@@ -1041,17 +1146,17 @@ final class DuplicateSkipEngine {
      * recientes es suficiente: cualquier escucha dentro de la ventana sería más
      * reciente que las descartadas, así que ocuparía una de las posiciones.
      */
-    private boolean indexHasPlayBetween(String key, long fromMs, long toMs) {
-        if (toMs <= fromMs) return false;
+    private long indexPlayBetween(String key, long fromMs, long toMs) {
+        if (toMs <= fromMs) return 0L;
         synchronized (mIndexLock) {
             long[] slots = mIndex.get(key);
-            if (slots == null) return false;
+            if (slots == null) return 0L;
             for (long ts : slots) {
                 if (ts <= 0L) break;
-                if (ts >= fromMs && ts < toMs) return true;
+                if (ts >= fromMs && ts < toMs) return ts;
             }
         }
-        return false;
+        return 0L;
     }
 
     private void loadIndexAsync() {
@@ -1502,6 +1607,43 @@ final class DuplicateSkipEngine {
                 try { c.close(); } catch (Throwable ignored) { }
             }
         }
+    }
+
+    /**
+     * Qué sabe el motor de tus escuchas: filas del historial contra el que se
+     * decide, su rango de fechas y cuántas canciones hay en el índice.
+     */
+    JSONObject historyInfo() {
+        JSONObject out = new JSONObject();
+        try {
+            int indexSize;
+            synchronized (mIndexLock) {
+                indexSize = mIndex.size();
+            }
+            out.put("indexReady", mIndexReady);
+            out.put("indexTracks", indexSize);
+            out.put("dbFailed", mDbFailed);
+
+            DbHelper helper = dbHelper(mContext);
+            if (helper != null) {
+                Cursor c = null;
+                try {
+                    c = helper.getReadableDatabase().rawQuery(
+                            "SELECT COUNT(*), MIN(played_at_epoch), MAX(played_at_epoch),"
+                                    + " SUM(CASE WHEN played_ms < 0 THEN 1 ELSE 0 END) FROM " + TABLE, null);
+                    if (c != null && c.moveToFirst()) {
+                        out.put("rows", c.getLong(0));
+                        out.put("oldestAt", c.getLong(1));
+                        out.put("newestAt", c.getLong(2));
+                        out.put("importedRows", c.getLong(3));
+                    }
+                } finally {
+                    closeQuietly(c);
+                }
+            }
+        } catch (Throwable ignored) {
+        }
+        return out;
     }
 
     void resetHistory() {

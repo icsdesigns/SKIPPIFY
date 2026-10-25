@@ -177,6 +177,33 @@
           <p v-if="backupWarning" class="text-[11px] text-amber-300">{{ backupWarning }}</p>
           <p v-if="backupError" class="text-[11px] text-rose-200">{{ backupError }}</p>
         </div>
+
+        <!--
+          Registro del motor de saltado: una fila por canción con su decisión y
+          los criterios y el calibrado de ese momento. Sirve para averiguar por
+          qué una canción no se saltó, así que se exporta aparte del respaldo.
+        -->
+        <div v-if="isCapacitor" class="sk-well space-y-2.5 p-3.5">
+          <div>
+            <p class="text-xs font-bold text-white">Registro de saltado</p>
+            <p class="mt-0.5 text-[11px] leading-relaxed text-slate-400">
+              Cada canción que suena queda anotada con su decisión (saltada o conservada), el motivo
+              y los criterios y el calibrado activos en ese momento. Se guarda solo en tu móvil.
+              <span v-if="playLogTotal !== null"> Ahora mismo hay {{ playLogTotal }} registradas.</span>
+            </p>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <button
+              class="sk-btn sk-btn-sm bg-sky-400/[0.18] text-sky-100 hover:bg-sky-400/30"
+              :disabled="playLogBusy"
+              @click="exportSkipLog"
+            >
+              {{ playLogBusy ? 'Exportando…' : 'Exportar registro' }}
+            </button>
+          </div>
+          <p v-if="playLogMessage" class="text-[11px] font-semibold text-brand-400">{{ playLogMessage }}</p>
+          <p v-if="playLogError" class="text-[11px] text-rose-200">{{ playLogError }}</p>
+        </div>
       </div>
     </section>
 
@@ -280,6 +307,7 @@ import { useNotifListener } from '@/composables/useNotifListener'
 import { useEventStore } from '@/stores/events'
 import { useFeatures, sanitizeListeningMode, sanitizeSkipInterval } from '@/composables/useFeatures'
 import { useAppUpdate } from '@/composables/useAppUpdate'
+import { usePlayLog } from '@/composables/usePlayLog'
 import UpdateIcon from '@/components/UpdateIcon.vue'
 import GrupoIcono from '@/components/grupos/GrupoIcono.js'
 import {
@@ -770,7 +798,26 @@ function onAppVisibleAgain () {
   }
 }
 
+const { busy: playLogBusy, total: playLogTotal, exportPlayLog, refreshTotal: refreshPlayLogTotal } = usePlayLog()
+const playLogMessage = ref('')
+const playLogError = ref('')
+
+async function exportSkipLog () {
+  playLogMessage.value = ''
+  playLogError.value = ''
+  try {
+    const { path, rows } = await exportPlayLog()
+    playLogMessage.value = `Registro exportado en ${path} (${rows} canciones).`
+  } catch (error) {
+    const detail = (error?.message || '').toString().trim()
+    playLogError.value = detail
+      ? `No se pudo exportar el registro: ${detail}`
+      : 'No se pudo exportar el registro.'
+  }
+}
+
 onMounted(async () => {
+  refreshPlayLogTotal()
   await refreshAllStatuses()
   window.addEventListener('focus', refreshAllStatuses)
   document.addEventListener('visibilitychange', onAppVisibleAgain)

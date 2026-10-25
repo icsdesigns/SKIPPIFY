@@ -716,6 +716,35 @@ public class NotifListenerPlugin extends Plugin
         call.resolve(result);
     }
 
+    // ── Registro de reproducciones (exportable desde Ajustes) ─────────────────
+
+    /**
+     * Una página del registro: una fila por canción reproducida con su
+     * decisión, el motivo y los criterios y el calibrado vigentes entonces.
+     * Se pide por páginas para no mandar decenas de miles de filas de golpe.
+     */
+    @PluginMethod
+    public void getPlayLog(PluginCall call) {
+        int offset = call.getInt("offset", 0);
+        int limit = call.getInt("limit", 500);
+        JSObject result = new JSObject();
+        try {
+            result.put("total", PlayLogStore.count(getContext()));
+            result.put("rows", new JSArray(PlayLogStore.page(getContext(), offset, Math.min(limit, 2000)).toString()));
+            result.put("history", JSObject.fromJSONObject(DuplicateSkipEngine.get().historyInfo()));
+            call.resolve(result);
+        } catch (Throwable t) {
+            call.reject("No se pudo leer el registro: " + t.getMessage());
+        }
+    }
+
+    /** Vacía el registro de reproducciones (no toca el historial de duplicadas). */
+    @PluginMethod
+    public void clearPlayLog(PluginCall call) {
+        PlayLogStore.clear(getContext());
+        call.resolve();
+    }
+
     private void resolveDiagnostics(PluginCall call) {
         try {
             call.resolve(JSObject.fromJSONObject(DuplicateSkipEngine.get().diagnostics()));
