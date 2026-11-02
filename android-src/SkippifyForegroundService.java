@@ -184,16 +184,14 @@ public class SkippifyForegroundService extends Service {
         } catch (Throwable ignored) {
         }
 
-        // Y para las escuchas de Comunidad: sin esto sólo se subían al abrir la
-        // app, y quien no la abría en toda la semana salía a cero en su grupo.
-        // El freno de una subida por hora vive en EscuchasNube.
+        // Grupos con servidor (Firebase) deshabilitados: latido sólo borra la
+        // sesión anónima que una versión anterior hubiera guardado; no sube nada.
         try {
             LigaBackground.latido(getApplicationContext());
         } catch (Throwable ignored) {
         }
 
-        // Y para el aviso del ranking del domingo a las 15:00: repone la alarma
-        // si se ha perdido y, cerca de esa hora, mira si ya está publicado.
+        // Y cancela la alarma del ranking del domingo, que ya no existe.
         try {
             LigaResultados.latido(getApplicationContext());
         } catch (Throwable ignored) {

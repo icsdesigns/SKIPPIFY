@@ -520,29 +520,17 @@ public class NotifListenerPlugin extends Plugin
     }
 
     /**
-     * Sesión anónima de Firebase y grupos de Comunidad, para que el servicio
-     * suba las escuchas aunque nadie abra la app. Sin grupos se borra.
+     * Antes guardaba la sesión anónima de Firebase y los grupos de Comunidad para
+     * subir escuchas con la app cerrada. Los grupos con servidor están
+     * deshabilitados: esta llamada sólo borra lo que hubiera guardado y apaga la
+     * alarma del ranking. Se conserva por si una versión anterior de la web la
+     * invoca; los datos de Firebase no se tocan.
      */
     @PluginMethod
     public void setLeagueSync(PluginCall call) {
-        JSArray grupos = call.getArray("groupIds");
-        if (grupos == null || grupos.length() == 0) {
-            LigaBackground.borrar(getContext());
-        } else {
-            LigaBackground.guardar(
-                    getContext(),
-                    call.getString("uid"),
-                    call.getString("refreshToken"),
-                    call.getString("apiKey"),
-                    call.getString("projectId"),
-                    grupos,
-                    call.getString("activeGroupId"),
-                    call.getString("origin")
-            );
-        }
-        // Con grupos nuevos (o sin ninguno) la alarma del domingo cambia.
+        LigaBackground.borrar(getContext());
         try {
-            LigaResultados.programar(getContext());
+            LigaResultados.apagar(getContext());
         } catch (Throwable ignored) {
         }
         call.resolve(aJS(LigaBackground.estado(getContext())));
