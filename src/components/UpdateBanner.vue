@@ -54,6 +54,13 @@
           >
             Ahora no
           </button>
+          <button
+            class="sk-btn sk-btn-ghost sk-btn-sm shrink-0"
+            :disabled="update.status.value === 'downloading'"
+            @click="update.postpone()"
+          >
+            Posponer 1 semana
+          </button>
         </div>
 
         <div v-if="update.status.value === 'downloading'" class="mt-4">

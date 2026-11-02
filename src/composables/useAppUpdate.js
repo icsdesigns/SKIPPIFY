@@ -18,6 +18,10 @@ const LATEST_RELEASE_URL = `https://api.github.com/repos/${REPO}/releases/latest
 /** Versión ignorada por el usuario, para no repetir el aviso en cada arranque. */
 const SKIPPED_KEY = 'skippify.update.skipped'
 
+/** «Posponer 1 semana»: { code, until } de la build pospuesta. */
+const POSTPONED_KEY = 'skippify.update.postponed'
+const POSTPONE_MS = 7 * 24 * 60 * 60 * 1000
+
 // ── Estado compartido ─────────────────────────────────────────────────────────
 // idle | checking | available | downloading | ready | installing | error
 const status = ref('idle')
@@ -121,7 +125,9 @@ async function check ({ manual = false } = {}) {
     // el aviso vuelve a aparecer. Se guarda el versionCode y no el nombre de
     // versión, que se repite entre builds de la misma release.
     const skipped = localStorage.getItem(SKIPPED_KEY)
-    dismissed.value = !manual && skipped === String(latest.value.versionCode)
+    dismissed.value = !manual && (
+      skipped === String(latest.value.versionCode) || isPostponed(latest.value.versionCode)
+    )
 
     status.value = updateAvailable.value ? 'available' : 'idle'
     return updateAvailable.value
@@ -223,6 +229,30 @@ async function openInstallSettings () {
   }
 }
 
+/** ¿Esta build está pospuesta y aún no ha pasado la semana? */
+function isPostponed (versionCode) {
+  try {
+    const raw = JSON.parse(localStorage.getItem(POSTPONED_KEY) || 'null')
+    return !!raw && raw.code === versionCode && Date.now() < raw.until
+  } catch {
+    return false
+  }
+}
+
+/** Oculta el aviso de esta build durante una semana; otra build nueva lo recupera. */
+function postpone () {
+  if (latest.value?.versionCode) {
+    try {
+      localStorage.setItem(POSTPONED_KEY, JSON.stringify({
+        code: latest.value.versionCode,
+        until: Date.now() + POSTPONE_MS
+      }))
+    } catch { /* sin almacenamiento: el aviso simplemente reaparecerá */ }
+  }
+  dismissed.value = true
+  status.value = 'idle'
+}
+
 function dismiss () {
   if (latest.value?.versionCode) {
     localStorage.setItem(SKIPPED_KEY, String(latest.value.versionCode))
@@ -245,9 +275,7 @@ export function useAppUpdate () {
       })
     }
 
-    // Al abrir la app sólo se avisa los domingos; el resto de días la
-    // actualización se busca a mano desde Ajustes (`check({ manual: true })`).
-    if (new Date().getDay() === 0) await check()
+    await check()
   }
 
   return {
@@ -266,6 +294,7 @@ export function useAppUpdate () {
     downloadAndInstall,
     openInstallSettings,
     recheckInstallPermission,
-    dismiss
+    dismiss,
+    postpone
   }
 }

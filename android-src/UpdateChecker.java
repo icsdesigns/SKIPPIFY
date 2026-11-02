@@ -15,7 +15,6 @@ import android.util.Log;
 import androidx.annotation.Nullable;
 import androidx.core.app.NotificationCompat;
 
-import java.util.Calendar;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -23,12 +22,11 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Comprobación de actualizaciones en segundo plano, sólo los domingos.
+ * Comprobación diaria de actualizaciones, en segundo plano y sin abrir la app.
  *
  * Quien no abre Skippify en una semana se quedaría atrás sin enterarse. Aquí la
- * comprobación se hace sola los domingos y, si hay versión nueva, lo dice con
- * una notificación que abre la app en Configuración. El resto de días no se
- * avisa: la actualización se busca a mano desde Ajustes.
+ * comprobación se hace sola una vez al día y, si hay versión nueva, lo dice con
+ * una notificación (una por versión) que abre la app en Configuración.
  *
  * NO descarga ni instala nada: eso sigue siendo cosa de {@link UpdaterPlugin},
  * con la confirmación del usuario que Android exige de todas formas.
@@ -45,6 +43,9 @@ final class UpdateChecker {
     private static final String PREFS = "skippify-updates";
     private static final String PREF_LAST_CHECK_AT = "lastCheckAtMs";
     private static final String PREF_NOTIFIED_CODE = "notifiedVersionCode";
+
+    /** Una vez al día: más a menudo no aporta nada y gasta batería y cupo. */
+    static final long CHECK_INTERVAL_MS = 24L * 60L * 60L * 1000L;
 
     /** Debe coincidir con el repositorio que publica las releases. */
     private static final String LATEST_RELEASE_URL =
@@ -90,25 +91,14 @@ final class UpdateChecker {
         });
     }
 
-    /**
-     * Sólo los domingos, y una vez ese día. Mirar si ya se comprobó "hoy" por
-     * fecha y no por 24 h evita que una comprobación del sábado por la noche
-     * deje sin aviso el domingo entero.
-     */
     static boolean tocaComprobar(Context app) {
-        Calendar ahora = Calendar.getInstance();
-        if (ahora.get(Calendar.DAY_OF_WEEK) != Calendar.SUNDAY) return false;
-
         SharedPreferences sp = prefs(app);
         if (sp == null) return false;
         long ultima = sp.getLong(PREF_LAST_CHECK_AT, 0L);
-        if (ultima <= 0L) return true;
-
-        Calendar anterior = Calendar.getInstance();
-        anterior.setTimeInMillis(ultima);
-        boolean mismoDia = anterior.get(Calendar.YEAR) == ahora.get(Calendar.YEAR)
-                && anterior.get(Calendar.DAY_OF_YEAR) == ahora.get(Calendar.DAY_OF_YEAR);
-        return !mismoDia;
+        // Un reloj movido hacia atrás dejaría la comprobación congelada para
+        // siempre, así que un "futuro" imposible también vale como vencida.
+        long transcurrido = System.currentTimeMillis() - ultima;
+        return ultima <= 0L || transcurrido >= CHECK_INTERVAL_MS || transcurrido < 0L;
     }
 
     // ── Comprobación ─────────────────────────────────────────────────────────
