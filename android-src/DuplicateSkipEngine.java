@@ -95,10 +95,6 @@ final class DuplicateSkipEngine {
 
     /** Margen bajo el inicio de la sesión: nada posterior cuenta como escucha previa. */
     private static final long CURRENT_SESSION_GUARD_MS = 2500L;
-    /** Cuánto debe sonar una canción para que quede registrada como "ya escuchada". */
-    private static final double MIN_PLAY_RATIO = 0.25;
-    private static final long MIN_PLAY_MS = 20_000L;
-    private static final long MAX_PLAY_MS = 90_000L;
     /** Antigüedad máxima del historial que se carga en memoria. */
     private static final long INDEX_HORIZON_MS = 400L * 86_400_000L;
     /** Marcas de tiempo guardadas por canción (basta con las más recientes). */
@@ -617,11 +613,9 @@ final class DuplicateSkipEngine {
     }
 
     private static long requiredPlayMs(long durationMs) {
-        if (durationMs <= 0L) return MIN_PLAY_MS;
-        long required = (long) (durationMs * MIN_PLAY_RATIO);
-        if (required < MIN_PLAY_MS) required = MIN_PLAY_MS;
-        if (required > MAX_PLAY_MS) required = MAX_PLAY_MS;
-        return required;
+        // Los umbrales viven en EscuchasApi para que las escuchas que llegan por
+        // la API de Spotify pasen por exactamente los mismos.
+        return EscuchasApi.umbralMotorMs(durationMs);
     }
 
     /** Anota la escucha una única vez por reproducción, y sólo si sonó lo bastante. */
@@ -1620,6 +1614,40 @@ final class DuplicateSkipEngine {
             if (c != null) {
                 try { c.close(); } catch (Throwable ignored) { }
             }
+        }
+    }
+
+    /**
+     * Si el proceso arrancó sin que el listener se haya enlazado aún, el motor
+     * no tiene contexto: se le da para que pueda abrir su base de datos.
+     */
+    void asegurarContexto(@Nullable Context context) {
+        if (mContext == null && context != null) mContext = context.getApplicationContext();
+    }
+
+    /**
+     * ¿Hay anotada esa canción con su inicio entre las dos marcas? Es lo que
+     * pregunta la lectura por API de Spotify antes de dar una escucha por nueva.
+     * Ante la duda dice que sí: perder una escucha de la API es mejor que
+     * contarla dos veces.
+     */
+    boolean hayEscucha(String track, String artist, long desdeMs, long hastaMs) {
+        String key = keyOf(track, artist);
+        if (key.isEmpty()) return true;
+
+        DbHelper helper = dbHelper(mContext);
+        if (helper == null) return true;
+        Cursor c = null;
+        try {
+            c = helper.getReadableDatabase().query(TABLE, new String[]{ "id" },
+                    "track_key=? AND played_at_epoch BETWEEN ? AND ?",
+                    new String[]{ key, Long.toString(desdeMs), Long.toString(hastaMs) },
+                    null, null, null, "1");
+            return c != null && c.moveToFirst();
+        } catch (Throwable ignored) {
+            return true;
+        } finally {
+            closeQuietly(c);
         }
     }
 

@@ -32,7 +32,10 @@ const FUENTES = [
   join(raiz, 'scripts', 'native-tests', 'PruebasWidgetMes.java'),
   // Las horas del aviso del ranking del domingo a las 15:00.
   join(raiz, 'android-src', 'ResultadosLiga.java'),
-  join(raiz, 'scripts', 'native-tests', 'PruebasResultados.java')
+  join(raiz, 'scripts', 'native-tests', 'PruebasResultados.java'),
+  // Las escuchas leídas de la API de Spotify: umbrales y duplicados.
+  join(raiz, 'android-src', 'EscuchasApi.java'),
+  join(raiz, 'scripts', 'native-tests', 'PruebasEscuchasApi.java')
 ]
 
 for (const f of FUENTES) {
@@ -67,6 +70,7 @@ try {
   execFileSync('java', ['-Dfile.encoding=UTF-8', '-cp', salida, 'com.skippify.app.PruebasLiga'], { stdio: 'inherit' })
   execFileSync('java', ['-Dfile.encoding=UTF-8', '-cp', salida, 'com.skippify.app.PruebasWidgetMes'], { stdio: 'inherit' })
   execFileSync('java', ['-Dfile.encoding=UTF-8', '-cp', salida, 'com.skippify.app.PruebasResultados'], { stdio: 'inherit' })
+  execFileSync('java', ['-Dfile.encoding=UTF-8', '-cp', salida, 'com.skippify.app.PruebasEscuchasApi'], { stdio: 'inherit' })
 } finally {
   rmSync(salida, { recursive: true, force: true })
 }
