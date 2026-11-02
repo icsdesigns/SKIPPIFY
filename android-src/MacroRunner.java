@@ -166,6 +166,11 @@ public final class MacroRunner {
     public static final String API = "https://api.spotify.com/v1";
 
     public static final String SOURCE_CURRENT_TRACK   = "current_track";
+    /**
+     * «Ejecución manual»: actúa sobre la canción que suena, pero sólo cuando el
+     * usuario lo pide (botón de los auriculares). El servicio nunca la lanza solo.
+     */
+    public static final String SOURCE_MANUAL          = "manual";
     public static final String SOURCE_PLAYLIST_NEW    = "playlist_new";
     public static final String SOURCE_PLAYLIST_ALL    = "playlist_all";
     public static final String SOURCE_RECENTLY_PLAYED = "recently_played";
@@ -207,6 +212,7 @@ public final class MacroRunner {
 
     static boolean origenConocido(String source) {
         return SOURCE_CURRENT_TRACK.equals(source)
+                || SOURCE_MANUAL.equals(source)
                 || SOURCE_PLAYLIST_NEW.equals(source)
                 || SOURCE_PLAYLIST_ALL.equals(source)
                 || SOURCE_RECENTLY_PLAYED.equals(source)
@@ -229,11 +235,16 @@ public final class MacroRunner {
                 || SOURCE_LIKED_NEW.equals(source);
     }
 
+    /** Por qué una macro manual queda fuera del segundo plano. */
+    public static final String MOTIVO_MANUAL =
+            "Ejecución manual: sólo se lanza al pulsar «Ejecutar» o con el botón de los auriculares.";
+
     /** Motivo por el que el servicio NO puede con esta macro, o null si puede. */
     public static String motivoExclusion(Macro m) {
         if (m == null) return "No hay macro.";
         if (!m.enabled) return "La macro está desactivada.";
         if (!origenConocido(m.source)) return "Origen desconocido para el servicio.";
+        if (SOURCE_MANUAL.equals(m.source)) return MOTIVO_MANUAL;
 
         if (origenDePlaylist(m.source) && !noVacio(m.sourcePlaylistId)) {
             return "Falta la playlist de origen.";
@@ -295,9 +306,12 @@ public final class MacroRunner {
      * y vinculada, copia sólo la que suena cuando se pulsa.
      */
     public static Macro paraBoton(Macro m) {
-        if (m == null || m.enabled) return m;
-        return new Macro(m.id, m.name, true, m.source, m.action, m.target,
-                m.targetPlaylistId, m.sourcePlaylistId);
+        if (m == null) return m;
+        boolean manual = SOURCE_MANUAL.equals(m.source);
+        if (m.enabled && !manual) return m;
+        // La manual se resuelve como «la canción que suena»: es lo que pide el botón.
+        return new Macro(m.id, m.name, true, manual ? SOURCE_CURRENT_TRACK : m.source,
+                m.action, m.target, m.targetPlaylistId, m.sourcePlaylistId);
     }
 
     /** Motivo por el que el botón no puede ejecutarla, o null si puede. */

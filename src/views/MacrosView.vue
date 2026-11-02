@@ -1,205 +1,186 @@
 <template>
-  <div class="sk-stagger space-y-8">
+  <div class="sk-stagger space-y-4">
 
     <!-- Guía animada: se abre sola la primera vez; después, desde el icono de
          la cabecera. -->
     <MacrosGuide />
+
+    <!-- Todos los paneles de la pestaña son plegables y nacen plegados. -->
 
     <!-- ══ Conexión con Spotify ══════════════════════════════════════════════
          Sin cuenta vinculada no hay nada que hacer aquí, así que la pantalla se
          reduce a los tres pasos de la conexión y a una demostración de para qué
          sirve todo esto una vez conectada. -->
     <template v-if="!connected">
-      <section class="space-y-4">
-        <header class="flex items-center gap-3">
-          <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-400/[0.18] text-lg">🔗</span>
-          <div class="min-w-0">
-            <h2 class="text-xl font-extrabold tracking-tightest text-white">Conecta tu cuenta de Spotify</h2>
-            <p class="text-[11px] text-slate-500">Tres pasos. El acceso lo concedes tú y puedes revocarlo cuando quieras.</p>
-          </div>
-        </header>
+      <FeaturePanel
+        title="Conecta tu cuenta de Spotify"
+        subtitle="Tres pasos. El acceso lo concedes tú y puedes revocarlo cuando quieras."
+        icon-class="bg-brand-400/[0.18] text-brand-300"
+      >
+        <template #icono><MacroIcon name="actual" class="h-5 w-5" /></template>
 
-        <article class="sk-card overflow-hidden">
+        <div class="space-y-5">
           <!-- Paso 1 · crear la aplicación en el panel de Spotify -->
-          <div class="border-b border-white/[0.07] p-5">
-            <div class="flex items-start gap-3">
-              <span class="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-400 text-[11px] font-bold text-black">1</span>
-              <div class="min-w-0 flex-1">
-                <p class="text-sm font-bold text-white">Crea una aplicación en Spotify</p>
-                <p class="mt-1 text-[11px] leading-relaxed text-slate-400">
-                  Entra en <span class="text-slate-300">developer.spotify.com/dashboard</span>,
-                  pulsa <span class="text-slate-300">Create app</span> y ponle el nombre que quieras.
-                </p>
-              </div>
+          <div class="flex items-start gap-3">
+            <span class="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-400 text-[11px] font-bold text-black">1</span>
+            <div class="min-w-0 flex-1">
+              <p class="text-sm font-bold text-white">Crea una aplicación en Spotify</p>
+              <p class="mt-1 text-[11px] leading-relaxed text-slate-400">
+                Entra en <span class="text-slate-300">developer.spotify.com/dashboard</span>,
+                pulsa <span class="text-slate-300">Create app</span> y ponle el nombre que quieras.
+              </p>
             </div>
           </div>
 
           <!-- Paso 2 · pegar la URI de redirección -->
-          <div class="border-b border-white/[0.07] p-5">
-            <div class="flex items-start gap-3">
-              <span class="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-400 text-[11px] font-bold text-black">2</span>
-              <div class="min-w-0 flex-1">
-                <p class="text-sm font-bold text-white">Copia esta URI de redirección en la app</p>
-                <p class="mt-1 text-[11px] leading-relaxed text-slate-400">
-                  Va en el campo <span class="text-slate-300">Redirect URIs</span>. Tiene que ser exactamente ésta:
-                </p>
-                <div class="mt-2 flex flex-wrap items-center gap-2">
-                  <code class="min-w-0 flex-1 break-all rounded-lg bg-black/30 px-2.5 py-2 font-mono text-[11px] text-brand-400">{{ redirectUri() }}</code>
-                  <button type="button" class="sk-btn sk-btn-ghost sk-btn-sm shrink-0" @click="copiarRedirect">
-                    {{ redirectCopiada ? '¡Copiada!' : 'Copiar' }}
-                  </button>
-                </div>
+          <div class="flex items-start gap-3">
+            <span class="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-400 text-[11px] font-bold text-black">2</span>
+            <div class="min-w-0 flex-1">
+              <p class="text-sm font-bold text-white">Copia esta URI de redirección en la app</p>
+              <p class="mt-1 text-[11px] leading-relaxed text-slate-400">
+                Va en el campo <span class="text-slate-300">Redirect URIs</span>. Tiene que ser exactamente ésta:
+              </p>
+              <div class="mt-2 flex flex-wrap items-center gap-2">
+                <code class="min-w-0 flex-1 break-all rounded-lg bg-black/30 px-2.5 py-2 font-mono text-[11px] text-brand-400">{{ redirectUri() }}</code>
+                <button type="button" class="sk-btn sk-btn-ghost sk-btn-sm shrink-0" @click="copiarRedirect">
+                  {{ redirectCopiada ? '¡Copiada!' : 'Copiar' }}
+                </button>
               </div>
             </div>
           </div>
 
           <!-- Paso 3 · pegar el Client ID y conectar -->
-          <div class="p-5">
-            <div class="flex items-start gap-3">
-              <span class="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-400 text-[11px] font-bold text-black">3</span>
-              <div class="min-w-0 flex-1">
-                <p class="text-sm font-bold text-white">Pega el Client ID y conecta</p>
-                <p class="mt-1 text-[11px] leading-relaxed text-slate-400">
-                  Lo encuentras en <span class="text-slate-300">Settings</span> de la aplicación que acabas de crear.
-                </p>
-                <input
-                  v-model="clientIdInput"
-                  type="text"
-                  placeholder="32 caracteres del panel de desarrollador"
-                  class="mt-2.5 w-full sk-input px-3 py-2.5 font-mono text-xs text-slate-200 placeholder:text-slate-600"
-                >
-                <button
-                  type="button"
-                  class="mt-2.5 w-full sk-btn sk-btn-primary disabled:opacity-50"
-                  :disabled="!clientIdInput.trim() || state.connecting"
-                  @click="onConnect"
-                >
-                  {{ state.connecting ? 'Esperando a Spotify…' : 'Conectar con Spotify' }}
-                </button>
+          <div class="flex items-start gap-3">
+            <span class="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-400 text-[11px] font-bold text-black">3</span>
+            <div class="min-w-0 flex-1">
+              <p class="text-sm font-bold text-white">Pega el Client ID y conecta</p>
+              <p class="mt-1 text-[11px] leading-relaxed text-slate-400">
+                Lo encuentras en <span class="text-slate-300">Settings</span> de la aplicación que acabas de crear.
+              </p>
+              <input
+                v-model="clientIdInput"
+                type="text"
+                placeholder="32 caracteres del panel de desarrollador"
+                class="mt-2.5 w-full sk-input px-3 py-2.5 font-mono text-xs text-slate-200 placeholder:text-slate-600"
+              >
+              <button
+                type="button"
+                class="mt-2.5 w-full sk-btn sk-btn-primary disabled:opacity-50"
+                :disabled="!clientIdInput.trim() || state.connecting"
+                @click="onConnect"
+              >
+                {{ state.connecting ? 'Esperando a Spotify…' : 'Conectar con Spotify' }}
+              </button>
 
-                <p v-if="state.error" class="mt-2.5 rounded-md bg-rose-500/[0.16] px-3 py-2 text-[11px] text-rose-200">
-                  {{ state.error }}
-                </p>
-              </div>
+              <p v-if="state.error" class="mt-2.5 rounded-md bg-rose-500/[0.16] px-3 py-2 text-[11px] text-rose-200">
+                {{ state.error }}
+              </p>
             </div>
           </div>
-        </article>
-      </section>
+        </div>
+      </FeaturePanel>
 
       <!-- ── Demostración: qué se puede hacer una vez conectada ─────────────── -->
-      <section class="space-y-4">
-        <header class="flex items-center gap-3">
-          <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-violet-400/[0.18] text-lg">✨</span>
-          <div class="min-w-0">
-            <h2 class="text-xl font-extrabold tracking-tightest text-white">Un ejemplo de macro</h2>
-            <p class="text-[11px] text-slate-500">Así queda una macro montada. Ésta es sólo una muestra: no se ejecuta.</p>
-          </div>
-        </header>
+      <FeaturePanel
+        title="Un ejemplo de macro"
+        subtitle="Así queda una macro montada. Ésta es sólo una muestra: no se ejecuta."
+        icon-class="bg-violet-400/[0.18] text-violet-200"
+      >
+        <template #icono><MacroIcon name="novedades" class="h-5 w-5" /></template>
 
-        <article class="sk-card p-5">
-          <div class="grid gap-2.5 sm:grid-cols-3">
-            <div
-              v-for="tramo in demoMacro"
-              :key="tramo.letra"
-              class="rounded-card bg-black/30 p-3.5"
-            >
-              <div class="flex items-center gap-2">
-                <span class="flex h-5 w-5 items-center justify-center rounded-full bg-violet-400/[0.22] text-[10px] font-bold text-violet-100">{{ tramo.letra }}</span>
-                <span class="text-[10px] font-semibold uppercase tracking-wider text-slate-500">{{ tramo.etapa }}</span>
-              </div>
-              <p class="mt-2 text-sm font-medium text-slate-100">{{ tramo.icon }} {{ tramo.titulo }}</p>
-              <p class="mt-1 text-[11px] leading-relaxed text-slate-500">{{ tramo.detalle }}</p>
+        <div class="grid gap-2.5 sm:grid-cols-3">
+          <div
+            v-for="tramo in demoMacro"
+            :key="tramo.letra"
+            class="rounded-card bg-black/30 p-3.5"
+          >
+            <div class="flex items-center gap-2">
+              <span class="flex h-5 w-5 items-center justify-center rounded-full bg-violet-400/[0.22] text-[10px] font-bold text-violet-100">{{ tramo.letra }}</span>
+              <span class="text-[10px] font-semibold uppercase tracking-wider text-slate-500">{{ tramo.etapa }}</span>
             </div>
+            <p class="mt-2 flex items-center gap-2 text-sm font-medium text-slate-100">
+              <MacroIcon :name="tramo.glyph" class="h-5 w-5 shrink-0 text-violet-200" />{{ tramo.titulo }}
+            </p>
+            <p class="mt-1 text-[11px] leading-relaxed text-slate-500">{{ tramo.detalle }}</p>
           </div>
+        </div>
 
-          <p class="mt-4 rounded-xl bg-black/30 px-3.5 py-3 text-xs leading-relaxed text-slate-300">
-            Resultado: cada canción nueva de «Descubrimiento semanal» acaba sola en Tus me gusta,
-            sin abrir la app. El servicio la ejecuta en segundo plano en cuanto detecta novedades.
-          </p>
-        </article>
-      </section>
+        <p class="mt-4 rounded-xl bg-black/30 px-3.5 py-3 text-xs leading-relaxed text-slate-300">
+          Resultado: cada canción nueva de «Descubrimiento semanal» acaba sola en Tus me gusta,
+          sin abrir la app. El servicio la ejecuta en segundo plano en cuanto detecta novedades.
+        </p>
+      </FeaturePanel>
     </template>
 
     <template v-else>
-      <!-- ══ 1 · Datos de la cuenta ══════════════════════════════════════════ -->
-      <section class="space-y-4">
-        <header class="flex flex-wrap items-center gap-3">
-          <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-sky-400/[0.18] text-lg">🗂️</span>
-          <div class="min-w-0 flex-1">
-            <h2 class="text-xl font-extrabold tracking-tightest text-white">Datos de la cuenta</h2>
-            <p class="text-[11px] text-slate-500">Lo que Skippify puede leer y escribir con los permisos que le diste.</p>
-          </div>
+      <!-- ══ 1 · Cuenta ═════════════════════════════════════════════════════
+           Panel mínimo: quién eres y cuánto hay en la cuenta. La cabecera ya
+           lleva nombre, correo y cifras; dentro sólo quedan los dos botones. -->
+      <FeaturePanel
+        :title="state.profile?.display_name || 'Cuenta conectada'"
+        :subtitle="state.profile?.email || state.profile?.id || ''"
+        icon-class="bg-sky-400/[0.18] text-sky-200"
+      >
+        <template #icono>
+          <img
+            v-if="state.profile?.images?.[0]?.url"
+            :src="state.profile.images[0].url"
+            alt=""
+            class="h-9 w-9 rounded-full object-cover"
+          >
+          <MacroIcon v-else name="actual" class="h-5 w-5" />
+        </template>
+
+        <template #estado>
+          <span class="inline-flex items-center gap-2.5 font-mono text-[11px] font-bold text-slate-300">
+            <span class="inline-flex items-center gap-1" title="Playlists">
+              <MacroIcon name="playlist" class="h-3.5 w-3.5 text-slate-400" />{{ playlists.length || '·' }}
+            </span>
+            <span class="inline-flex items-center gap-1" title="Me gusta">
+              <MacroIcon name="megusta" class="h-3.5 w-3.5 text-slate-400" />{{ library.liked ?? '·' }}
+            </span>
+          </span>
+        </template>
+
+        <div class="flex items-center justify-end gap-2">
           <button
             type="button"
-            class="sk-btn sk-btn-ghost sk-btn-sm shrink-0"
+            class="sk-btn sk-btn-ghost sk-btn-sm flex h-9 w-9 items-center justify-center !p-0"
+            :class="loadingLibrary ? 'animate-pulse' : ''"
             :disabled="loadingLibrary"
+            aria-label="Actualizar datos de la cuenta"
+            title="Actualizar"
             @click="loadLibrary"
           >
-            {{ loadingLibrary ? 'Cargando…' : 'Actualizar' }}
+            <MacroIcon name="actualizar" class="h-5 w-5" />
           </button>
-        </header>
+          <button
+            type="button"
+            class="sk-btn sk-btn-ghost sk-btn-sm flex h-9 w-9 items-center justify-center !p-0"
+            aria-label="Desconectar la cuenta"
+            title="Desconectar"
+            @click="disconnect"
+          >
+            <MacroIcon name="desconectar" class="h-5 w-5" />
+          </button>
+        </div>
 
-        <article class="sk-card p-4">
-          <!-- Cabecera compacta con el perfil conectado -->
-          <div class="flex items-center gap-3">
-            <img
-              v-if="state.profile?.images?.[0]?.url"
-              :src="state.profile.images[0].url"
-              alt=""
-              class="h-9 w-9 rounded-full object-cover"
-            >
-            <span v-else class="flex h-9 w-9 items-center justify-center rounded-full bg-brand-400/[0.18] text-base">👤</span>
-
-            <div class="min-w-0 flex-1">
-              <p class="truncate text-sm font-bold text-white">
-                {{ state.profile?.display_name || 'Cuenta conectada' }}
-              </p>
-              <p class="truncate text-[11px] text-slate-500">
-                {{ state.profile?.email || state.profile?.id || '' }}
-              </p>
-            </div>
-
-            <span v-if="state.profile?.product" class="sk-chip shrink-0">{{ state.profile.product }}</span>
-            <button type="button" class="sk-btn sk-btn-ghost sk-btn-sm shrink-0" @click="disconnect">
-              Desconectar
-            </button>
-          </div>
-
-          <!-- Rejilla compacta: un dato por celda, sin párrafos -->
-          <div class="mt-4 grid grid-cols-3 gap-2 sm:grid-cols-6">
-            <div
-              v-for="item in dataCatalog"
-              :key="item.key"
-              class="rounded-card bg-black/30 px-2 py-2.5 text-center"
-              :title="item.detail"
-            >
-              <p class="text-base leading-none">{{ item.icon }}</p>
-              <p class="mt-1.5 font-mono text-sm font-bold text-white">
-                {{ item.count === null ? '·' : item.count }}
-              </p>
-              <p class="mt-0.5 truncate text-[10px] leading-tight text-slate-500">{{ item.short }}</p>
-            </div>
-          </div>
-
-          <p v-if="libraryError" class="mt-3 rounded-md bg-rose-500/[0.16] px-3 py-2 text-[11px] text-rose-200">
-            {{ libraryError }}
-          </p>
-        </article>
-      </section>
+        <p v-if="libraryError" class="mt-3 rounded-md bg-rose-500/[0.16] px-3 py-2 text-[11px] text-rose-200">
+          {{ libraryError }}
+        </p>
+      </FeaturePanel>
 
       <!-- ══ 2 · Crear una macro ═════════════════════════════════════════════
-           Un paso visible cada vez. Enseñar las tres etapas a la vez obligaba a
-           leer toda la pantalla para entender por dónde ibas. -->
-      <section class="space-y-4">
-        <header class="flex items-center gap-3">
-          <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-violet-400/[0.18] text-lg">⚡</span>
-          <div class="min-w-0">
-            <h2 class="text-xl font-extrabold tracking-tightest text-white">Crear una macro</h2>
-            <p class="text-[11px] text-slate-500">De dónde salen las canciones, qué se hace con ellas y dónde acaban.</p>
-          </div>
-        </header>
+           Un paso visible cada vez. Al cambiar de paso la vista se alinea con la
+           parte superior de este panel. -->
+      <div ref="panelCrear" class="scroll-mt-20">
+        <FeaturePanel
+          title="Crear una macro"
+          subtitle="De dónde salen las canciones, qué se hace con ellas y dónde acaban."
+          icon-class="bg-violet-400/[0.18] text-violet-200"
+        >
+          <template #icono><MacroIcon name="nueva" class="h-5 w-5" /></template>
 
-        <article class="sk-card p-5">
           <!-- Guía de etapas: marca la actual y las ya resueltas -->
           <ol class="flex items-center gap-1.5 text-[11px] font-semibold">
             <li
@@ -227,19 +208,23 @@
             <!-- ── A · origen ─────────────────────────────────────────────── -->
             <div v-if="pasoActual === 'source'">
               <p class="sk-eyebrow">¿De dónde salen las canciones?</p>
-              <div class="mt-2.5 grid gap-2 sm:grid-cols-2">
+              <div class="mt-2.5 grid gap-2">
                 <button
                   v-for="source in sources"
                   :key="source.type"
                   type="button"
-                  class="rounded-xl border p-3 text-left transition-all"
-                  :class="draft.source.type === source.type
-                    ? 'sk-option-active'
-                    : 'sk-option'"
+                  class="flex items-center gap-3.5 rounded-xl border p-3 text-left transition-all"
+                  :class="draft.source.type === source.type ? 'sk-option-active' : 'sk-option'"
                   @click="pickSource(source)"
                 >
-                  <p class="text-sm font-bold text-white">{{ source.icon }} {{ source.label }}</p>
-                  <p class="mt-1 text-[11px] leading-relaxed text-slate-500">{{ source.detail }}</p>
+                  <span
+                    class="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl"
+                    :class="draft.source.type === source.type ? 'bg-brand-400/[0.22] text-brand-200' : 'bg-white/[0.06] text-slate-300'"
+                  ><MacroIcon :name="source.glyph" class="h-8 w-8" /></span>
+                  <span class="min-w-0 flex-1">
+                    <span class="block text-sm font-bold text-white">{{ source.label }}</span>
+                    <span class="mt-1 block text-[11px] leading-relaxed text-slate-500">{{ source.detail }}</span>
+                  </span>
                 </button>
               </div>
 
@@ -284,19 +269,25 @@
             <!-- ── B · acción ─────────────────────────────────────────────── -->
             <div v-else-if="pasoActual === 'action'">
               <p class="sk-eyebrow">¿Qué se hace con ellas?</p>
-              <div class="mt-2.5 grid gap-2 sm:grid-cols-2">
+              <div class="mt-2.5 grid gap-2">
                 <button
                   v-for="action in availableActions"
                   :key="action.type"
                   type="button"
-                  class="rounded-xl border p-3 text-left transition-all"
+                  class="flex items-center gap-3.5 rounded-xl border p-3 text-left transition-all"
                   :class="draft.action.type === action.type
                     ? 'border-violet-400 bg-violet-400/[0.14] text-white'
                     : 'sk-option'"
                   @click="pickAction(action)"
                 >
-                  <p class="text-sm font-bold text-white">{{ action.icon }} {{ action.label }}</p>
-                  <p class="mt-1 text-[11px] leading-relaxed text-slate-500">{{ action.detail }}</p>
+                  <span
+                    class="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl"
+                    :class="draft.action.type === action.type ? 'bg-violet-400/[0.25] text-violet-100' : 'bg-white/[0.06] text-slate-300'"
+                  ><MacroIcon :name="action.glyph" class="h-8 w-8" /></span>
+                  <span class="min-w-0 flex-1">
+                    <span class="block text-sm font-bold text-white">{{ action.label }}</span>
+                    <span class="mt-1 block text-[11px] leading-relaxed text-slate-500">{{ action.detail }}</span>
+                  </span>
                 </button>
               </div>
             </div>
@@ -304,18 +295,25 @@
             <!-- ── C · destino ────────────────────────────────────────────── -->
             <div v-else-if="pasoActual === 'target'">
               <p class="sk-eyebrow">¿Dónde acaban?</p>
-              <div class="mt-2.5 grid gap-2 sm:grid-cols-2">
+              <div class="mt-2.5 grid gap-2">
                 <button
                   v-for="target in availableTargets"
                   :key="target.type"
                   type="button"
-                  class="rounded-xl border p-3 text-left transition-all"
+                  class="flex items-center gap-3.5 rounded-xl border p-3 text-left transition-all"
                   :class="draft.target.type === target.type
                     ? 'border-sky-400 bg-sky-400/[0.14] text-white'
                     : 'sk-option'"
                   @click="pickTarget(target)"
                 >
-                  <p class="text-sm font-bold text-white">{{ target.icon }} {{ target.label }}</p>
+                  <span
+                    class="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl"
+                    :class="draft.target.type === target.type ? 'bg-sky-400/[0.25] text-sky-100' : 'bg-white/[0.06] text-slate-300'"
+                  ><MacroIcon :name="target.glyph" class="h-8 w-8" /></span>
+                  <span class="min-w-0 flex-1">
+                    <span class="block text-sm font-bold text-white">{{ target.label }}</span>
+                    <span class="mt-1 block text-[11px] leading-relaxed text-slate-500">{{ target.detail }}</span>
+                  </span>
                 </button>
               </div>
 
@@ -392,91 +390,99 @@
             </div>
           </div>
 
-          <!-- Navegación: atrás y siguiente disponibles en todos los pasos -->
-          <div class="mt-5 flex flex-wrap items-center gap-2 border-t border-white/[0.07] pt-4">
+          <!-- Navegación sólo con iconos: atrás a la izquierda, reiniciar en el
+               centro y siguiente (o guardar) a la derecha. -->
+          <div class="mt-5 grid grid-cols-3 items-center border-t border-white/[0.07] pt-4">
             <button
               type="button"
-              class="sk-btn sk-btn-ghost sk-btn-sm"
+              class="sk-btn sk-btn-ghost flex h-11 w-11 items-center justify-center justify-self-start !p-0 disabled:opacity-30"
               :disabled="pasoIdx === 0"
+              aria-label="Paso anterior"
+              title="Atrás"
               @click="retroceder"
             >
-              ← Atrás
+              <MacroIcon name="atras" class="h-6 w-6" />
             </button>
 
             <button
-              v-if="pasoIdx > 0"
               type="button"
-              class="sk-btn sk-btn-ghost sk-btn-sm"
+              class="sk-btn sk-btn-ghost flex h-11 w-11 items-center justify-center justify-self-center !p-0 disabled:opacity-30"
+              :disabled="pasoIdx === 0"
+              aria-label="Empezar de cero"
+              title="Empezar de cero"
               @click="reiniciarBorrador"
             >
-              Empezar de cero
+              <MacroIcon name="reiniciar" class="h-6 w-6" />
             </button>
 
             <button
               v-if="pasoActual !== 'save'"
               type="button"
-              class="sk-btn sk-btn-primary sk-btn-sm ml-auto disabled:opacity-40"
+              class="sk-btn sk-btn-primary flex h-11 w-11 items-center justify-center justify-self-end !p-0 disabled:opacity-40"
               :disabled="!puedeAvanzar"
+              aria-label="Siguiente paso"
+              title="Siguiente"
               @click="avanzar"
             >
-              Siguiente →
+              <MacroIcon name="siguiente" class="h-6 w-6" />
             </button>
 
             <button
               v-else
               type="button"
-              class="sk-btn sk-btn-primary sk-btn-sm ml-auto disabled:opacity-40"
+              class="sk-btn sk-btn-primary flex h-11 w-11 items-center justify-center justify-self-end !p-0 disabled:opacity-40"
               :disabled="!!draftError"
+              aria-label="Guardar macro"
+              title="Guardar macro"
               @click="onCreate"
             >
-              Guardar macro
+              <MacroIcon name="guardar" class="h-6 w-6" />
             </button>
           </div>
-        </article>
-      </section>
+        </FeaturePanel>
+      </div>
 
       <!-- ══ 3 · Tus macros ══════════════════════════════════════════════════ -->
-      <section class="space-y-4">
-        <header class="flex flex-wrap items-center gap-3">
-          <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-400/[0.18] text-lg">📚</span>
-          <div class="min-w-0 flex-1">
-            <div class="flex items-center gap-2">
-              <h2 class="text-xl font-extrabold tracking-tightest text-white">Tus macros</h2>
-              <!-- La explicación larga ocupaba media pantalla: ahora se pide. -->
-              <button
-                type="button"
-                class="flex h-6 w-6 items-center justify-center rounded-full border border-white/[0.10] bg-white/[0.03] text-[11px] text-slate-400 transition-colors hover:border-white/25 hover:text-slate-200"
-                :aria-expanded="verAyudaMacros"
-                aria-label="Cómo se ejecutan las macros"
-                @click="verAyudaMacros = !verAyudaMacros"
-              >ℹ️</button>
-            </div>
-            <p class="text-[11px] text-slate-500">{{ macros.length }} macro(s) guardada(s)</p>
-          </div>
+      <FeaturePanel
+        title="Tus macros"
+        :subtitle="`${macros.length} macro(s) guardada(s)`"
+        icon-class="bg-brand-400/[0.18] text-brand-200"
+      >
+        <template #icono><MacroIcon name="playlist" class="h-5 w-5" /></template>
+
+        <div class="mb-3 flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            class="flex h-6 w-6 items-center justify-center rounded-full border border-white/[0.10] bg-white/[0.03] text-[11px] text-slate-400 transition-colors hover:border-white/25 hover:text-slate-200"
+            :aria-expanded="verAyudaMacros"
+            aria-label="Cómo se ejecutan las macros"
+            @click="verAyudaMacros = !verAyudaMacros"
+          >?</button>
           <button
             v-if="macros.length"
             type="button"
-            class="sk-btn sk-btn-ghost sk-btn-sm shrink-0"
+            class="sk-btn sk-btn-ghost sk-btn-sm ml-auto shrink-0"
             :disabled="running"
             @click="onRunAll"
           >
             {{ running ? 'Ejecutando…' : 'Ejecutar todas' }}
           </button>
-        </header>
+        </div>
 
         <Transition name="desplegar">
           <p
             v-if="verAyudaMacros"
-            class="rounded-xl bg-black/30 px-3.5 py-3 text-[11px] leading-relaxed text-slate-400"
+            class="mb-3 rounded-xl bg-black/30 px-3.5 py-3 text-[11px] leading-relaxed text-slate-400"
           >
             Las macros marcadas «en segundo plano» las ejecuta el servicio con la app cerrada:
             las de la canción actual en cuanto cambia la canción, y las de lista en un repaso
-            cada 15 minutos. El resto se evalúan al pulsar «Ejecutar». Todas recuerdan por dónde
-            iban, así que nada se procesa dos veces aunque pasen días entre ejecuciones.
+            cada 15 minutos. Las de «Ejecución manual» sólo actúan cuando pulsas «Ejecutar» o el
+            botón de los auriculares. Todas recuerdan por dónde iban, así que nada se procesa dos
+            veces aunque pasen días entre ejecuciones.
           </p>
         </Transition>
 
-        <p v-if="!macros.length" class="sk-card px-5 py-6 text-center text-xs text-slate-500">
+        <p v-if="!macros.length" class="rounded-xl bg-black/20 px-5 py-6 text-center text-xs text-slate-500">
           Todavía no has creado ninguna macro.
         </p>
 
@@ -518,6 +524,11 @@
               </span>
 
               <span
+                v-if="esManual(macro)"
+                class="hidden shrink-0 items-center gap-1 rounded-full bg-violet-400/[0.18] px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-violet-200 sm:inline-flex"
+              >manual</span>
+
+              <span
                 v-if="vinculadaAlBoton(macro)"
                 class="inline-flex shrink-0 items-center gap-1 rounded-full bg-sky-400/[0.18] px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-sky-200"
                 title="Se ejecuta con la pulsación larga del botón de los auriculares"
@@ -546,7 +557,7 @@
             <!-- Etiqueta desplegada -->
             <div v-if="abierta[macro.id]" class="border-t border-white/[0.07] p-3.5">
               <p
-                v-if="!correEnSegundoPlano(macro) && motivoSinSegundoPlano(macro)"
+                v-if="!correEnSegundoPlano(macro) && !esManual(macro) && motivoSinSegundoPlano(macro)"
                 class="mb-2 text-[10px] leading-relaxed text-amber-300/80"
               >
                 Sólo a mano: {{ motivoSinSegundoPlano(macro) }}
@@ -641,25 +652,22 @@
             </div>
           </li>
         </ul>
-      </section>
+      </FeaturePanel>
 
       <!-- ══ 4 · Botón de los auriculares ════════════════════════════════════ -->
       <!--
         Sólo en la app: quien atiende la pulsación es el servicio nativo, con la
         app cerrada. En el navegador no hay nada que vincular.
       -->
-      <section v-if="nativeState.disponible && macros.length" class="space-y-4">
-        <header class="flex items-center gap-3">
-          <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-sky-400/[0.18] text-sky-200">
-            <FeatureIcon name="auriculares" class="h-5 w-5" />
-          </span>
-          <div class="min-w-0">
-            <h2 class="text-xl font-extrabold tracking-tightest text-white">Botón de los auriculares</h2>
-            <p class="text-[11px] text-slate-500">Mantén pulsado el botón de función y se ejecuta la macro que elijas.</p>
-          </div>
-        </header>
+      <FeaturePanel
+        v-if="nativeState.disponible && macros.length"
+        title="Botón de los auriculares"
+        subtitle="Mantén pulsado el botón de función y se ejecuta la macro que elijas."
+        icon-class="bg-sky-400/[0.18] text-sky-200"
+      >
+        <template #icono><FeatureIcon name="auriculares" class="h-5 w-5" /></template>
 
-        <article class="sk-card space-y-3 p-5">
+        <div class="space-y-3">
           <label class="block">
             <span class="sk-eyebrow">Macro vinculada</span>
             <select
@@ -724,8 +732,8 @@
               {{ botonResultado.message }}
             </p>
           </template>
-        </article>
-      </section>
+        </div>
+      </FeaturePanel>
     </template>
 
   </div>
@@ -733,17 +741,20 @@
 
 <script setup>
 /**
- * Macros — pantalla en tres bloques: los datos de la cuenta, el asistente que
- * monta una macro y la lista de las guardadas.
+ * Macros — pantalla en bloques plegables (todos nacen plegados): la cuenta, el
+ * asistente que monta una macro, la lista de las guardadas y el botón de los
+ * auriculares.
  *
  * El asistente enseña UN paso cada vez (origen → acción → destino → guardar)
  * con «Atrás» y «Siguiente» siempre a mano: verlo todo desplegado obligaba a
  * releer la pantalla entera para saber por dónde ibas. Las macros guardadas son
  * etiquetas plegadas por defecto, con su interruptor a la vista.
  */
-import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useSpotify } from '@/composables/useSpotify'
 import FeatureIcon from '@/components/FeatureIcon.vue'
+import FeaturePanel from '@/components/FeaturePanel.vue'
+import MacroIcon from '@/components/MacroIcon.vue'
 import MacrosGuide from '@/components/MacrosGuide.vue'
 import { useMacrosGuide } from '@/composables/useMacrosGuide'
 import { useTour } from '@/composables/useTour'
@@ -811,21 +822,21 @@ const demoMacro = [
   {
     letra: 'A',
     etapa: 'Origen',
-    icon: '🆕',
+    glyph: 'novedades',
     titulo: 'Novedades de una playlist',
     detalle: '«Descubrimiento semanal», sólo lo que Spotify haya añadido desde la última vez.'
   },
   {
     letra: 'B',
     etapa: 'Acción',
-    icon: '📋',
+    glyph: 'copiar',
     titulo: 'Copiar',
     detalle: 'Se añaden al destino sin tocar la playlist de origen.'
   },
   {
     letra: 'C',
     etapa: 'Destino',
-    icon: '💚',
+    glyph: 'megusta',
     titulo: 'Tus me gusta',
     detalle: 'Acaban en tu biblioteca de canciones guardadas.'
   }
@@ -985,6 +996,19 @@ function reiniciarBorrador () {
 
 // Cambiar de acción añade o quita el paso «destino»: sin esto el índice se
 // quedaría apuntando fuera de la lista.
+/** Panel «Crear una macro»: al cambiar de paso la vista se alinea con su parte superior. */
+const panelCrear = ref(null)
+
+watch(pasoIdx, async () => {
+  await nextTick()
+  panelCrear.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+})
+
+/** ¿Sólo se ejecuta cuando el usuario lo pide? */
+function esManual (macro) {
+  return macro?.source?.type === 'manual'
+}
+
 watch(pasos, (lista) => {
   if (pasoIdx.value > lista.length - 1) pasoIdx.value = lista.length - 1
 })
@@ -996,51 +1020,6 @@ watch(pasos, (lista) => {
 function playlistCount (pl) {
   return pl?.items?.total ?? pl?.tracks?.total ?? 0
 }
-
-const dataCatalog = computed(() => [
-  {
-    key: 'playlists',
-    icon: '🎵',
-    short: 'Playlists',
-    count: playlists.value.length || null,
-    detail: 'Propias y seguidas, con sus canciones. Se pueden leer, ampliar y vaciar.'
-  },
-  {
-    key: 'recent',
-    icon: '🕒',
-    short: 'Recientes',
-    count: library.recent,
-    detail: 'Las últimas 50 canciones escuchadas, con la hora exacta de cada una.'
-  },
-  {
-    key: 'liked',
-    icon: '💚',
-    short: 'Me gusta',
-    count: library.liked,
-    detail: 'La biblioteca de canciones guardadas. Se pueden añadir y quitar canciones.'
-  },
-  {
-    key: 'top',
-    icon: '🏆',
-    short: 'Top',
-    count: library.top,
-    detail: 'Tu ranking personal a corto, medio y largo plazo según Spotify.'
-  },
-  {
-    key: 'following',
-    icon: '👥',
-    short: 'Artistas',
-    count: library.following,
-    detail: 'La lista de artistas seguidos, útil para filtrar por procedencia.'
-  },
-  {
-    key: 'player',
-    icon: '▶️',
-    short: 'Reproductor',
-    count: null,
-    detail: 'Canción actual, dispositivo activo, cola y control de reproducción (saltar, encolar).'
-  }
-])
 
 /**
  * Las macros que gobierna el servicio llevan su cuenta en el lado nativo: es él

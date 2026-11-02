@@ -42,6 +42,7 @@ const LIBRARY_BATCH = 50
 export const MACRO_SOURCES = [
   {
     type: 'current_track',
+    glyph: 'actual',
     label: 'La canción que suena ahora',
     icon: '🎧',
     detail: 'Toma la reproducción activa en Spotify en el momento de ejecutar la macro.',
@@ -49,7 +50,18 @@ export const MACRO_SOURCES = [
     incremental: false
   },
   {
+    type: 'manual',
+    glyph: 'manual',
+    label: 'Ejecución manual',
+    icon: '👆',
+    detail: 'Actúa sobre la canción que suena, sólo cuando pulses «Ejecutar» o el botón de los auriculares. Nunca se lanza sola.',
+    needsPlaylist: false,
+    incremental: false,
+    manual: true
+  },
+  {
     type: 'playlist_new',
+    glyph: 'novedades',
     label: 'Novedades de una playlist',
     icon: '🆕',
     detail: 'Detecta las canciones añadidas a una playlist desde la última vez que se ejecutó.',
@@ -58,6 +70,7 @@ export const MACRO_SOURCES = [
   },
   {
     type: 'playlist_all',
+    glyph: 'playlist',
     label: 'Todas las canciones de una playlist',
     icon: '📃',
     detail: 'Recorre la playlist entera cada vez. Útil para sincronizar o vaciar.',
@@ -66,6 +79,7 @@ export const MACRO_SOURCES = [
   },
   {
     type: 'recently_played',
+    glyph: 'reciente',
     label: 'Tus reproducciones recientes',
     icon: '🕒',
     detail: 'Las últimas canciones que has escuchado según Spotify (máximo 50).',
@@ -74,6 +88,7 @@ export const MACRO_SOURCES = [
   },
   {
     type: 'liked_new',
+    glyph: 'megusta',
     label: 'Novedades en «Tus me gusta»',
     icon: '💚',
     detail: 'Canciones que has marcado como favoritas desde la última ejecución.',
@@ -82,6 +97,7 @@ export const MACRO_SOURCES = [
   },
   {
     type: 'top_tracks',
+    glyph: 'top',
     label: 'Tus canciones más escuchadas',
     icon: '🏆',
     detail: 'El top personal que calcula Spotify con tu historial reciente.',
@@ -95,6 +111,7 @@ export const MACRO_SOURCES = [
 export const MACRO_ACTIONS = [
   {
     type: 'copy',
+    glyph: 'copiar',
     label: 'Copiar',
     icon: '📋',
     detail: 'Añade las canciones al destino sin tocar el origen.',
@@ -103,6 +120,7 @@ export const MACRO_ACTIONS = [
   },
   {
     type: 'move',
+    glyph: 'mover',
     label: 'Mover',
     icon: '📦',
     detail: 'Añade al destino y las quita del origen. Solo con orígenes de playlist.',
@@ -112,6 +130,7 @@ export const MACRO_ACTIONS = [
   },
   {
     type: 'remove',
+    glyph: 'eliminar',
     label: 'Eliminar',
     icon: '🗑️',
     detail: 'Quita las canciones del destino indicado.',
@@ -120,6 +139,7 @@ export const MACRO_ACTIONS = [
   },
   {
     type: 'remove_from_source',
+    glyph: 'vaciar',
     label: 'Quitar del origen',
     icon: '🧹',
     detail: 'Vacía de la playlist de origen las canciones que la macro encuentre, sin copiarlas a ningún sitio.',
@@ -128,6 +148,7 @@ export const MACRO_ACTIONS = [
   },
   {
     type: 'queue',
+    glyph: 'cola',
     label: 'Poner en cola',
     icon: '⏭️',
     detail: 'Encola las canciones para que suenen a continuación. Requiere reproducción activa.',
@@ -138,10 +159,24 @@ export const MACRO_ACTIONS = [
 // ── Catálogo C · destinos ───────────────────────────────────────────────────
 
 export const MACRO_TARGETS = [
-  { type: 'playlist', label: 'Una playlist existente', icon: '🎵', needsPlaylist: true },
-  { type: 'new_playlist', label: 'Una playlist nueva', icon: '✨', needsName: true },
-  { type: 'liked', label: 'Tus me gusta', icon: '💚' },
-  { type: 'queue', label: 'La cola de reproducción', icon: '⏭️' }
+  {
+    type: 'playlist',
+    glyph: 'playlist',
+    label: 'Una playlist existente',
+    icon: '🎵',
+    detail: 'Una de tus playlists, propia o colaborativa.',
+    needsPlaylist: true
+  },
+  {
+    type: 'new_playlist',
+    glyph: 'nueva',
+    label: 'Una playlist nueva',
+    icon: '✨',
+    detail: 'Se crea la primera vez que se ejecuta la macro.',
+    needsName: true
+  },
+  { type: 'liked', glyph: 'megusta', label: 'Tus me gusta', icon: '💚', detail: 'Tu biblioteca de canciones guardadas.' },
+  { type: 'queue', glyph: 'cola', label: 'La cola de reproducción', icon: '⏭️', detail: 'Suenan a continuación. Requiere Premium.' }
 ]
 
 export function sourceMeta (type) {
@@ -341,6 +376,7 @@ export function validateDraft (draft) {
 /** Permisos que necesita cada origen para poder leerse. */
 const SOURCE_SCOPES = {
   current_track: ['user-read-currently-playing'],
+  manual: ['user-read-currently-playing'],
   playlist_new: ['playlist-read-private'],
   playlist_all: ['playlist-read-private'],
   recently_played: ['user-read-recently-played'],
@@ -563,7 +599,7 @@ async function resolveSource (macro, spotify) {
   const { api, apiPaged } = spotify
   const type = macro.source.type
 
-  if (type === 'current_track') {
+  if (type === 'current_track' || type === 'manual') {
     const playing = await api('/me/player/currently-playing')
     const track = normalizeTrack(playing?.item)
     return track ? [track] : []
@@ -1069,14 +1105,15 @@ export function useMacros () {
   async function runAllEnabled () {
     const summary = []
     for (const macro of macros) {
-      if (!macro.enabled) continue
+      // Las manuales sólo se lanzan a propósito, una a una: «todas» no las toca.
+      if (!macro.enabled || macro.source?.type === 'manual') continue
       const result = await runMacro(macro, spotify)
       summary.push({ macro, result })
       // Si Spotify ha cortado por cupo, seguir con las demás sólo consigue que
       // fallen todas y que la ventana de bloqueo se alargue. Se para aquí.
       if (/cupo de peticiones/.test(result.error || '')) {
         for (const rest of macros) {
-          if (rest === macro || !rest.enabled) continue
+          if (rest === macro || !rest.enabled || rest.source?.type === 'manual') continue
           if (summary.some(item => item.macro === rest)) continue
           summary.push({
             macro: rest,
