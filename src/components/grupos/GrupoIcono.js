@@ -80,6 +80,20 @@ const TRAZOS = {
     ['path', { d: 'M8.5 7h7M7.2 9.2l3.6 6.6M16.8 9.2l-3.6 6.6' }]
   ],
   chevron: [['path', { d: 'm9 6 6 6-6 6' }]],
+  userPlus: [
+    ['circle', { cx: 9, cy: 8, r: 3.5 }],
+    ['path', { d: 'M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6' }],
+    ['path', { d: 'M19 8v6M16 11h6' }]
+  ],
+  userX: [
+    ['circle', { cx: 9, cy: 8, r: 3.5 }],
+    ['path', { d: 'M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6' }],
+    ['path', { d: 'm16.5 8.5 5 5M21.5 8.5l-5 5' }]
+  ],
+  logout: [
+    ['path', { d: 'M9 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h3' }],
+    ['path', { d: 'M16 8l4 4-4 4M20 12H9' }]
+  ],
   // Cifras de la ficha de cada miembro.
   finish: [
     ['circle', { cx: 12, cy: 12, r: 9 }],

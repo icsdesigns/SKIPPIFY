@@ -172,7 +172,6 @@ import { useNotifListener } from '@/composables/useNotifListener'
 import { useFeatures } from '@/composables/useFeatures'
 import { useEventStore } from '@/stores/events'
 import { useAppUpdate } from '@/composables/useAppUpdate'
-import { useLeague } from '@/composables/useLeague'
 import { useLocalLeague } from '@/composables/useLocalLeague'
 import { useTour } from '@/composables/useTour'
 
@@ -184,7 +183,6 @@ const notif = useNotifListener()
 const { initializeNativeFeatures, syncNativeHistoryFromEvents } = useFeatures()
 const eventStore = useEventStore()
 const update = useAppUpdate()
-const league = useLeague()
 const localLeague = useLocalLeague()
 const nowPlaying = ref({ mode: 'stopped' })
 const router = useRouter()
@@ -287,9 +285,6 @@ onMounted(async () => {
   // no hay red simplemente no pasa nada.
   update.initialize()
 
-  // Avisa de los resultados de la comunidad sin tener que entrar en la pestaña.
-  // Si el usuario no pertenece a ningún grupo no sale ni una petición.
-  league.startPublishedResultsWatch()
   // Grupos «sin servidor» (LocalHost): sincroniza y publica escuchas. Sin grupos no hace nada.
   localLeague.startWatch()
 
@@ -324,9 +319,6 @@ watch(() => route.path, () => {
 function onVisibleAgain () {
   if (document.visibilityState !== 'visible') return
   notif.refreshSystemPermissions()
-  // Volver a la app es el momento más probable de haberse perdido una
-  // publicación: el temporizador no corre mientras el proceso está dormido.
-  void league.checkPublishedResults()
   void localLeague.syncAll()
   syncNativeHistoryFromEvents(eventStore.state.events).catch(() => {})
 }
@@ -334,7 +326,6 @@ function onVisibleAgain () {
 onBeforeUnmount(() => {
   document.removeEventListener('visibilitychange', onVisibleAgain)
   window.removeEventListener('scroll', onScroll)
-  league.stopPublishedResultsWatch()
   localLeague.stopWatch()
   if (splashTimer) clearTimeout(splashTimer)
   if (tourTimer) clearTimeout(tourTimer)

@@ -8,11 +8,11 @@
       @click="alternar"
     >
       <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-400/[0.16] text-brand-300">
-        <GrupoIcono :name="modo === 'local' ? 'mesh' : 'server'" class="h-[18px] w-[18px]" />
+        <GrupoIcono name="mesh" class="h-[18px] w-[18px]" />
       </span>
       <span class="min-w-0 flex-1">
         <span class="block text-sm font-bold text-white">¿Cómo funciona?</span>
-        <span class="block truncate text-[11px] text-slate-400">{{ modo === 'local' ? 'Grupos sin servidor, en vuestros propios móviles' : 'Grupos con servidor (Firebase)' }}</span>
+        <span class="block truncate text-[11px] text-slate-400">Grupos sin servidor, en vuestros propios móviles</span>
       </span>
       <GrupoIcono name="chevron" class="h-4 w-4 shrink-0 text-slate-500 transition-transform duration-300" :class="abierto ? '-rotate-90' : 'rotate-90'" />
     </button>
@@ -41,16 +41,15 @@
 
 <script setup>
 /**
- * Panel «¿Cómo funciona?» de la pestaña Comunidad: tres pasos y una nota de
- * privacidad, distintos según el modo. Se abre solo cuando aún no hay grupos
+ * Panel «¿Cómo funciona?» de la pestaña Grupos: tres pasos y una nota de
+ * privacidad. Se abre solo cuando aún no hay grupos
  * (es lo que necesita quien llega nuevo) y después recuerda lo que eligió cada
  * uno. Vivía en Ajustes y desde allí no lo encontraba nadie.
  */
-import { computed, ref, watch } from 'vue'
+import { ref, watch } from 'vue'
 import GrupoIcono from './GrupoIcono.js'
 
 const props = defineProps({
-  modo: { type: String, required: true },
   /** Sin grupos en este modo: se enseña abierto salvo que se haya plegado a mano. */
   sinGrupos: { type: Boolean, default: false }
 })
@@ -74,23 +73,12 @@ function alternar () {
   try { localStorage.setItem(CLAVE, abierto.value ? '1' : '0') } catch { /* sin almacenamiento */ }
 }
 
-const PASOS = {
-  local: [
-    { icono: 'plus', titulo: 'Crea un grupo o únete', texto: 'Quien lo crea genera una invitación exprés (8 caracteres) o un QR. Vale 24 horas y entra en cuanto un miembro tenga la app abierta.' },
-    { icono: 'note', titulo: 'Escucha como siempre', texto: 'Tus escuchas se comparten solas con el grupo, cifradas, también con la app cerrada. No hay cuentas ni base de datos.' },
-    { icono: 'medal', titulo: 'Comparad la semana', texto: 'El ranking va por tiempo de escucha y se mantiene al día; es provisional hasta que todos han sincronizado. En «En común» veis cuánto os parecéis.' }
-  ],
-  servidor: [
-    { icono: 'plus', titulo: 'Crea un grupo o únete', texto: 'Quien lo crea comparte su código de 6 caracteres; con él se entra al momento.' },
-    { icono: 'note', titulo: 'Escucha como siempre', texto: 'Tus escuchas se suben solas a Firebase, también con la app cerrada.' },
-    { icono: 'medal', titulo: 'Resultados el domingo', texto: 'El ranking de la semana se publica cada domingo a las 15:00 y te avisamos cuando está.' }
-  ]
-}
-
-const pasos = computed(() => PASOS[props.modo] || PASOS.local)
-const nota = computed(() => props.modo === 'local'
-  ? 'Los datos viajan cifrados por relays públicos, que sólo ven direcciones IP, horas y tamaños. Quien pasa 30 días sin enviar nada sale del grupo; salir borra la copia de este móvil.'
-  : 'Los grupos y las escuchas se guardan en el proyecto de Firebase de Skippify, con una sesión anónima por móvil.')
+const pasos = [
+  { icono: 'plus', titulo: 'Crea un grupo o únete', texto: 'Pulsa «Nuevo» en el desplegable. Quien crea el grupo es su administrador y genera una invitación exprés (8 caracteres) o un QR. Vale 1 hora y entra en cuanto un miembro tenga la app abierta.' },
+  { icono: 'note', titulo: 'Escucha como siempre', texto: 'Tus escuchas se comparten solas con el grupo, cifradas, también con la app cerrada. No hay cuentas ni base de datos.' },
+  { icono: 'medal', titulo: 'Comparad la semana', texto: 'El ranking va por tiempo de escucha y se mantiene al día; es provisional hasta que todos han sincronizado. En «Escucha común» veis cuánto os parecéis. Puedes mirar también las dos semanas anteriores.' }
+]
+const nota = 'Los datos viajan cifrados por relays públicos, que sólo ven direcciones IP, horas y tamaños. Sólo el administrador invita y expulsa. Quien pasa 30 días sin enviar nada sale del grupo; abandonar borra la copia de este móvil.'
 </script>
 
 <style scoped>

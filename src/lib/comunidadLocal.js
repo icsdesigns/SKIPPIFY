@@ -16,7 +16,7 @@ import { computed, ref, shallowRef } from 'vue'
 
 const STATE_KEY = 'skippify-localhost-state'
 
-/** { state, statuses, members, leaderboards } de useLocalLeague, o null. */
+/** { state, statuses, members, semanas } de useLocalLeague, o null. */
 const vivo = shallowRef(null)
 const copia = ref(leerCopia())
 
@@ -58,7 +58,7 @@ export const gruposLocales = computed(() => {
   const v = vivo.value
   const lista = v ? v.state.value.groups : copia.value.groups
   return lista.map(g => {
-    const lb = v?.leaderboards[g.groupId]
+    const lb = v?.semanas[g.groupId]?.actual
     return {
       id: g.groupId,
       nombre: g.name || 'Grupo',

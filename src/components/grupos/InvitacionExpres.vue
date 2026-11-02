@@ -26,7 +26,7 @@
     </div>
 
     <p class="mt-3.5 text-[11px] leading-relaxed text-slate-400">
-      Quien lo reciba lo escribe en «Unirme». Vale una sola vez y 30 minutos. Mantén la app abierta
+      Quien lo reciba lo escribe en «Unirme». Vale una sola vez y 1 hora. Mantén la app abierta
       hasta que la otra persona entre: tu móvil es quien la deja pasar.
     </p>
 
@@ -73,7 +73,7 @@ const puedeCompartir = computed(() => typeof navigator !== 'undefined' && typeof
 
 const texto = computed(() => {
   const grupo = props.nombreGrupo ? ` «${props.nombreGrupo}»` : ''
-  return `Entra en mi grupo${grupo} de Skippify: abre Comunidad, elige «Sin servidor», pulsa «Unirme» y escribe el código ${props.codigo}. Vale 30 minutos.`
+  return `Entra en mi grupo${grupo} de Skippify: abre Grupos, pulsa «Nuevo», elige «Unirme» y escribe el código ${props.codigo}. Vale 1 hora.`
 })
 
 async function pintarQr () {

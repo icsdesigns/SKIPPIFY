@@ -1,11 +1,8 @@
 /**
- * Simulación de la pestaña Comunidad con un ranking ya publicado.
+ * Simulación de la pestaña Grupos con un ranking ya calculado.
  *
- * El ranking sólo lo escribe la publicación semanal, así que en un portátil sin
- * credenciales de Firebase la pantalla nunca llega a enseñar una ficha de
- * miembro: no hay forma de ver si las cifras salen y si los nombres largos
- * caben. Aquí se inyecta una publicación de mentira en el estado del composable
- * y se renderiza la vista en servidor, que es donde se comprueba el HTML.
+ * Se inyectan miembros y resultados de mentira en el estado de useLocalLeague y
+ * se renderiza la vista en servidor, que es donde se comprueba el HTML.
  *
  *   npx vite build --ssr scripts/smoke-comunidad.mjs --outDir .tmp-ssr
  *   node .tmp-ssr/smoke-comunidad.js
@@ -37,11 +34,10 @@ function installBrowserGlobals () {
   }
 }
 
-const GROUP_ID = 'grupo-simulado'
 const GRUPO_LOCAL = 'lh_0011223344556677'
 const NOMBRE_LOCAL_LARGO = 'Los del garaje de la calle Reyes'
 
-/** Tres fichas: una con todas las cifras nuevas y dos anteriores a la v4.0.1. */
+/** Tres fichas: una con todas las cifras nuevas y dos más sencillas. */
 const MIEMBROS = [
   {
     uid: 'uid-ana',
@@ -105,61 +101,44 @@ const MIEMBROS = [
 async function main () {
   installBrowserGlobals()
 
-  // Un grupo sin servidor en la caché de useLocalLeague: el árbol lo lee de ahí
-  // sin cargar ese modo. Nombre de 32 caracteres, el máximo del formulario.
   localStorage.setItem('skippify-localhost-state', JSON.stringify({
     displayName: 'Ana',
     groups: [{ groupId: GRUPO_LOCAL, name: NOMBRE_LOCAL_LARGO, role: 'owner', relays: [] }],
     activeGroupId: GRUPO_LOCAL
   }))
 
-  // Los grupos con servidor están apagados por defecto; las comprobaciones de
-  // abajo son las del modo con servidor, así que se encienden. Más abajo se
-  // comprueba también el estado por defecto.
-  localStorage.setItem('skippify-community-firebase-groups', '1')
-
-  const { useLeague } = await import('../src/composables/useLeague.js')
-  const liga = useLeague()
-
-  liga.state.value = {
-    uid: 'uid-ana',
-    displayName: 'Ana',
-    groups: [{ groupId: GROUP_ID, inviteCode: 'ABC123', name: 'Los del garaje', role: 'owner' }],
-    activeGroupId: GROUP_ID,
-    lastSyncAt: new Date().toISOString(),
-    lastSeenWeekKeys: { [GROUP_ID]: '2026-09-14' }
-  }
-  liga.members[GROUP_ID] = MIEMBROS.map(m => ({
+  const { useLocalLeague } = await import('../src/composables/useLocalLeague.js')
+  const liga = useLocalLeague()
+  const yoSoy = (uid) => MIEMBROS.map(m => ({
     uid: m.uid,
     displayName: m.displayName,
     role: m.uid === 'uid-ana' ? 'owner' : 'member',
-    joinedAt: new Date('2026-06-01T10:00:00Z')
+    you: m.uid === uid
   }))
-  liga.leaderboards[GROUP_ID] = {
-    weekKey: '2026-09-14',
-    weekStart: '2026-09-14T00:00:00.000Z',
-    weekEnd: '2026-09-21T00:00:00.000Z',
-    publishedAt: new Date('2026-09-21T13:00:00Z'),
-    members: MIEMBROS
+  liga.members[GRUPO_LOCAL] = yoSoy('uid-ana')
+  const semana = (weekKey, members) => ({ weekKey, weekStart: weekKey, weekEnd: weekKey, provisional: false, members })
+  liga.semanas[GRUPO_LOCAL] = {
+    actual: semana('2026-09-14', MIEMBROS),
+    pasada: semana('2026-09-07', MIEMBROS.slice(0, 1)),
+    hace2: semana('2026-08-31', [])
   }
 
   const { routes } = await import('../src/router/routes.js')
   const { default: App } = await import('../src/App.vue')
 
-  const router = createRouter({ history: createMemoryHistory(), routes })
-  const app = createSSRApp(App)
-  app.use(router)
-  app.config.warnHandler = (msg) => console.warn(`  ! aviso: ${msg}`)
-  await router.push('/comunidad')
-  await router.isReady()
+  async function render (ruta) {
+    const router = createRouter({ history: createMemoryHistory(), routes })
+    const app = createSSRApp(App)
+    app.use(router)
+    app.config.warnHandler = (msg) => console.warn(`  ! aviso: ${msg}`)
+    await router.push(ruta)
+    await router.isReady()
+    return renderToString(app)
+  }
 
-  const html = await renderToString(app)
-
-  // `--html` vuelca el fragmento del ranking: es la forma de mirar el marcado
-  // real cuando algo «se ve mal» y no se tiene el móvil delante.
+  const html = await render('/comunidad')
   if (process.argv.includes('--html')) {
-    const i = html.indexOf('Miembros y resultados')
-    console.log(html.slice(i, i + 4000).replace(/></g, '>\n<'))
+    console.log(html.slice(html.indexOf('data-selector-grupos')).replace(/></g, '>\n<'))
   }
 
   let fallos = 0
@@ -167,166 +146,79 @@ async function main () {
     console.log(`  ${ok ? '✓' : '✗'} ${etiqueta}${ok || !detalle ? '' : `\n      ${detalle}`}`)
     if (!ok) fallos += 1
   }
+  const texto = (t) => t.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
+  const detalle = html.slice(html.indexOf('data-grupo-detalle'))
+
+  console.log('\nPestaña y desplegable')
+  {
+    const selector = html.slice(html.indexOf('data-selector-grupos'), html.indexOf('data-grupo-detalle'))
+    check('la pestaña se llama Grupos', routes.find(r => r.path === '/comunidad').meta.title === 'Grupos')
+    check('el selector es un desplegable con el grupo actual', selector.includes('aria-haspopup="listbox"') && selector.includes(NOMBRE_LOCAL_LARGO))
+    check('la cuenta de grupos', texto(selector).includes('1 / 5'))
+    check('las opciones de alta no están a la vista', !html.includes('Tu nombre en los rankings') && !html.includes('Crear grupo'))
+    check('ya no hay modo con servidor', !html.includes('data-raiz') && !html.includes('Con servidor') && !html.includes('comunidad-alta-servidor'))
+  }
+
+  console.log('\nGrupo: cabecera, ranking, escucha común e invitar/abandonar')
+  {
+    check('título y número de miembros', detalle.includes('3 miembros') && detalle.includes(NOMBRE_LOCAL_LARGO))
+    check('botón de actualizar sólo con icono', /aria-label="Actualizar"[^>]*>\s*<svg/.test(detalle) && !detalle.includes('>Actualizar<'))
+    check('Ranking y Escucha común, en ese orden',
+      detalle.indexOf('data-seccion="ranking"') > 0 && detalle.indexOf('data-seccion="comun"') > detalle.indexOf('data-seccion="ranking"'))
+    check('cada una con su desplegable de semana',
+      detalle.split('aria-label="Semana del ranking"').length === 2 &&
+      detalle.split('aria-label="Semana de la escucha común"').length === 2 &&
+      detalle.includes('Semana pasada') && detalle.includes('Hace 2 semanas'))
+    check('Ranking desplegado y Escucha común plegada',
+      /aria-expanded="true"[^>]*aria-controls="seccion-ranking"|aria-controls="seccion-ranking"[^>]*aria-expanded="true"/.test(detalle) &&
+      /aria-expanded="false"[^>]*aria-controls="seccion-comun"|aria-controls="seccion-comun"[^>]*aria-expanded="false"/.test(detalle))
+    check('botones Invitar y Abandonar', /Invitar\s*<\/button>/.test(detalle) && /Abandonar/.test(detalle))
+    check('nada de invitación larga, vincular ni copia de seguridad',
+      !html.includes('Invitación larga') && !html.includes('Vincular') && !html.includes('Copia de seguridad'))
+    check('ni las pestañas antiguas ni la portada de cifras', !html.includes('data-pestana') && !html.includes('Líder'))
+  }
 
   console.log('\nFichas del ranking')
-  const cifra = (clave) => {
-    const i = html.indexOf(`data-cifra="${clave}"`)
-    return i < 0 ? '' : html.slice(i, html.indexOf('</li>', i))
-  }
-  check('las cifras nuevas van en el mosaico de la ficha',
-    cifra('terminadas').includes('82 %') && cifra('dia').includes('mié 16 sept') && cifra('dia').includes('2 h 10 min') &&
-    cifra('sesion').includes('1 h 35 min') && cifra('sesion').includes('11 sesiones'),
-    cifra('terminadas') + ' | ' + cifra('dia'))
-  check('cada cifra lleva su icono y su etiqueta', cifra('perfil').includes('<svg') && cifra('perfil').includes('perfil'))
-  check('los porcentajes llevan su barra', /h-1 overflow-hidden/.test(cifra('terminadas')) && !/h-1 overflow-hidden/.test(cifra('dia')))
-  check('la ficha propia viene desplegada y las demás plegadas',
-    /data-miembro="uid-ana"[\s\S]*?aria-expanded="true"/.test(html) && /data-miembro="uid-largo"[\s\S]*?aria-expanded="false"/.test(html))
-  check('el podio lleva medallas', html.includes(' medalla ') && /oro text-black/.test(html) && /plata text-black/.test(html) && /bronce text-black/.test(html))
-  check('el anillo del avatar está presente', html.includes('class="anillo text-brand-400"'))
-  check('el perfil horario sale de la hora punta', html.includes('De noche') && html.includes('Noctámbulo'))
-  check('las veces repetido van junto al artista y al tema', html.includes('×31') && html.includes('×12'))
-  check('ya no se enseñan puntos', !html.includes('700.9') && !html.includes('700,9') && !html.includes('460.0'))
-  check('el ranking va por tiempo de escucha', html.indexOf('Ana') < html.indexOf('Bartolomé') && html.indexOf('Bartolomé') < html.indexOf('Carlos'))
-  check('aparece la escucha en común entre dos miembros con datos', html.includes('Escucha en común') && html.includes('Ana · Bartolomé de las Casas Fernández'))
-  check('una ficha antigua no genera una pareja', !html.includes('Carlos ·') && !html.includes('· Carlos'))
-  check('miembros y resultados son un solo panel', html.includes('Miembros y resultados') && !html.includes('Resultados semanales') && html.split('Miembros y resultados').length === 2)
-  check('el papel de administrador va en la fila del ranking', html.split('>Admin<').length === 2 && html.indexOf('>Admin<') > html.indexOf('Miembros y resultados'))
-  check('aparece el ranking y no el aviso de «sin publicar»',
-    !html.includes('Todavía no hay ranking publicado'))
-  check('cifras de la ficha completa', html.includes('10 h 12 min') && html.includes('184 canciones'),
-    'no se encontraron minutos/canciones de Ana')
-  check('artista y canción top', html.includes('Rosalía') && html.includes('Despechá'))
-  check('repertorio distinto', html.includes('42 artistas') && html.includes('118 temas'))
-  check('índice de variedad en porcentaje', cifra('variedad').includes('64 %'))
-  check('hora punta como franja', html.includes('21–22 h'))
-  check('la medianoche (peakHour = 0) se pinta', html.includes('0–1 h'),
-    'peakHour 0 es falsy: si se comprueba por verdadero/falso desaparece')
-  check('la ficha antigua no enseña huecos',
-    !html.includes('undefined') && !html.includes('NaN'))
-
-  console.log('\nNombres largos y huecos')
-  // El artista y la canción top van en líneas propias y recortadas: juntos y
-  // sin recorte, un título largo se partía en tres renglones y el punto medio
-  // de separación quedaba en mitad del texto.
-  check('el artista top va en su propia línea recortada',
-    /title="Nick Cave and the Bad Seeds feat\. Kylie Minogue"[^>]*>(?:(?!<\/p>)[\s\S])*class="block truncate[^"]*"[^>]*>Nick Cave/.test(html),
-    'un nombre largo se sale de la tarjeta')
-  check('la canción top va en su propia línea recortada',
-    /class="block truncate[^"]*"[^>]*>Despechá<\/span>/.test(html))
-  check('el nombre entero queda accesible en el title',
-    html.includes('title="Everything Is Embarrassing (Sky Ferreira Extended Remix Version)"'))
-  check('sin artista ni canción no se rellena con «sin datos»',
-    !html.includes('sin datos'),
-    'la ficha de quien no tiene top gastaba dos renglones en decir que no hay nada')
-  check('sin emoji en las fichas', !/[🌀-🫿]/u.test(html))
-  check('el detalle del grupo enseña quién va primero', html.includes('Los del garaje') && html.includes('Líder'))
-  check('el listado de miembros trae su aportación', html.includes('Sin escuchas esta semana') === false && html.includes('esta semana'))
-  check('un nombre de miembro largo se lee en dos líneas, no recortado',
-    /<span class="sk-clamp-2 text-sm font-semibold text-white"[^>]*>Bartolomé/.test(html))
-
-  console.log('\nSelector de modos y grupos')
   {
-    const inicio = html.indexOf('aria-label="Grupos de Comunidad"')
-    const selector = html.slice(inicio, html.indexOf('</nav>', inicio))
-    const texto = (t) => t.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
-    check('con los grupos con servidor activos se elige el modo', selector.includes('data-raiz="servidor"') && selector.includes('data-raiz="local"'))
-    check('el modo actual va marcado', /aria-selected="true"[^>]*data-raiz="servidor"/.test(selector))
-    check('el grupo abierto se marca como la ubicación actual',
-      new RegExp(`aria-current="location"[^>]*data-grupo="${GROUP_ID}"`).test(selector))
-    check('sólo salen los grupos del modo actual',
-      selector.includes(`data-grupo="${GROUP_ID}"`) && !selector.includes(`data-grupo="${GRUPO_LOCAL}"`))
-    check('el modo actual tiene su entrada para crear o unirse', selector.includes('data-alta="servidor"'))
-    check('la píldora trae miembros y cifras de la semana', /3 miembros · \d+ h \d{2} de escucha/.test(texto(selector)),
-      texto(selector).slice(0, 300))
-    check('la cuenta de grupos por modo', texto(selector).includes('1 / 5'))
-    check('el panel sin servidor (libsodium) no se monta en el modo con servidor',
-      !html.includes('comunidad-alta-local'))
-    check('ya no queda el árbol desplegable', !html.includes('data-migas') && !html.includes('data-desplegar'))
-  }
-
-  console.log('\nPestañas del grupo y panel informativo')
-  {
-    check('el grupo tiene pestañas de ranking y en común', html.includes('data-pestana="ranking"') && html.includes('data-pestana="comun"'))
-    check('el modo con servidor no trae pestaña de invitar', !html.includes('data-pestana="grupo"'))
-    check('la pestaña «En común» cuenta sus parejas', /data-pestana="comun"[\s\S]{0,400}>1</.test(html))
-    check('la portada lleva la pila de avatares y el líder', html.includes('3 miembros') && html.includes('Líder'))
-    check('el panel «¿Cómo funciona?» vuelve a la pestaña', html.includes('data-info-comunidad') && html.includes('¿Cómo funciona?'))
-    check('con grupos va plegado', /data-info-comunidad[\s\S]{0,400}aria-expanded="false"/.test(html))
-  }
-
-  console.log('\nDesvelado del domingo a las 15:00')
-  {
-    const { resultadoVisible, resultadoPendiente, ultimoDesvelado } = await import('../src/composables/useLeague.js')
-    const doc = {
-      weekKey: '2026-10-11',
-      members: [{ uid: 'a' }],
-      next: { weekKey: '2026-10-18', revealAt: '2026-10-18T13:00:00.000Z', members: [{ uid: 'b' }] }
+    const cifra = (clave) => {
+      const i = html.indexOf(`data-cifra="${clave}"`)
+      return i < 0 ? '' : html.slice(i, html.indexOf('</li>', i))
     }
-    const a = (iso) => Date.parse(iso)
-    check('a las 14:59 se ve todavía la semana anterior',
-      resultadoVisible(doc, a('2026-10-18T12:59:59Z')).weekKey === '2026-10-11')
-    check('a las 15:00 en punto se ve la nueva',
-      resultadoVisible(doc, a('2026-10-18T13:00:00Z')).weekKey === '2026-10-18')
-    check('lo de next no se cuela en la vista anterior',
-      !('next' in resultadoVisible(doc, a('2026-10-18T12:00:00Z'))))
-    check('el último desvelado en verano son las 13:00 UTC',
-      new Date(ultimoDesvelado(a('2026-10-18T16:00:00Z'))).toISOString() === '2026-10-18T13:00:00.000Z')
-    check('y en invierno las 14:00 UTC',
-      new Date(ultimoDesvelado(a('2026-12-06T14:30:00Z'))).toISOString() === '2026-12-06T14:00:00.000Z')
-    check('el sábado no hay nada pendiente',
-      !resultadoPendiente({ weekKey: 'x', members: [] }, a('2026-10-17T12:00:00Z')))
-    check('a las 15:05 sin la semana nueva se dice que se está calculando',
-      resultadoPendiente({ weekKey: '2026-10-04', weekEnd: '2026-10-11T13:00:00.000Z', members: [] }, a('2026-10-18T13:05:00Z')))
-    check('con la semana ya en next no hay nada pendiente',
-      !resultadoPendiente(doc, a('2026-10-18T13:05:00Z')))
-    check('el martes ya no se dice «calculando»',
-      !resultadoPendiente({ weekKey: 'x', members: [] }, a('2026-10-20T13:05:00Z')))
+    check('las cifras nuevas van en el mosaico', cifra('terminadas').includes('82 %') && cifra('sesion').includes('11 sesiones'), cifra('terminadas'))
+    check('la ficha propia viene desplegada y las demás plegadas',
+      /data-miembro="uid-ana"[\s\S]*?aria-expanded="true"/.test(html) && /data-miembro="uid-largo"[\s\S]*?aria-expanded="false"/.test(html))
+    check('el podio lleva medallas', /oro text-black/.test(html) && /plata text-black/.test(html) && /bronce text-black/.test(html))
+    check('el ranking va por tiempo de escucha', html.indexOf('Ana') < html.indexOf('Bartolomé') && html.indexOf('Bartolomé') < html.indexOf('Carlos'))
+    check('el orden visual lo da `order`, sin mover nodos', /order: ?1/.test(html) && /order: ?2/.test(html))
+    check('aparece la escucha común entre dos miembros con datos', html.includes('Ana · Bartolomé de las Casas Fernández'))
+    check('una ficha antigua no genera una pareja', !html.includes('Carlos ·') && !html.includes('· Carlos'))
+    check('el administrador puede expulsar a otros pero no a sí mismo',
+      html.includes('data-expulsar="uid-largo"') && html.includes('data-expulsar="uid-viejo"') && !html.includes('data-expulsar="uid-ana"'))
+    check('sin huecos ni NaN', !html.includes('undefined') && !html.includes('NaN'))
+    check('el panel «¿Cómo funciona?» va plegado con grupos', /data-info-comunidad[\s\S]{0,400}aria-expanded="false"/.test(html))
   }
 
-  console.log('\nGrupos con servidor: apagados por defecto')
+  console.log('\nUn miembro que no es administrador')
   {
-    const { useAjustesComunidad } = await import('../src/composables/useAjustesComunidad.js')
-    const { gruposConServidor } = useAjustesComunidad()
-    gruposConServidor.value = false
-    localStorage.setItem('skippify-community-mode', 'servidor')
-    const router2 = createRouter({ history: createMemoryHistory(), routes })
-    const app2 = createSSRApp(App)
-    app2.use(router2)
-    await router2.push('/comunidad')
-    await router2.isReady()
-    const html2 = await renderToString(app2)
-    check('sin el ajuste no sale la raíz «Con servidor»', !html2.includes('data-raiz="servidor"') && html2.includes('data-raiz="local"'))
-    check('ni el ranking de Firebase aunque hubiera uno guardado', !html2.includes('Despechá'))
-    check('tampoco la alta de grupos con servidor', !html2.includes('comunidad-alta-servidor'))
+    liga.members[GRUPO_LOCAL] = yoSoy('uid-largo')
+    const h2 = await render('/comunidad')
+    const d2 = h2.slice(h2.indexOf('data-grupo-detalle'))
+    check('no ve Invitar ni Expulsar', !/Invitar/.test(d2) && !h2.includes('data-expulsar'))
+    check('pero sí Abandonar', /Abandonar/.test(d2))
+  }
 
-    const router3 = createRouter({ history: createMemoryHistory(), routes })
-    const app3 = createSSRApp(App)
-    app3.use(router3)
-    await router3.push('/settings')
-    await router3.isReady()
-    const html3 = await renderToString(app3)
-    const i3 = html3.indexOf('aria-label="Mostrar los grupos con servidor"')
-    check('Ajustes trae el interruptor de los grupos con servidor', i3 > 0 && html3.includes('Grupos con servidor'))
-    check('y viene apagado por defecto', i3 > 0 && /aria-checked="false"/.test(html3.slice(Math.max(0, i3 - 120), i3 + 120)),
-      html3.slice(Math.max(0, i3 - 120), i3 + 120))
-
-    // Encendido, vuelve el modo con servidor.
-    gruposConServidor.value = true
-    const router4 = createRouter({ history: createMemoryHistory(), routes })
-    const app4 = createSSRApp(App)
-    app4.use(router4)
-    await router4.push('/comunidad')
-    await router4.isReady()
-    const html4 = await renderToString(app4)
-    check('con el ajuste encendido vuelve la raíz «Con servidor»', html4.includes('data-raiz="servidor"'))
-    gruposConServidor.value = true
+  console.log('\nAjustes')
+  {
+    const h3 = await render('/settings')
+    check('sin paneles de grupos con servidor ni de comunidad',
+      !h3.includes('Grupos con servidor') && !h3.includes('Comunidad sin servidor') && !h3.includes('data-ajuste="grupos-con-servidor"'))
   }
 
   if (fallos) {
     console.error(`\n${fallos} comprobación(es) con error.`)
     process.exit(1)
   }
-  console.log('\nComunidad pinta el ranking completo.')
+  console.log('\nGrupos pinta el ranking completo.')
   process.exit(0)
 }
 

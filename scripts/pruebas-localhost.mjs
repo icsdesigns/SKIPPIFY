@@ -81,6 +81,13 @@ check('el grupo sobrevive a reabrirlo', anaReabierta.id === ana.id && anaReabier
 titulo('Escuchas: compresión, deduplicación y puntuación idéntica a Firebase')
 const ahora = new Date()
 const lunes = ventanaSemana('pasada', ahora)
+{
+  const actual = ventanaSemana('actual', ahora)
+  const hace2 = ventanaSemana('hace2', ahora)
+  check('«hace 2 semanas» termina donde empieza la pasada', hace2.weekEndIso === lunes.weekStartIso)
+  check('y dura siete días justos', Date.parse(hace2.weekEndIso) - Date.parse(hace2.weekStartIso) === 7 * 86_400_000)
+  check('la pasada termina donde empieza la actual', lunes.weekEndIso === actual.weekStartIso)
+}
 const t0 = Date.parse(lunes.weekStartIso) + 3600_000
 const mk = (i, persona) => [`${persona}${i}`, t0 + i * 600_000, `Tema ${i % 7}`, `Artista ${i % 3}`, 200_000, i % 5 === 0 ? 0 : 190_000, i % 5 === 0 ? 60_000 : 190_000]
 const tuplasAna = Array.from({ length: 150 }, (_, i) => mk(i, 'a'))
@@ -148,7 +155,7 @@ titulo('Invitación exprés: un código corto abre la invitación larga')
   const hallada = await resolverExpres(redExp, formatearCodigo(cod).toLowerCase(), t0e + 60_000)
   check('con el código se recupera la invitación larga', hallada?.invitacion === inv)
   check('un código distinto no encuentra nada', (await resolverExpres(redExp, generarCodigo(), t0e + 60_000)) === null)
-  check('pasados 30 minutos ya no vale', (await resolverExpres(redExp, cod, t0e + EXPRES_TTL_MS + 1000)) === null)
+  check('pasada 1 hora ya no vale', (await resolverExpres(redExp, cod, t0e + EXPRES_TTL_MS + 1000)) === null)
 
   const luis2 = await LocalHost.joinGroup({ storage: new IdbStorage('luis2'), transport: red }, hallada.invitacion, 'Marta')
   for (let i = 0; i < 4 && luis2.status !== 'ready'; i += 1) { await luis2.sync(); await ana.sync() }

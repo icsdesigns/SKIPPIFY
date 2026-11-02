@@ -160,7 +160,7 @@ const BASE_ITEMS = [
   { to: '/', label: 'Inicio', short: 'Inicio', hint: 'Métricas y reproducciones', icon: 'home', tour: 'dashboard-nav' },
   { to: '/stats', label: 'Estadísticas', short: 'Stats', hint: 'Top artistas y canciones', icon: 'bars', tour: 'stats-nav' },
   { to: '/features', label: 'Funciones', short: 'Funciones', hint: 'Salto y anuncios', icon: 'layers', tour: 'features-nav' },
-  { to: '/comunidad', label: 'Comunidad', short: 'Grupos', hint: 'Grupos y ranking entre amigos', icon: 'trophy', tour: 'community-nav' },
+  { to: '/comunidad', label: 'Grupos', short: 'Grupos', hint: 'Grupos y ranking entre amigos', icon: 'trophy', tour: 'community-nav' },
   // Macros ya no se puede ocultar desde Configuración: era el único conmutador
   // de la sección y escondía una pestaña entera sin ganar nada a cambio.
   { to: '/macros', label: 'Macros', short: 'Macros', hint: 'Automatiza tu biblioteca', icon: 'bolt' }
