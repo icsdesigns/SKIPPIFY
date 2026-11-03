@@ -137,8 +137,25 @@ async function main () {
   }
 
   const html = await render('/comunidad')
+
+  // El detalle del grupo se monta con <Teleport defer> dentro del panel abierto.
+  // En servidor no hay clic que abra nada, así que se renderiza el panel con el
+  // grupo ya abierto y se lee lo teletransportado del contexto.
+  const { default: LocalHostPanel } = await import('../src/components/LocalHostPanel.vue')
+  async function renderDetalle (abierto = GRUPO_LOCAL) {
+    const app = createSSRApp(LocalHostPanel, { abierto })
+    app.config.warnHandler = (msg) => console.warn(`  ! aviso: ${msg}`)
+    const ctx = {}
+    await renderToString(app, ctx)
+    return ctx.teleports?.[`#grupo-cuerpo-${GRUPO_LOCAL}`] || ''
+  }
+  const detalle = await renderDetalle()
+  // El panel de cada grupo lee el estado en vivo, que no se conecta hasta que se
+  // monta LocalHostPanel (después de pintar la lista): en la segunda pasada ya está.
+  const htmlVivo = await render('/comunidad')
   if (process.argv.includes('--html')) {
-    console.log(html.slice(html.indexOf('data-selector-grupos')).replace(/></g, '>\n<'))
+    console.log(html.slice(html.indexOf('data-grupo-panel')).replace(/></g, '>\n<'))
+    console.log(detalle.replace(/></g, '>\n<'))
   }
 
   let fallos = 0
@@ -147,21 +164,25 @@ async function main () {
     if (!ok) fallos += 1
   }
   const texto = (t) => t.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
-  const detalle = html.slice(html.indexOf('data-grupo-detalle'))
 
-  console.log('\nPestaña y desplegable')
+  console.log('\nPestaña: paneles de grupos y opciones de alta')
   {
-    const selector = html.slice(html.indexOf('data-selector-grupos'), html.indexOf('data-grupo-detalle'))
+    const panel = htmlVivo.slice(htmlVivo.indexOf('data-grupo-panel'), htmlVivo.indexOf('data-anadir-grupo'))
+    const anadir = html.slice(html.indexOf('data-anadir-grupo'))
     check('la pestaña se llama Grupos', routes.find(r => r.path === '/comunidad').meta.title === 'Grupos')
-    check('el selector es un desplegable con el grupo actual', selector.includes('aria-haspopup="listbox"') && selector.includes(NOMBRE_LOCAL_LARGO))
-    check('la cuenta de grupos', texto(selector).includes('1 / 5'))
-    check('las opciones de alta no están a la vista', !html.includes('Tu nombre en los rankings') && !html.includes('Crear grupo'))
+    check('cada grupo es un panel plegado con su nombre y sus miembros',
+      panel.includes(NOMBRE_LOCAL_LARGO) && texto(panel).includes('3 miembros') && /aria-expanded="false"/.test(panel) && !/aria-expanded="true"/.test(panel))
+    check('ya no hay desplegable de grupos', !html.includes('aria-haspopup="listbox"') && !html.includes('data-selector-grupos'))
+    check('al final, las opciones de añadir grupo con su cuenta',
+      html.indexOf('data-anadir-grupo') > html.indexOf('data-grupo-panel') &&
+      texto(anadir).includes('Crear grupo') && texto(anadir).includes('Unirme') && texto(anadir).includes('1 / 5'))
+    check('el formulario de alta sólo sale en la hoja', !html.includes('Tu nombre en los rankings'))
     check('ya no hay modo con servidor', !html.includes('data-raiz') && !html.includes('Con servidor') && !html.includes('comunidad-alta-servidor'))
   }
 
-  console.log('\nGrupo: cabecera, ranking, escucha común e invitar/abandonar')
+  console.log('\nGrupo abierto: ranking, escucha común e invitar/abandonar')
   {
-    check('título y número de miembros', detalle.includes('3 miembros') && detalle.includes(NOMBRE_LOCAL_LARGO))
+    check('el detalle se monta dentro del panel del grupo', detalle.includes('data-grupo-detalle'))
     check('botón de actualizar sólo con icono', /aria-label="Actualizar"[^>]*>\s*<svg/.test(detalle) && !detalle.includes('>Actualizar<'))
     check('Ranking y Escucha común, en ese orden',
       detalle.indexOf('data-seccion="ranking"') > 0 && detalle.indexOf('data-seccion="comun"') > detalle.indexOf('data-seccion="ranking"'))
@@ -173,37 +194,62 @@ async function main () {
       /aria-expanded="true"[^>]*aria-controls="seccion-ranking"|aria-controls="seccion-ranking"[^>]*aria-expanded="true"/.test(detalle) &&
       /aria-expanded="false"[^>]*aria-controls="seccion-comun"|aria-controls="seccion-comun"[^>]*aria-expanded="false"/.test(detalle))
     check('botones Invitar y Abandonar', /Invitar\s*<\/button>/.test(detalle) && /Abandonar/.test(detalle))
+    check('el administrador ve el lápiz para cambiar el nombre', detalle.includes('data-renombrar'))
     check('nada de invitación larga, vincular ni copia de seguridad',
       !html.includes('Invitación larga') && !html.includes('Vincular') && !html.includes('Copia de seguridad'))
     check('ni las pestañas antiguas ni la portada de cifras', !html.includes('data-pestana') && !html.includes('Líder'))
+    check('el aviso «provisional» ya no está en el ranking', !/Provisional:/.test(detalle))
   }
 
   console.log('\nFichas del ranking')
   {
     const cifra = (clave) => {
-      const i = html.indexOf(`data-cifra="${clave}"`)
-      return i < 0 ? '' : html.slice(i, html.indexOf('</li>', i))
+      const i = detalle.indexOf(`data-cifra="${clave}"`)
+      return i < 0 ? '' : detalle.slice(i, detalle.indexOf('</li>', i))
     }
     check('las cifras nuevas van en el mosaico', cifra('terminadas').includes('82 %') && cifra('sesion').includes('11 sesiones'), cifra('terminadas'))
-    check('la ficha propia viene desplegada y las demás plegadas',
-      /data-miembro="uid-ana"[\s\S]*?aria-expanded="true"/.test(html) && /data-miembro="uid-largo"[\s\S]*?aria-expanded="false"/.test(html))
-    check('el podio lleva medallas', /oro text-black/.test(html) && /plata text-black/.test(html) && /bronce text-black/.test(html))
-    check('el ranking va por tiempo de escucha', html.indexOf('Ana') < html.indexOf('Bartolomé') && html.indexOf('Bartolomé') < html.indexOf('Carlos'))
-    check('el orden visual lo da `order`, sin mover nodos', /order: ?1/.test(html) && /order: ?2/.test(html))
-    check('aparece la escucha común entre dos miembros con datos', html.includes('Ana · Bartolomé de las Casas Fernández'))
-    check('una ficha antigua no genera una pareja', !html.includes('Carlos ·') && !html.includes('· Carlos'))
+    check('todas las fichas vienen plegadas, también la propia',
+      /data-miembro="uid-ana"[\s\S]*?aria-expanded="false"/.test(detalle) && /data-miembro="uid-largo"[\s\S]*?aria-expanded="false"/.test(detalle) &&
+      !/data-miembro="uid-ana"[\s\S]{0,900}aria-expanded="true"/.test(detalle))
+    check('el podio lleva medallas', /oro text-black/.test(detalle) && /plata text-black/.test(detalle) && /bronce text-black/.test(detalle))
+    check('el ranking va por tiempo de escucha', detalle.indexOf('Ana') < detalle.indexOf('Bartolomé') && detalle.indexOf('Bartolomé') < detalle.indexOf('Carlos'))
+    check('el orden visual lo da `order`, sin mover nodos', /order: ?1/.test(detalle) && /order: ?2/.test(detalle))
+    check('aparece la escucha común entre dos miembros con datos', detalle.includes('Ana · Bartolomé de las Casas Fernández'))
+    check('una ficha antigua no genera una pareja', !detalle.includes('Carlos ·') && !detalle.includes('· Carlos'))
+    const dentro = (uid) => {
+      const ficha = detalle.indexOf(`id="ficha-${uid}"`)
+      return ficha > 0 && detalle.indexOf(`data-expulsar="${uid}"`) > ficha
+    }
     check('el administrador puede expulsar a otros pero no a sí mismo',
-      html.includes('data-expulsar="uid-largo"') && html.includes('data-expulsar="uid-viejo"') && !html.includes('data-expulsar="uid-ana"'))
-    check('sin huecos ni NaN', !html.includes('undefined') && !html.includes('NaN'))
+      detalle.includes('data-expulsar="uid-largo"') && detalle.includes('data-expulsar="uid-viejo"') && !detalle.includes('data-expulsar="uid-ana"'))
+    check('«Expulsar» vive dentro de la ficha desplegable, no a la vista', dentro('uid-largo') && dentro('uid-viejo'))
+    check('con tres miembros no hay «Ver todos»', !detalle.includes('data-ver-todos'))
+    check('sin huecos ni NaN', !detalle.includes('undefined') && !detalle.includes('NaN'))
     check('el panel «¿Cómo funciona?» va plegado con grupos', /data-info-comunidad[\s\S]{0,400}aria-expanded="false"/.test(html))
+    check('el aviso «provisional» está en «¿Cómo funciona?»', /provisionales/.test(html.slice(html.indexOf('data-info-comunidad'))))
+  }
+
+  console.log('\nTop 3 con «Ver todos»')
+  {
+    const extra = ['uid-d', 'uid-e'].map((uid, i) => ({
+      uid, displayName: i ? 'Elena' : 'Diego', totalMinutes: 50 - i * 10, totalTracks: 10, completedTracks: 8, activeDays: 1, score: 50,
+      topArtist: '', topArtistPlays: 0, topTrack: '', topTrackPlays: 0
+    }))
+    const todos = [...MIEMBROS, ...extra]
+    liga.members[GRUPO_LOCAL] = todos.map(m => ({ uid: m.uid, displayName: m.displayName, role: m.uid === 'uid-ana' ? 'owner' : 'member', you: m.uid === 'uid-ana' }))
+    liga.semanas[GRUPO_LOCAL] = { ...liga.semanas[GRUPO_LOCAL], actual: semana('2026-09-14', todos) }
+    const d5 = await renderDetalle()
+    check('con cinco miembros sólo salen tres fichas', (d5.match(/data-miembro="/g) || []).length === 3)
+    check('el botón «Ver todos» los cuenta', /data-ver-todos[\s\S]{0,200}Ver todos \(5\)/.test(d5))
+    liga.members[GRUPO_LOCAL] = yoSoy('uid-ana')
+    liga.semanas[GRUPO_LOCAL] = { ...liga.semanas[GRUPO_LOCAL], actual: semana('2026-09-14', MIEMBROS) }
   }
 
   console.log('\nUn miembro que no es administrador')
   {
     liga.members[GRUPO_LOCAL] = yoSoy('uid-largo')
-    const h2 = await render('/comunidad')
-    const d2 = h2.slice(h2.indexOf('data-grupo-detalle'))
-    check('no ve Invitar ni Expulsar', !/Invitar/.test(d2) && !h2.includes('data-expulsar'))
+    const d2 = await renderDetalle()
+    check('no ve Invitar, Expulsar ni el lápiz de renombrar', !/Invitar/.test(d2) && !d2.includes('data-expulsar') && !d2.includes('data-renombrar'))
     check('pero sí Abandonar', /Abandonar/.test(d2))
   }
 
