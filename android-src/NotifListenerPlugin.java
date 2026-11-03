@@ -348,6 +348,10 @@ public class NotifListenerPlugin extends Plugin
     @PluginMethod
     public void drainBackgroundEvents(PluginCall call) {
         JSArray out = new JSArray();
+        // Con la app abierta sólo interesa lo que ella no vio en directo: lo que el
+        // listener entregó vivo (js:true) ya lo registró JS, y volver a leerlo
+        // duplicaría la escucha. Al arrancar se lee todo, como siempre.
+        final boolean soloSinApp = Boolean.TRUE.equals(call.getBoolean("soloSinApp", false));
 
         synchronized (SpotifyNotificationListener.sEventFileLock) {
             try {
@@ -369,6 +373,7 @@ public class NotifListenerPlugin extends Plugin
 
                                 try {
                                     JSONObject o = new JSONObject(line);
+                                    if (soloSinApp && o.optBoolean("js", false)) continue;
                                     JSObject evt = new JSObject();
                                     if (o.has("played_at")) evt.put("played_at", o.optString("played_at", ""));
                                     if (o.has("event")) evt.put("event", o.optString("event", ""));
@@ -524,6 +529,23 @@ public class NotifListenerPlugin extends Plugin
     public void setApiListening(PluginCall call) {
         EscuchasApiBackground.configurar(getContext(), Boolean.TRUE.equals(call.getBoolean("enabled", false)));
         call.resolve(aJS(EscuchasApiBackground.estado(getContext())));
+    }
+
+    /**
+     * Qué suena ahora en la cuenta de Spotify, en cualquier dispositivo. Va en un
+     * hilo propio: es una llamada de red.
+     */
+    @PluginMethod
+    public void getApiNowPlaying(final PluginCall call) {
+        new Thread(new Runnable() {
+            public void run() {
+                try {
+                    call.resolve(aJS(EscuchasApiBackground.ahora(getContext())));
+                } catch (Throwable t) {
+                    call.reject("No se pudo leer qué suena: " + t.getMessage());
+                }
+            }
+        }, "skippify-ahora").start();
     }
 
     /** Consulta ahora, sin esperar al latido (la app la pide al abrirse). */

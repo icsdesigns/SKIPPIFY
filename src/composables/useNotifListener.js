@@ -314,22 +314,35 @@ export function useNotifListener () {
   }
 
   /** Drain background-captured events */
-  async function drainEvents (NL) {
+  async function drainEvents (NL, opciones) {
     // `drainBackgroundEvents` borra el log nativo al leerlo: dos llamadas
     // simultáneas se repartían los eventos y se perdían segmentos.
     if (_drainPromise) return _drainPromise
-    _drainPromise = _drainEventsOnce(NL).finally(() => { _drainPromise = null })
+    _drainPromise = _drainEventsOnce(NL, opciones).finally(() => { _drainPromise = null })
     return _drainPromise
   }
 
-  async function _drainEventsOnce (NL) {
+  async function _drainEventsOnce (NL, opciones) {
     try {
-      const drained = await NL.drainBackgroundEvents()
+      const drained = await NL.drainBackgroundEvents(opciones || {})
       const raw = Array.isArray(drained?.events) ? drained.events : []
       if (raw.length) {
         await ingestBackgroundEvents(raw)
       }
     } catch { /* ignored */ }
+  }
+
+  /**
+   * Recoge lo que el servicio ha anotado con la app abierta o en segundo plano:
+   * sobre todo las escuchas leídas de la API de Spotify, que sólo el servicio ve.
+   * Antes sólo se leía al arrancar en frío, así que con la app viva (lo normal)
+   * esas escuchas no llegaban al historial hasta reiniciarla. Sólo trae lo que JS
+   * no vio en directo, para no duplicar.
+   */
+  async function drainBackground () {
+    const NL = getPlugin()
+    if (!NL || !notifEnabled.value) return
+    await drainEvents(NL, { soloSinApp: true })
   }
 
   /** Open system notification listener settings directly (no dialog) */
@@ -630,6 +643,7 @@ export function useNotifListener () {
     pendingOpenRoute,
     consumePendingOpenRoute,
     checkAndInit,
+    drainBackground,
     requestPermission,
     promptPermission,
     abrirAccesoNotificaciones,

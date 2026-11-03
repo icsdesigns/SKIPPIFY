@@ -48,6 +48,22 @@ public final class PruebasEscuchasApi {
         check("el último fin es el de B", EscuchasApi.ultimoFin(lista), T0 + 8 * MIN);
         check("un cuerpo roto no lanza", EscuchasApi.parsear("no json").size(), 0);
 
+        // ── Lo que suena ahora (/me/player) ──────────────────────────────────
+        String ahora = "{\"is_playing\":true,\"progress_ms\":42000,\"device\":{\"name\":\"Salón\"},"
+                + "\"item\":{\"name\":\"Canción\",\"type\":\"track\",\"is_local\":false,\"duration_ms\":210000,"
+                + "\"album\":{\"name\":\"Disco\"},\"artists\":[{\"name\":\"Ana\"},{\"name\":\"Luis\"}]}}";
+        EscuchasApi.Ahora a = EscuchasApi.parsearAhora(ahora);
+        check("se lee la canción en directo", a == null ? "null" : a.track, "Canción");
+        check("los artistas se unen con coma", a.artist, "Ana, Luis");
+        check("álbum y dispositivo", a.album + "/" + a.dispositivo, "Disco/Salón");
+        check("duración y avance", a.durationMs + "/" + a.progressMs, "210000/42000");
+        check("está sonando", a.sonando, true);
+        check("en pausa se sigue leyendo", EscuchasApi.parsearAhora(ahora.replace("\"is_playing\":true", "\"is_playing\":false")).sonando, false);
+        check("un podcast no cuenta", EscuchasApi.parsearAhora(ahora.replace("\"type\":\"track\"", "\"type\":\"episode\"")) == null, true);
+        check("un archivo local no cuenta", EscuchasApi.parsearAhora(ahora.replace("\"is_local\":false", "\"is_local\":true")) == null, true);
+        check("sin canción (204 sin cuerpo) es null", EscuchasApi.parsearAhora("") == null, true);
+        check("un cuerpo roto no lanza", EscuchasApi.parsearAhora("no json") == null, true);
+
         // ── Estimación del tiempo escuchado ───────────────────────────────────
         EscuchasApi.Reproduccion tres = rep("X", "Y", 180_000, T0 + 10 * MIN);
         check("sin anterior se da por entera",

@@ -41,14 +41,19 @@ public final class EscuchasApiBackground {
     private static final String K_NO_ANTES = "notBeforeMs";
     private static final String K_ERROR = "lastError";
     private static final String K_TOTAL = "total";
+    private static final String K_NO_ANTES_AHORA = "notBeforeNowMs";
 
     private static final String SCOPE_NECESARIO = "user-read-recently-played";
+    private static final String SCOPE_AHORA = "user-read-playback-state";
     private static final String URL = "https://api.spotify.com/v1/me/player/recently-played?limit=50";
+    private static final String URL_AHORA = "https://api.spotify.com/v1/me/player";
 
     /** Entre consulta y consulta: lo bastante poco para que 50 canciones sobren. */
     static final long PERIODO_MS = 5L * 60L * 1000L;
     /** Tras un 429 o un fallo de red no se insiste enseguida. */
     static final long ESPERA_TRAS_ERROR_MS = 15L * 60L * 1000L;
+    /** Tras un 429 al preguntar qué suena: el sondeo es mucho más frecuente. */
+    static final long ESPERA_AHORA_MS = 60L * 1000L;
 
     private static final ExecutorService POOL = Executors.newSingleThreadExecutor();
 
@@ -210,6 +215,57 @@ public final class EscuchasApiBackground {
         o.put("source", "spotify_api");
         // La app no los ha visto en directo: que los suba el servicio si ella no está.
         o.put("js", false);
+        return o;
+    }
+
+    // ── Lo que suena ahora ───────────────────────────────────────────────────
+
+    /**
+     * Qué suena ahora en la cuenta, en cualquier dispositivo. Lo pide la app
+     * mientras está a la vista para enseñar la canción en directo cuando las
+     * notificaciones no la ven (suena en otro aparato). Sin escritura alguna: el
+     * historial se alimenta sólo del sondeo de recently-played.
+     *
+     * {@code state}: "ok" (hay canción), "idle" (nada suena), "disabled",
+     * "no-session", "missing-scope", "rate-limit" o "error".
+     */
+    public static JSONObject ahora(Context ctx) {
+        JSONObject o = new JSONObject();
+        try {
+            if (!activo(ctx)) return o.put("state", "disabled");
+
+            SharedPreferences sp = prefs(ctx);
+            if (System.currentTimeMillis() < sp.getLong(K_NO_ANTES_AHORA, 0L)) {
+                return o.put("state", "rate-limit");
+            }
+            JSONObject sesion = MacroBackground.estadoSesion(ctx);
+            if (!sesion.optBoolean("connected", false)) return o.put("state", "no-session");
+            String scope = sesion.optString("scope", "");
+            if (!scope.isEmpty() && !scope.contains(SCOPE_AHORA)) return o.put("state", "missing-scope");
+
+            MacroRunner.Response r = MacroBackground.http(ctx.getApplicationContext()).send("GET", URL_AHORA, null);
+            int estado = r == null ? 0 : r.status;
+            if (estado == 429) {
+                // Se respeta la espera, pero sin tocar la del sondeo del historial.
+                sp.edit().putLong(K_NO_ANTES_AHORA, System.currentTimeMillis() + ESPERA_AHORA_MS).apply();
+                return o.put("state", "rate-limit");
+            }
+            if (estado == 204) return o.put("state", "idle");
+            if (estado < 200 || estado >= 300 || r.body == null) return o.put("state", "error");
+
+            EscuchasApi.Ahora a = EscuchasApi.parsearAhora(r.body);
+            if (a == null) return o.put("state", "idle");
+            o.put("state", "ok");
+            o.put("track", a.track);
+            o.put("artist", a.artist);
+            o.put("album", a.album);
+            o.put("device", a.dispositivo);
+            o.put("durationMs", a.durationMs);
+            o.put("progressMs", a.progressMs);
+            o.put("isPlaying", a.sonando);
+        } catch (Throwable t) {
+            try { o.put("state", "error"); } catch (Throwable ignored) { }
+        }
         return o;
     }
 

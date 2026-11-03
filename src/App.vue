@@ -184,6 +184,7 @@ import UpdateBanner from '@/components/UpdateBanner.vue'
 import BrandMark from '@/components/BrandMark.vue'
 import NotifAccessGate from '@/components/NotifAccessGate.vue'
 import { useNotifListener } from '@/composables/useNotifListener'
+import { useApiNowPlaying } from '@/composables/useApiNowPlaying'
 import { useFeatures } from '@/composables/useFeatures'
 import { useEventStore } from '@/stores/events'
 import { useAppUpdate } from '@/composables/useAppUpdate'
@@ -196,6 +197,7 @@ import { useMacrosGuide } from '@/composables/useMacrosGuide'
 // a tocar ese contrato a cambio de nada.
 const sidebarOpen = ref(false)
 const notif = useNotifListener()
+const apiNow = useApiNowPlaying()
 const { initializeNativeFeatures, syncNativeHistoryFromEvents } = useFeatures()
 const eventStore = useEventStore()
 const update = useAppUpdate()
@@ -253,9 +255,18 @@ const statusPill = computed(() => {
 })
 
 let splashTimer = null
+let drainTimer = null
+const DRAIN_MS = 60_000
 let tourTimer = null
 
 function setNowPlaying (state) {
+  // Lo que llega de la notificación manda sobre lo que enseñó la API.
+  apiNow.alLlegarNotificacion()
+  nowPlaying.value = state
+}
+
+/** Lo que suena en otro dispositivo de la cuenta, leído de la API de Spotify. */
+function setNowPlayingFromApi (state) {
   nowPlaying.value = state
 }
 
@@ -289,6 +300,12 @@ onMounted(async () => {
 
   await initializeNativeFeatures()
   await notif.checkAndInit(setNowPlaying)
+  // Con la app abierta, las escuchas que anota el servicio (API de Spotify) se
+  // recogen cada minuto para que lleguen al historial sin reiniciarla.
+  drainTimer = setInterval(() => {
+    if (document.visibilityState === 'visible') notif.drainBackground()
+  }, DRAIN_MS)
+  apiNow.start({ leerModo: () => nowPlaying.value?.mode, poner: setNowPlayingFromApi })
   syncNativeHistoryFromEvents(eventStore.state.events).catch(() => {})
   await notif.refreshSystemPermissions()
   document.addEventListener('visibilitychange', onVisibleAgain)
@@ -335,6 +352,7 @@ watch(() => route.path, () => {
 
 function onVisibleAgain () {
   if (document.visibilityState !== 'visible') return
+  notif.drainBackground()
   notif.refreshSystemPermissions()
   void localLeague.syncAll()
   syncNativeHistoryFromEvents(eventStore.state.events).catch(() => {})
@@ -344,6 +362,8 @@ onBeforeUnmount(() => {
   document.removeEventListener('visibilitychange', onVisibleAgain)
   window.removeEventListener('scroll', onScroll)
   localLeague.stopWatch()
+  apiNow.stop()
+  if (drainTimer) clearInterval(drainTimer)
   if (splashTimer) clearTimeout(splashTimer)
   if (tourTimer) clearTimeout(tourTimer)
   stopNavWatch()
