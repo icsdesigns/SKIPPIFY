@@ -150,13 +150,13 @@ const STEPS = [
   },
   {
     id: 'comunidad',
-    title: 'Comunidad',
+    title: 'Grupos',
     route: '/comunidad',
     schema: SchemaComunidad,
     points: [
-      'Crea un grupo o únete con un código de 6 caracteres.',
-      'Cada domingo se publica el ranking de la semana.',
-      'Elige si va con servidor o sin servidor.'
+      'Crea un grupo o únete con un código de invitación.',
+      'Compara el ranking y la escucha en común, esta semana o las anteriores.',
+      'Los grupos viven en vuestros móviles, sin servidor.'
     ]
   },
   {

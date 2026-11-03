@@ -1,14 +1,14 @@
 <template>
-  <TourScreen title="Comunidad" active="trophy">
-    <div class="sk-card flex items-center gap-1.5 p-1.5">
-      <span class="min-w-0 flex-1 rounded-full bg-white px-3 py-1.5 text-center text-xs font-bold text-black">Con servidor</span>
-      <span class="min-w-0 flex-1 rounded-full px-3 py-1.5 text-center text-xs font-bold text-slate-300">Sin servidor</span>
+  <TourScreen title="Grupos" active="trophy">
+    <div class="sk-card flex items-center justify-between gap-2 px-4 py-3">
+      <span class="text-sm font-bold text-white">Grupo de ejemplo</span>
+      <span class="sk-chip">3 miembros</span>
     </div>
 
     <section class="sk-card p-4">
       <header class="flex items-center justify-between gap-2">
-        <h2 class="sk-title">Grupo de ejemplo</h2>
-        <span class="sk-chip font-mono">K7Q2XM</span>
+        <h2 class="sk-title">Ranking</h2>
+        <span class="sk-chip">Esta semana</span>
       </header>
       <ul class="mt-3 space-y-1.5">
         <li v-for="(f, i) in filas" :key="f.name" class="flex items-center gap-3 rounded-md bg-white/[0.04] px-3 py-2">

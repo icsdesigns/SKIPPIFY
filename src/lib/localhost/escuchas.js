@@ -79,10 +79,14 @@ function esTupla (t) {
     Number.isFinite(t[4]) && Number.isFinite(t[5]) && Number.isFinite(t[6])
 }
 
+/** Semanas que se pueden consultar, de la más reciente a la más antigua. */
+export const SEMANAS = ['actual', 'pasada', 'hace2']
+
 /**
  * Ventana semanal, lunes a lunes en UTC, como la función programada de Firebase.
+ *   · 'actual': desde el lunes de esta semana hasta ahora;
  *   · 'pasada': la última semana natural cerrada;
- *   · 'actual': desde el lunes de esta semana hasta ahora.
+ *   · 'hace2': la anterior a esa.
  */
 export function ventanaSemana (cual, now = new Date()) {
   const inicioActual = new Date(now)
@@ -95,12 +99,15 @@ export function ventanaSemana (cual, now = new Date()) {
       weekKey: inicioActual.toISOString().slice(0, 10)
     }
   }
-  const inicioPasada = new Date(inicioActual)
-  inicioPasada.setUTCDate(inicioPasada.getUTCDate() - 7)
+  const atras = cual === 'hace2' ? 2 : 1
+  const inicio = new Date(inicioActual)
+  inicio.setUTCDate(inicio.getUTCDate() - 7 * atras)
+  const fin = new Date(inicio)
+  fin.setUTCDate(fin.getUTCDate() + 7)
   return {
-    weekStartIso: inicioPasada.toISOString(),
-    weekEndIso: inicioActual.toISOString(),
-    weekKey: inicioPasada.toISOString().slice(0, 10)
+    weekStartIso: inicio.toISOString(),
+    weekEndIso: fin.toISOString(),
+    weekKey: inicio.toISOString().slice(0, 10)
   }
 }
 

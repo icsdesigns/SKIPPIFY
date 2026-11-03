@@ -1,7 +1,9 @@
 name: Weekly League Publish
 
+# DESACTIVADO: los grupos con servidor (Firebase) ya no existen en la app, así que
+# no hay nada que publicar cada semana. Sólo queda el disparo manual.
 on:
-  schedule:
+  # schedule:
     # Dos veces por hora domingo y lunes, lejos del minuto 0: GitHub retrasa y
     # salta muchas ejecuciones, sobre todo las de en punto (el 27-09-2026 no
     # corrió ninguna entre las 17:00 y las 22:00 UTC). La semana se cierra el
@@ -9,7 +11,7 @@ on:
     # grupo desde las 03:00, con `revealAt` a las 15:00: la app la desvela a
     # esa hora. Las ejecuciones posteriores sólo la suben a la vista para las
     # versiones de la app que no conocen `revealAt`.
-    - cron: '17,47 * * * 0,1'
+  #   - cron: '17,47 * * * 0,1'
   workflow_dispatch:
     inputs:
       force_publish:

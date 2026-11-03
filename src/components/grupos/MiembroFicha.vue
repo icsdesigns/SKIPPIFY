@@ -131,6 +131,18 @@
         </div>
       </div>
     </div>
+
+    <!-- Sólo el administrador, y nunca sobre sí mismo. -->
+    <div v-if="puedeExpulsar" class="flex justify-end px-3 pb-2.5" :class="sinDatos ? '' : 'pt-0'">
+      <button
+        type="button"
+        class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold text-rose-300 transition-colors hover:bg-rose-500/[0.16]"
+        :data-expulsar="ficha.id"
+        @click="pedirExpulsion"
+      >
+        <GrupoIcono name="userX" class="h-3.5 w-3.5" />{{ confirmandoExpulsion ? '¿Seguro? Pulsa otra vez' : 'Expulsar' }}
+      </button>
+    </div>
   </li>
 </template>
 
@@ -143,7 +155,7 @@
  * y el mosaico de cifras. Las animaciones (anillo, barras, despliegue, brillo
  * del primer puesto) se apagan con «reducir movimiento».
  */
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import GrupoIcono from './GrupoIcono.js'
 import { formatearHoras, inicialDe } from '@/lib/gruposResumen'
 import { cifrasDe } from '@/lib/gruposExtras'
@@ -156,8 +168,27 @@ const props = defineProps({
   /** Su tiempo respecto al que más ha escuchado, de 0 a 1. */
   progreso: { type: Number, default: 0 },
   indice: { type: Number, default: 0 },
-  abiertaAlInicio: { type: Boolean, default: false }
+  abiertaAlInicio: { type: Boolean, default: false },
+  /** El usuario es administrador y esta ficha es de otra persona. */
+  puedeExpulsar: { type: Boolean, default: false }
 })
+const emit = defineEmits(['expulsar'])
+
+/** Expulsar cambia la llave del grupo: se pide una segunda pulsación. */
+const confirmandoExpulsion = ref(false)
+let confirmTimer = null
+function pedirExpulsion () {
+  if (!confirmandoExpulsion.value) {
+    confirmandoExpulsion.value = true
+    clearTimeout(confirmTimer)
+    confirmTimer = setTimeout(() => { confirmandoExpulsion.value = false }, 4000)
+    return
+  }
+  confirmandoExpulsion.value = false
+  clearTimeout(confirmTimer)
+  emit('expulsar', props.ficha.id)
+}
+onBeforeUnmount(() => clearTimeout(confirmTimer))
 
 const sinDatos = computed(() => !(Number(props.ficha.minutos) > 0))
 const abierta = ref(props.abiertaAlInicio && !sinDatos.value)
@@ -195,19 +226,23 @@ const claseMedalla = computed(() => {
 .plata { background: linear-gradient(135deg, #f1f5f9, #94a3b8 55%, #e2e8f0); }
 .bronce { background: linear-gradient(135deg, #fed7aa, #c2410c 60%, #fdba74); }
 
+/* El brillo es una banda que cruza la medalla con transform. Empieza y acaba
+   fuera de ella, así que el bucle no deja ver ningún salto al reiniciarse (el
+   anterior animaba background-position y se cortaba a mitad de recorrido). */
+.medalla { overflow: hidden; isolation: isolate; }
 .oro::after {
   content: '';
   position: absolute;
   inset: 0;
-  border-radius: 9999px;
   background: linear-gradient(110deg, transparent 30%, rgba(255, 255, 255, 0.75) 50%, transparent 70%);
-  background-size: 250% 100%;
-  animation: brillo 3.2s ease-in-out infinite;
+  transform: translateX(-130%);
+  animation: brillo 3.6s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+  will-change: transform;
 }
 
 @keyframes brillo {
-  0%, 60% { background-position: 150% 0; }
-  100% { background-position: -100% 0; }
+  0% { transform: translateX(-130%); }
+  45%, 100% { transform: translateX(130%); }
 }
 
 .anillo {

@@ -11,7 +11,7 @@
  *   · 8 caracteres de un alfabeto de 32 símbolos = 40 bits.
  *   · La clave y la etiqueta de búsqueda salen de Argon2id sobre el código: cada
  *     intento de adivinarlo cuesta memoria y tiempo, no un simple hash.
- *   · Caduca a los 30 minutos (dentro de la nota, así que no se puede alargar) y
+ *   · Caduca a la hora (dentro de la nota, así que no se puede alargar) y
  *     se usa una vez: la invitación de debajo ya es de un solo uso en el kit.
  *
  * Sólo vale para grupos que usan los relays por defecto, porque quien recibe el
@@ -21,7 +21,7 @@ import {
   aeadDecrypt, aeadEncrypt, deriveKey, passwordKey, ready, sha256, b64
 } from '@/vendor/localhost-core/crypto.ts'
 
-export const EXPRES_TTL_MS = 30 * 60 * 1000
+export const EXPRES_TTL_MS = 60 * 60 * 1000
 export const EXPRES_LONGITUD = 8
 /** Base32 de Crockford: sin I, L, O ni U, que se confunden al dictar o leer. */
 const SIMBOLOS = '0123456789ABCDEFGHJKMNPQRSTVWXYZ'

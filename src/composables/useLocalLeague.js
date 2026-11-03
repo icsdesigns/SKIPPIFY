@@ -25,7 +25,7 @@ import { IdbStorage, deleteSlot } from '@/lib/localhost/idbStorage'
 import { NostrTransport, DEFAULT_RELAYS } from '@/lib/localhost/nostrTransport'
 import { esCodigoExpres, formatearCodigo, generarCodigo, publicarExpres, resolverExpres, EXPRES_TTL_MS } from '@/lib/localhost/expres'
 import { actividadPorPersona, elegirExpulsados, LATIDO_MS, REVISION_MS } from '@/lib/localhost/inactividad'
-import { decodeEscuchas, encodeEscuchas, partirEnLotes, ventanaSemana, puntuarSemana } from '@/lib/localhost/escuchas'
+import { SEMANAS, decodeEscuchas, encodeEscuchas, partirEnLotes, ventanaSemana, puntuarSemana } from '@/lib/localhost/escuchas'
 
 const STATE_KEY = 'skippify-localhost-state'
 const MAX_GROUPS = 5
@@ -72,8 +72,10 @@ const message = ref('')
 const statuses = reactive({})
 /** { [groupId]: [{ uid, displayName, role, you }] } */
 const members = reactive({})
-/** { [groupId]: { weekKey, members, provisional, cual } } */
+/** { [groupId]: { weekKey, members, provisional, cual } } — la última consultada. */
 const leaderboards = reactive({})
+/** { [groupId]: { actual, pasada, hace2 } } — cada una con la forma de arriba. */
+const semanas = reactive({})
 /** { [groupId]: ms de la última sincronización con éxito } */
 const lastSyncByGroup = reactive({})
 
@@ -337,7 +339,7 @@ async function joinGroup ({ inviteCode, displayName } = {}) {
         return null
       }
       if (!hallada) {
-        error.value = 'No encontramos ese código: puede haber caducado (valen 30 minutos) o estar mal escrito.'
+        error.value = 'No encontramos ese código: puede haber caducado (valen 1 hora) o estar mal escrito.'
         return null
       }
       code = hallada.invitacion
@@ -387,10 +389,31 @@ async function leaveGroup (groupId) {
   if (state.value.activeGroupId === groupId) state.value.activeGroupId = state.value.groups[0]?.groupId || ''
   delete members[groupId]
   delete leaderboards[groupId]
+  delete semanas[groupId]
   delete statuses[groupId]
   saveState()
   message.value = 'Has salido del grupo. Para volver a entrar necesitas otra invitación.'
   return true
+}
+
+/**
+ * Expulsa a un miembro (sólo administradores). El kit rota la llave del grupo,
+ * así que el expulsado deja de poder leer lo que se publique a partir de ahora.
+ */
+async function expulsarMiembro (uid, groupId = state.value.activeGroupId) {
+  clearStatus()
+  try {
+    const { group } = await openRuntime(groupId)
+    const nombre = nombresDe(group).get(uid) || 'Miembro'
+    await group.removePerson(uid)
+    refreshMembers(groupId, group)
+    acelerar()
+    message.value = `${nombre} ya no está en el grupo.`
+    return true
+  } catch (err) {
+    error.value = mapError(err, 'No fue posible expulsar al miembro (sólo pueden los administradores).')
+    return false
+  }
 }
 
 function setActiveGroup (groupId) {
@@ -414,7 +437,7 @@ async function createInvite (groupId = state.value.activeGroupId) {
 }
 
 /**
- * Invitación exprés: un código corto de un solo uso y 30 minutos. Debajo va una
+ * Invitación exprés: un código corto de un solo uso y 1 hora. Debajo va una
  * invitación normal del kit; el código sólo sirve para encontrarla en los relays.
  * Devuelve { codigo, caduca } o null (y deja el motivo en `error`).
  */
@@ -647,12 +670,12 @@ async function publicarEscuchas (groupId, { desdeFondo = false } = {}) {
 
 // ── Ranking ─────────────────────────────────────────────────────────────────
 
-async function calcularRanking (groupId, cual = 'actual') {
+async function calcularRanking (groupId, cual = 'actual', leidas = null) {
   const rt = runtimes.get(groupId)
   if (!rt) return null
   const { group } = rt
   const ventana = ventanaSemana(cual, new Date())
-  const escuchas = await leerEscuchas(group)
+  const escuchas = leidas || await leerEscuchas(group)
   const nombres = nombresDe(group)
   const lista = [...nombres.entries()].map(([uid, displayName]) =>
     puntuarSemana(uid, displayName, escuchas.get(uid) || [], ventana))
@@ -675,8 +698,28 @@ async function loadLeaderboard (options = {}) {
   if (!groupId) return null
   try { await openRuntime(groupId) } catch { return null }
   const result = await calcularRanking(groupId, cual)
-  if (result) leaderboards[groupId] = { ...result, cual }
+  if (result) {
+    leaderboards[groupId] = { ...result, cual }
+    semanas[groupId] = { ...(semanas[groupId] || {}), [cual]: { ...result, cual } }
+  }
   return result
+}
+
+/** Las tres semanas consultables de un grupo, leyendo las escuchas una sola vez. */
+async function loadSemanas (groupId = state.value.activeGroupId) {
+  if (!groupId) return null
+  try { await openRuntime(groupId) } catch { return null }
+  const rt = runtimes.get(groupId)
+  if (!rt) return null
+  const escuchas = await leerEscuchas(rt.group)
+  const nuevas = {}
+  for (const cual of SEMANAS) {
+    const r = await calcularRanking(groupId, cual, escuchas)
+    if (r) nuevas[cual] = { ...r, cual }
+  }
+  semanas[groupId] = nuevas
+  if (nuevas.actual) leaderboards[groupId] = nuevas.actual
+  return nuevas
 }
 
 async function avisarSiSemanaNueva (groupId) {
@@ -842,7 +885,7 @@ function syncAll (options = {}) {
     // Todos los grupos llevan sus cifras de la semana: las tarjetas las enseñan.
     for (const g of state.value.groups) {
       if (!runtimes.has(g.groupId)) continue
-      try { await loadLeaderboard({ groupId: g.groupId, cual: leaderboards[g.groupId]?.cual || 'actual' }) } catch { /* sin datos aún */ }
+      try { await loadSemanas(g.groupId) } catch { /* sin datos aún */ }
     }
     return n
   })().finally(() => { syncing.value = false; syncAllPromise = null })
@@ -934,6 +977,7 @@ export function useLocalLeague () {
     statuses,
     members,
     leaderboards,
+    semanas,
     lastSyncByGroup,
     activeMembers: computed(() => members[state.value.activeGroupId] || []),
     activeLeaderboard: computed(() => leaderboards[state.value.activeGroupId] || null),
@@ -953,6 +997,8 @@ export function useLocalLeague () {
     exportBackup,
     restoreBackup,
     loadLeaderboard,
+    loadSemanas,
+    expulsarMiembro,
     refreshAll,
     syncAll,
     startWatch,

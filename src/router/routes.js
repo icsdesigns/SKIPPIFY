@@ -61,7 +61,7 @@ export const routes = [
     name: 'comunidad',
     component: CommunityView,
     meta: {
-      title: 'Comunidad',
+      title: 'Grupos',
       description: 'Crea o únete a un grupo y compara tu resumen de escucha con el de tus amigos.'
     }
   },
