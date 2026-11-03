@@ -227,12 +227,22 @@ function estadoDe (group) {
   return group.status
 }
 
-/** Nombre del grupo: lo escribe el creador en la colección `grupo` (gana el más antiguo). */
+/**
+ * Nombre del grupo, de la colección `grupo`. Lo pone el creador al crearlo y
+ * cualquier administrador puede cambiarlo anotando uno nuevo: manda la anotación
+ * más reciente de un administrador. Las de quien no lo es se ignoran (cualquier
+ * miembro puede escribir en la colección), y si ninguna es de un administrador
+ * —grupos de versiones anteriores— se queda la más antigua, como antes.
+ */
 function nombreDelGrupo (group) {
   const items = group.records(COLL_GRUPO).items().filter(i => !i.removed && typeof i.data?.nombre === 'string')
   if (!items.length) return ''
-  items.sort((a, b) => (a.hlc < b.hlc ? -1 : a.hlc > b.hlc ? 1 : 0))
-  return items[0].data.nombre
+  const porHlc = (a, b) => (a.hlc < b.hlc ? -1 : a.hlc > b.hlc ? 1 : 0)
+  // El autor de una anotación es el dispositivo, no la persona.
+  const admins = new Set(group.members().filter(m => !m.removed && m.admin).flatMap(m => [m.person, ...(m.devices || [])]))
+  const deAdmin = items.filter(i => admins.has(i.author)).sort(porHlc)
+  if (deAdmin.length) return deAdmin[deAdmin.length - 1].data.nombre
+  return items.sort(porHlc)[0].data.nombre
 }
 
 /**
@@ -412,6 +422,35 @@ async function expulsarMiembro (uid, groupId = state.value.activeGroupId) {
     return true
   } catch (err) {
     error.value = mapError(err, 'No fue posible expulsar al miembro (sólo pueden los administradores).')
+    return false
+  }
+}
+
+/** Cambia el nombre del grupo (sólo administradores: el resto de miembros lo ignora). */
+async function renombrarGrupo (nuevo, groupId = state.value.activeGroupId) {
+  clearStatus()
+  const nombre = normalizeName(nuevo).slice(0, 32)
+  if (nombre.length < 3) {
+    error.value = 'El nombre del grupo debe tener al menos 3 caracteres.'
+    return false
+  }
+  try {
+    const { group } = await openRuntime(groupId)
+    if (!group.me || !group.members().some(m => m.person === group.me.person && m.admin && !m.removed)) {
+      error.value = 'Sólo un administrador puede cambiar el nombre del grupo.'
+      return false
+    }
+    if (group.status !== 'ready' || !group.canSeal()) {
+      error.value = 'El grupo aún no está listo: inténtalo cuando termine de sincronizar.'
+      return false
+    }
+    await group.records(COLL_GRUPO).add({ nombre })
+    refreshMembers(groupId, group)
+    acelerar()
+    message.value = 'Nombre del grupo cambiado.'
+    return true
+  } catch (err) {
+    error.value = mapError(err, 'No fue posible cambiar el nombre del grupo.')
     return false
   }
 }
@@ -999,6 +1038,7 @@ export function useLocalLeague () {
     loadLeaderboard,
     loadSemanas,
     expulsarMiembro,
+    renombrarGrupo,
     refreshAll,
     syncAll,
     startWatch,

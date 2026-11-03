@@ -74,9 +74,9 @@ function alternar () {
 }
 
 const pasos = [
-  { icono: 'plus', titulo: 'Crea un grupo o únete', texto: 'Pulsa «Nuevo» en el desplegable. Quien crea el grupo es su administrador y genera una invitación exprés (8 caracteres) o un QR. Vale 1 hora y entra en cuanto un miembro tenga la app abierta.' },
+  { icono: 'plus', titulo: 'Crea un grupo o únete', texto: 'Pulsa «Crear grupo» o «Unirme», al final de la lista de grupos. Quien crea el grupo es su administrador y genera una invitación exprés (8 caracteres) o un QR. Vale 1 hora y entra en cuanto un miembro tenga la app abierta.' },
   { icono: 'note', titulo: 'Escucha como siempre', texto: 'Tus escuchas se comparten solas con el grupo, cifradas, también con la app cerrada. No hay cuentas ni base de datos.' },
-  { icono: 'medal', titulo: 'Comparad la semana', texto: 'El ranking va por tiempo de escucha y se mantiene al día; es provisional hasta que todos han sincronizado. En «Escucha común» veis cuánto os parecéis. Puedes mirar también las dos semanas anteriores.' }
+  { icono: 'medal', titulo: 'Comparad la semana', texto: 'El ranking va por tiempo de escucha y se mantiene al día. Las cifras de la semana en curso son provisionales: pueden cambiar cuando los demás miembros abran la app y publiquen sus últimas escuchas. En «Escucha común» veis cuánto os parecéis. Puedes mirar también las dos semanas anteriores.' }
 ]
 const nota = 'Los datos viajan cifrados por relays públicos, que sólo ven direcciones IP, horas y tamaños. Sólo el administrador invita y expulsa. Quien pasa 30 días sin enviar nada sale del grupo; abandonar borra la copia de este móvil.'
 </script>

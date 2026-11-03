@@ -66,6 +66,10 @@ const TRAZOS = {
   ],
   bolt: [['path', { d: 'M13 2 4.5 13.5H11l-1 8.5L18.5 10.5H12l1-8.5z' }]],
   check: [['path', { d: 'm5 12.5 4.5 4.5L19 7' }]],
+  pencil: [
+    ['path', { d: 'M4 20h4L19 9a2.83 2.83 0 0 0-4-4L4 16v4z' }],
+    ['path', { d: 'm13.5 6.5 4 4' }]
+  ],
   // Raíces del árbol de Comunidad: un servidor central frente a móviles que se
   // hablan entre sí sin nadie en medio.
   server: [
