@@ -348,6 +348,10 @@ public class NotifListenerPlugin extends Plugin
     @PluginMethod
     public void drainBackgroundEvents(PluginCall call) {
         JSArray out = new JSArray();
+        // Con la app abierta sólo interesa lo que ella no vio en directo: lo que el
+        // listener entregó vivo (js:true) ya lo registró JS, y volver a leerlo
+        // duplicaría la escucha. Al arrancar se lee todo, como siempre.
+        final boolean soloSinApp = Boolean.TRUE.equals(call.getBoolean("soloSinApp", false));
 
         synchronized (SpotifyNotificationListener.sEventFileLock) {
             try {
@@ -369,6 +373,7 @@ public class NotifListenerPlugin extends Plugin
 
                                 try {
                                     JSONObject o = new JSONObject(line);
+                                    if (soloSinApp && o.optBoolean("js", false)) continue;
                                     JSObject evt = new JSObject();
                                     if (o.has("played_at")) evt.put("played_at", o.optString("played_at", ""));
                                     if (o.has("event")) evt.put("event", o.optString("event", ""));

@@ -255,6 +255,8 @@ const statusPill = computed(() => {
 })
 
 let splashTimer = null
+let drainTimer = null
+const DRAIN_MS = 60_000
 let tourTimer = null
 
 function setNowPlaying (state) {
@@ -298,6 +300,11 @@ onMounted(async () => {
 
   await initializeNativeFeatures()
   await notif.checkAndInit(setNowPlaying)
+  // Con la app abierta, las escuchas que anota el servicio (API de Spotify) se
+  // recogen cada minuto para que lleguen al historial sin reiniciarla.
+  drainTimer = setInterval(() => {
+    if (document.visibilityState === 'visible') notif.drainBackground()
+  }, DRAIN_MS)
   apiNow.start({ leerModo: () => nowPlaying.value?.mode, poner: setNowPlayingFromApi })
   syncNativeHistoryFromEvents(eventStore.state.events).catch(() => {})
   await notif.refreshSystemPermissions()
@@ -345,6 +352,7 @@ watch(() => route.path, () => {
 
 function onVisibleAgain () {
   if (document.visibilityState !== 'visible') return
+  notif.drainBackground()
   notif.refreshSystemPermissions()
   void localLeague.syncAll()
   syncNativeHistoryFromEvents(eventStore.state.events).catch(() => {})
@@ -355,6 +363,7 @@ onBeforeUnmount(() => {
   window.removeEventListener('scroll', onScroll)
   localLeague.stopWatch()
   apiNow.stop()
+  if (drainTimer) clearInterval(drainTimer)
   if (splashTimer) clearTimeout(splashTimer)
   if (tourTimer) clearTimeout(tourTimer)
   stopNavWatch()
