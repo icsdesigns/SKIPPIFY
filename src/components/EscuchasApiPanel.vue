@@ -1,21 +1,16 @@
 <template>
-  <section class="overflow-hidden sk-card" data-ajuste="escuchas-api">
-    <header class="sk-card-head">
-      <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-400/[0.18] text-brand-400">
-        <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M4 12a8 8 0 0 1 16 0" />
-          <path d="M7 12a5 5 0 0 1 10 0" />
-          <circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none" />
-          <path d="M12 14v6" />
-        </svg>
-      </span>
-      <div class="min-w-0">
-        <h2 class="text-sm font-bold text-white">Escuchas desde Spotify</h2>
-        <p class="text-[11px] text-slate-400">También las de otros dispositivos de tu cuenta.</p>
-      </div>
-    </header>
+  <FeaturePanel
+    data-ajuste="escuchas-api"
+    title="Escuchas desde Spotify"
+    subtitle="También las de otros dispositivos de tu cuenta."
+    icon-class="bg-brand-400/[0.18] text-brand-400"
+  >
+    <template #icono><AjusteIcon name="antena" class="h-5 w-5" /></template>
+    <template #estado>
+      <span class="sk-chip" :class="activo ? 'sk-chip-accent' : ''">{{ activo ? 'Activado' : 'Desactivado' }}</span>
+    </template>
 
-    <div class="space-y-4 p-5">
+    <div class="space-y-3">
       <p v-if="!isNative" class="text-[11px] text-slate-500">
         Sólo disponible en la app instalada.
       </p>
@@ -30,23 +25,27 @@
         </p>
 
         <!-- Interruptor -->
-        <div class="flex items-center justify-between gap-4 sk-well px-3.5 py-3">
-          <div class="min-w-0">
-            <p class="text-sm font-bold text-white">Leer mis escuchas de Spotify</p>
-            <p class="mt-0.5 text-[11px] text-slate-400">{{ estadoTexto }}</p>
-          </div>
-          <button
-            role="switch"
-            :aria-checked="activo"
-            aria-label="Leer mis escuchas de Spotify"
-            class="sk-switch shrink-0 disabled:opacity-40"
-            :class="activo ? 'border-transparent bg-brand-400' : 'border-transparent bg-white/[0.18]'"
-            :disabled="!puedeActivar && !activo"
-            @click="alternar"
-          >
-            <span class="sk-switch-knob" :class="activo ? 'translate-x-6' : 'translate-x-1'" />
-          </button>
-        </div>
+        <OpcionFila
+          plana
+          :activo="activo"
+          titulo="Leer mis escuchas de Spotify"
+          :detalle="estadoTexto"
+        >
+          <template #icono><AjusteIcon name="antena" class="h-8 w-8" /></template>
+          <template #fin>
+            <button
+              role="switch"
+              :aria-checked="activo"
+              aria-label="Leer mis escuchas de Spotify"
+              class="sk-switch shrink-0 disabled:opacity-40"
+              :class="activo ? 'border-transparent bg-brand-400' : 'border-transparent bg-white/[0.18]'"
+              :disabled="!puedeActivar && !activo"
+              @click="alternar"
+            >
+              <span class="sk-switch-knob" :class="activo ? 'translate-x-6' : 'translate-x-1'" />
+            </button>
+          </template>
+        </OpcionFila>
 
         <p
           v-if="avisoError"
@@ -54,21 +53,22 @@
         >{{ avisoError }}</p>
 
         <!-- Cuenta de Spotify -->
-        <div class="sk-well px-3.5 py-3">
-          <div class="flex items-center justify-between gap-3">
-            <div class="min-w-0">
-              <p class="text-xs font-bold text-white">Cuenta de Spotify</p>
-              <p class="mt-0.5 text-[11px]" :class="conectada ? 'text-brand-400' : 'text-slate-400'">
-                {{ conectada ? 'Conectada' : 'Sin conectar' }}
-              </p>
-            </div>
+        <OpcionFila
+          plana
+          tono="sky"
+          :activo="conectada"
+          titulo="Cuenta de Spotify"
+          :detalle="conectada ? 'Conectada' : 'Sin conectar'"
+        >
+          <template #icono><AjusteIcon name="cuenta" class="h-8 w-8" /></template>
+          <template #fin>
             <button
               v-if="conectada"
               type="button"
               class="sk-btn sk-btn-ghost sk-btn-sm shrink-0"
               @click="desconectar"
             >Desconectar</button>
-          </div>
+          </template>
 
           <template v-if="!conectada">
             <p class="mt-2 text-[11px] leading-relaxed text-slate-400">
@@ -95,7 +95,7 @@
               {{ state.error }}
             </p>
           </template>
-        </div>
+        </OpcionFila>
 
         <!-- Qué ha hecho -->
         <dl v-if="activo" class="grid grid-cols-2 gap-2.5 text-center">
@@ -115,12 +115,15 @@
         </p>
       </template>
     </div>
-  </section>
+  </FeaturePanel>
 </template>
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useSpotify } from '@/composables/useSpotify'
+import FeaturePanel from '@/components/FeaturePanel.vue'
+import AjusteIcon from '@/components/AjusteIcon.vue'
+import OpcionFila from '@/components/OpcionFila.vue'
 
 const spotify = useSpotify()
 const { state, connected, clientId, setClientId, redirectUri, connect, disconnect, consumeRedirect, cancelConnecting } = spotify
