@@ -1,73 +1,58 @@
 <template>
-  <div class="sk-stagger space-y-5">
+  <div class="sk-stagger space-y-3">
 
     <!-- ── Permisos del sistema ───────────────────────────────────────────── -->
-    <section
+    <FeaturePanel
       data-tour="permissions-required"
-      class="overflow-hidden sk-card"
+      title="Permisos del sistema"
+      subtitle="Sin ellos Skippify no puede ver lo que suena en Spotify."
+      icon-class="bg-brand-400/[0.18] text-brand-300"
+      default-open
     >
-      <header class="sk-card-head">
-        <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-400/[0.18] text-base">🛡️</span>
-        <div class="min-w-0">
-          <h2 class="text-sm font-bold text-white">Permisos del sistema</h2>
-          <p class="text-[11px] text-slate-400">Sin ellos Skippify no puede ver lo que suena en Spotify.</p>
-        </div>
-        <span
-          class="sk-badge ml-auto"
-          :class="allPermissionsGranted ? 'sk-badge-ok' : 'sk-badge-warn'"
-        >
+      <template #icono><AjusteIcon name="escudo" class="h-5 w-5" /></template>
+      <template #estado>
+        <span class="sk-badge" :class="allPermissionsGranted ? 'sk-badge-ok' : 'sk-badge-warn'">
           <span class="h-1.5 w-1.5 rounded-full" :class="allPermissionsGranted ? 'bg-brand-400' : 'bg-amber-300'" />
           {{ grantedCount }} / {{ orderedPermissionCards.length }}
         </span>
-      </header>
+      </template>
 
-      <div class="space-y-2.5 p-5">
-        <article
+      <div class="space-y-2">
+        <!-- `anywhere` en el título: uno de ellos lleva el identificador del
+             permiso de Android (POST_NOTIFICATIONS), una única palabra que a
+             320 px no cabe. Partir un identificador es lo correcto; lo que no
+             vale es que ensanche la tarjeta. -->
+        <OpcionFila
           v-for="card in orderedPermissionCards"
           :key="card.id"
-          class="rounded-card border-l-4 bg-white/[0.04] p-3.5 transition-colors duration-200"
-          :class="card.granted ? 'border-brand-400' : 'border-amber-400'"
+          as="article"
+          plana
+          :tono="card.granted ? 'brand' : 'amber'"
+          :activo="true"
+          :titulo="card.title"
+          :detalle="card.meta"
         >
-          <div class="flex items-start gap-2.5">
-            <span class="pt-0.5 text-base leading-none" aria-hidden="true">{{ card.icon }}</span>
+          <template #icono><AjusteIcon :name="card.icon" class="h-8 w-8" /></template>
 
-            <div class="min-w-0 flex-1">
-              <!-- `anywhere` sólo aquí: uno de estos títulos lleva el
-                   identificador del permiso de Android (POST_NOTIFICATIONS),
-                   una única palabra de 147 px que a 320 px no cabe de ninguna
-                   forma. Partir un identificador es lo correcto; lo que no vale
-                   es que ensanche la tarjeta. -->
-              <p class="text-sm font-bold leading-tight text-white [overflow-wrap:anywhere]">{{ card.title }}</p>
-              <span
-                class="sk-badge mt-1.5"
-                :class="card.granted ? 'sk-badge-ok' : 'sk-badge-warn'"
-              >
-                <span class="h-1.5 w-1.5 rounded-full" :class="card.granted ? 'bg-brand-400' : 'bg-amber-300'" />
-                {{ card.granted ? 'Concedido' : 'No concedido' }}
-              </span>
-            </div>
+          <span
+            class="sk-badge mt-2"
+            :class="card.granted ? 'sk-badge-ok' : 'sk-badge-warn'"
+          >
+            <span class="h-1.5 w-1.5 rounded-full" :class="card.granted ? 'bg-brand-400' : 'bg-amber-300'" />
+            {{ card.granted ? 'Concedido' : 'No concedido' }}
+          </span>
 
-            <button
-              class="sk-btn sk-btn-ghost shrink-0 px-2 py-1 text-[11px]"
-              type="button"
-              :aria-expanded="expandedPermissionId === card.id"
-              @click="togglePermissionInfo(card.id)"
-            >
-              ℹ️
-            </button>
-          </div>
-
-          <div v-if="!card.granted && isCapacitor" class="mt-3">
-            <button
-              class="sk-btn sk-btn-sm w-full bg-amber-400/[0.18] text-amber-100 hover:bg-amber-400/30 sm:w-auto"
-              :disabled="checkingPermissions"
-              @click="activarPermiso(card.id)"
-            >
-              {{ checkingPermissions
-                ? 'Verificando…'
-                : (permisoIntentado(card.id) ? 'Reintentar' : card.actionLabel) }}
-            </button>
-          </div>
+          <button
+            v-if="!card.granted && isCapacitor"
+            class="sk-btn sk-btn-sm mt-2.5 block w-full bg-amber-400/[0.18] text-amber-100 hover:bg-amber-400/30 sm:w-auto"
+            type="button"
+            :disabled="checkingPermissions"
+            @click="activarPermiso(card.id)"
+          >
+            {{ checkingPermissions
+              ? 'Verificando…'
+              : (permisoIntentado(card.id) ? 'Reintentar' : card.actionLabel) }}
+          </button>
 
           <!-- Instrucciones manuales: sólo tras pulsar el botón y seguir sin
                concederse. Android puede negarse a abrir el ajuste, o dejar de
@@ -75,16 +60,27 @@
                parecía no hacer nada. -->
           <p
             v-if="ayudaManual(card.id, card.granted)"
-            class="mt-3 rounded-md bg-amber-400/[0.14] px-3 py-2.5 text-[11px] leading-relaxed text-amber-100"
+            class="mt-2.5 rounded-md bg-amber-400/[0.14] px-3 py-2.5 text-[11px] leading-relaxed text-amber-100"
           >
-            ✋ {{ ayudaManual(card.id, card.granted) }}
+            {{ ayudaManual(card.id, card.granted) }}
           </p>
 
           <div v-if="expandedPermissionId === card.id" class="sk-well mt-2.5 px-3 py-2.5">
             <p class="text-[11px] leading-relaxed text-slate-400">{{ card.description }}</p>
-            <p class="mt-1 text-[11px] text-slate-500">{{ card.meta }}</p>
           </div>
-        </article>
+
+          <template #fin>
+            <button
+              class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/[0.08] text-slate-300 transition-colors hover:bg-white/[0.16]"
+              type="button"
+              aria-label="Qué hace este permiso"
+              :aria-expanded="expandedPermissionId === card.id"
+              @click="togglePermissionInfo(card.id)"
+            >
+              <AjusteIcon name="ayuda" class="h-4 w-4" />
+            </button>
+          </template>
+        </OpcionFila>
 
         <p
           v-if="notifError"
@@ -93,36 +89,40 @@
           Error al verificar permisos: {{ notifError }}
         </p>
       </div>
-    </section>
+    </FeaturePanel>
 
     <!-- ── Respaldo ───────────────────────────────────────────────────────── -->
-    <section class="overflow-hidden sk-card">
-      <header class="sk-card-head">
-        <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-sky-400/[0.18] text-base">💾</span>
-        <div class="min-w-0">
-          <h2 class="text-sm font-bold text-white">Historial y estadísticas</h2>
-          <p class="text-[11px] text-slate-400">Exporta o importa tus canciones junto con la configuración.</p>
-        </div>
-        <span class="ml-auto sk-badge bg-sky-400/[0.18] text-sky-200">
-          Datos locales
-        </span>
-      </header>
+    <FeaturePanel
+      title="Historial y estadísticas"
+      subtitle="Exporta o importa tus canciones junto con la configuración."
+      icon-class="bg-sky-400/[0.18] text-sky-200"
+    >
+      <template #icono><AjusteIcon name="copia" class="h-5 w-5" /></template>
+      <template #estado>
+        <span class="sk-badge bg-sky-400/[0.18] text-sky-200">Datos locales</span>
+      </template>
 
-      <div class="space-y-3.5 p-5">
-        <div class="flex flex-wrap gap-2">
-          <button
-            class="sk-btn sk-btn-primary sk-btn-sm"
+      <div class="space-y-3">
+        <div class="grid gap-2">
+          <OpcionFila
+            as="button"
+            tono="brand"
+            titulo="Exportar respaldo"
+            detalle="Guarda tu historial y tu configuración en un archivo."
             @click="exportBackup"
           >
-            Exportar respaldo
-          </button>
+            <template #icono><AjusteIcon name="copia" class="h-8 w-8" /></template>
+          </OpcionFila>
 
-          <button
-            class="sk-btn sk-btn-sm bg-sky-400/[0.18] text-sky-100 hover:bg-sky-400/30"
+          <OpcionFila
+            as="button"
+            tono="sky"
+            titulo="Importar respaldo"
+            detalle="Sustituye tu historial por el de un archivo guardado."
             @click="triggerImport"
           >
-            Importar respaldo
-          </button>
+            <template #icono><AjusteIcon name="copia" class="h-8 w-8 rotate-180" /></template>
+          </OpcionFila>
 
           <input
             ref="importInputRef"
@@ -131,7 +131,6 @@
             class="hidden"
             @change="onImportFileChange"
           >
-
         </div>
 
         <div v-if="backupPreview" class="sk-well p-3.5 text-xs text-slate-300">
@@ -183,29 +182,22 @@
           los criterios y el calibrado de ese momento. Sirve para averiguar por
           qué una canción no se saltó, así que se exporta aparte del respaldo.
         -->
-        <div v-if="isCapacitor" class="sk-well space-y-2.5 p-3.5">
-          <div>
-            <p class="text-xs font-bold text-white">Registro de saltado</p>
-            <p class="mt-0.5 text-[11px] leading-relaxed text-slate-400">
-              Cada canción que suena queda anotada con su decisión (saltada o conservada), el motivo
-              y los criterios y el calibrado activos en ese momento. Se guarda solo en tu móvil.
-              <span v-if="playLogTotal !== null"> Ahora mismo hay {{ playLogTotal }} registradas.</span>
-            </p>
-          </div>
-          <div class="flex flex-wrap gap-2">
-            <button
-              class="sk-btn sk-btn-sm bg-sky-400/[0.18] text-sky-100 hover:bg-sky-400/30"
-              :disabled="playLogBusy"
-              @click="exportSkipLog"
-            >
-              {{ playLogBusy ? 'Exportando…' : 'Exportar registro' }}
-            </button>
-          </div>
+        <template v-if="isCapacitor">
+          <OpcionFila
+            as="button"
+            tono="sky"
+            :disabled="playLogBusy"
+            :titulo="playLogBusy ? 'Exportando…' : 'Exportar registro de saltado'"
+            :detalle="`Cada canción que suena queda anotada con su decisión, el motivo y los criterios activos. Se guarda solo en tu móvil.${playLogTotal !== null ? ` Ahora mismo hay ${playLogTotal} registradas.` : ''}`"
+            @click="exportSkipLog"
+          >
+            <template #icono><AjusteIcon name="registro" class="h-8 w-8" /></template>
+          </OpcionFila>
           <p v-if="playLogMessage" class="text-[11px] font-semibold text-brand-400">{{ playLogMessage }}</p>
           <p v-if="playLogError" class="text-[11px] text-rose-200">{{ playLogError }}</p>
-        </div>
+        </template>
       </div>
-    </section>
+    </FeaturePanel>
 
     <!-- ── Parámetros de la app ───────────────────────────────────────────── -->
     <!--
@@ -215,95 +207,97 @@
     -->
     <EscuchasApiPanel />
 
-    <section class="overflow-hidden sk-card">
-      <header class="sk-card-head">
-        <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-400/[0.18]">
-          <UpdateIcon class="h-5 w-5 text-brand-400" />
-        </span>
-        <div class="min-w-0">
-          <h2 class="text-sm font-bold text-white">Actualizaciones</h2>
-          <p class="text-[11px] text-slate-400">Se comprueba sola al abrir la app.</p>
-        </div>
-      </header>
+    <FeaturePanel
+      title="Actualizaciones"
+      subtitle="Se comprueba sola al abrir la app."
+      icon-class="bg-brand-400/[0.18] text-brand-400"
+    >
+      <template #icono><UpdateIcon class="h-5 w-5" /></template>
+      <template #estado>
+        <span class="sk-chip font-mono">{{ installedVersionLabel }}</span>
+      </template>
 
-      <div class="p-5">
-        <div class="mb-3 flex items-center justify-between gap-3 sk-well px-3.5 py-2.5">
-          <span class="text-xs text-slate-300">Versión instalada</span>
-          <span class="font-mono text-sm font-bold text-brand-400">{{ installedVersionLabel }}</span>
-        </div>
+      <div class="space-y-2">
+        <OpcionFila
+          plana
+          tono="brand"
+          titulo="Versión instalada"
+          detalle="La que está funcionando ahora en este dispositivo."
+        >
+          <template #icono><AjusteIcon name="version" class="h-8 w-8" /></template>
+          <template #fin>
+            <span class="font-mono text-sm font-bold text-brand-400">{{ installedVersionLabel }}</span>
+          </template>
+        </OpcionFila>
 
-        <button
-          class="sk-btn sk-btn-primary w-full"
+        <OpcionFila
+          as="button"
+          tono="brand"
           :disabled="updateBusy"
+          :titulo="updateBusy ? 'Comprobando…' : 'Buscar actualizaciones'"
+          detalle="Mira si hay una versión nueva publicada."
           @click="checkForUpdates"
         >
-          {{ updateBusy ? 'Comprobando…' : 'Buscar actualizaciones' }}
-        </button>
+          <template #icono><UpdateIcon class="h-8 w-8" /></template>
+        </OpcionFila>
 
         <p
           v-if="updateCheckMessage"
-          class="mt-3 rounded-card px-3 py-2.5 text-xs"
+          class="rounded-card px-3 py-2.5 text-xs"
           :class="updateCheckFailed
             ? 'bg-rose-500/[0.16] text-rose-100'
             : 'bg-brand-400/[0.14] text-brand-100'"
         >{{ updateCheckMessage }}</p>
 
-        <p v-if="!isCapacitor" class="mt-3 text-[11px] text-slate-500">
+        <p v-if="!isCapacitor" class="text-[11px] text-slate-500">
           Sólo disponible en la app instalada; en el navegador no hay nada que actualizar.
         </p>
       </div>
-    </section>
+    </FeaturePanel>
 
     <!-- Punto fijo de entrada al tour: aquí se repite cuando ya se terminó. -->
-    <section class="overflow-hidden sk-card" data-tour="help">
-      <header class="sk-card-head">
-        <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-sky-400/[0.18] text-sky-300">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <circle cx="12" cy="12" r="9" />
-            <path d="M9.5 9.5a2.5 2.5 0 1 1 3.6 2.2c-.7.4-1.1.9-1.1 1.8" />
-            <circle cx="12" cy="17" r="0.6" fill="currentColor" />
-          </svg>
-        </span>
-        <div class="min-w-0">
-          <h2 class="text-sm font-bold text-white">Ayuda</h2>
-          <p class="text-[11px] text-slate-400">Un repaso rápido, pantalla a pantalla.</p>
-        </div>
-      </header>
+    <FeaturePanel
+      data-tour="help"
+      title="Ayuda"
+      subtitle="Un repaso rápido, pantalla a pantalla."
+      icon-class="bg-sky-400/[0.18] text-sky-300"
+    >
+      <template #icono><AjusteIcon name="ayuda" class="h-5 w-5" /></template>
 
-      <div class="flex items-center justify-between gap-3 p-5">
-        <div class="min-w-0">
-          <p class="text-sm font-bold text-white">Tour de la app</p>
-          <p class="mt-0.5 text-[11px] text-slate-400">Seis pasos para conocer cada pestaña.</p>
-        </div>
-        <button type="button" class="sk-btn sk-btn-ghost sk-btn-sm shrink-0" @click="tour.start()">
-          Ver el tour
-        </button>
+      <OpcionFila
+        as="button"
+        tono="sky"
+        titulo="Tour de la app"
+        detalle="Seis pasos para conocer cada pestaña."
+        @click="tour.start()"
+      >
+        <template #icono><AjusteIcon name="tour" class="h-8 w-8" /></template>
+        <template #fin><span class="sk-chip shrink-0">Ver el tour</span></template>
+      </OpcionFila>
+    </FeaturePanel>
+
+    <FeaturePanel
+      title="Umbrales de esta versión"
+      subtitle="Cuánto tiene que sonar una canción para contar."
+      icon-class="bg-slate-400/[0.18] text-slate-200"
+    >
+      <template #icono><AjusteIcon name="umbral" class="h-5 w-5" /></template>
+
+      <div class="space-y-2">
+        <OpcionFila
+          v-for="row in runtimeRows"
+          :key="row.label"
+          plana
+          :titulo="row.label"
+        >
+          <template #icono><AjusteIcon name="umbral" class="h-7 w-7" /></template>
+          <template #fin>
+            <span class="shrink-0 font-mono text-sm font-bold text-brand-400">{{ row.value }}</span>
+          </template>
+        </OpcionFila>
+        <p class="pt-1 text-[11px] text-slate-500">Firma de app: {{ APP_SIGNATURE }}</p>
       </div>
-    </section>
-
-    <section class="overflow-hidden sk-card">
-      <header class="sk-card-head">
-        <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-400/[0.18] text-base">⚙️</span>
-        <div class="min-w-0">
-          <h2 class="text-sm font-bold text-white">Umbrales de esta versión</h2>
-          <p class="text-[11px] text-slate-400">Cuánto tiene que sonar una canción para contar.</p>
-        </div>
-      </header>
-
-      <div class="p-5">
-        <div class="sk-well divide-y divide-white/[0.06] overflow-hidden">
-          <div
-            v-for="row in runtimeRows"
-            :key="row.label"
-            class="flex items-center justify-between gap-3 px-3.5 py-2.5"
-          >
-            <span class="text-xs text-slate-300">{{ row.label }}</span>
-            <span class="font-mono text-sm font-bold text-brand-400">{{ row.value }}</span>
-          </div>
-        </div>
-        <p class="mt-2.5 text-[11px] text-slate-500">Firma de app: {{ APP_SIGNATURE }}</p>
-      </div>
-    </section>
+    </FeaturePanel>
 
   </div>
 </template>
@@ -319,6 +313,9 @@ import { useAppUpdate } from '@/composables/useAppUpdate'
 import { usePlayLog } from '@/composables/usePlayLog'
 import { useTour } from '@/composables/useTour'
 import UpdateIcon from '@/components/UpdateIcon.vue'
+import FeaturePanel from '@/components/FeaturePanel.vue'
+import AjusteIcon from '@/components/AjusteIcon.vue'
+import OpcionFila from '@/components/OpcionFila.vue'
 import EscuchasApiPanel from '@/components/EscuchasApiPanel.vue'
 import {
   REGISTER_DUPLICATE_PROGRESS_RATIO,
@@ -421,7 +418,7 @@ const checkingPermissions = ref(false)
 const orderedPermissionCards = computed(() => [
   {
     id: 'notif-access',
-    icon: '🔔',
+    icon: 'campana',
     title: 'Acceso a notificaciones',
     description: 'Permite detectar automáticamente las canciones reproducidas en Spotify mediante NotificationListenerService.',
     meta: 'Requerido · Todas las versiones de Android',
@@ -430,7 +427,7 @@ const orderedPermissionCards = computed(() => [
   },
   {
     id: 'post-notifications',
-    icon: '📬',
+    icon: 'globo',
     title: 'Permiso POST_NOTIFICATIONS',
     description: 'Necesario para mostrar notificaciones y mantener operativo el servicio de detección en primer plano.',
     meta: 'Requerido en Android 13+ (API 33)',
@@ -439,7 +436,7 @@ const orderedPermissionCards = computed(() => [
   },
   {
     id: 'battery',
-    icon: '🔋',
+    icon: 'bateria',
     title: 'Optimización de batería',
     description: 'Excluir Skippify evita pausas agresivas del sistema y mejora la captura cuando la app está en segundo plano.',
     meta: 'Recomendado · Android 6+ · Crítico en capas OEM restrictivas',

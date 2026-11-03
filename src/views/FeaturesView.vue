@@ -25,50 +25,35 @@
         <!-- Tres columnas sólo a partir de lg: entre 640 y 1024 px la barra
              lateral se lleva 264 px y cada tarjeta se quedaba en 98 px de texto
              útil, menos de los 112 px que mide «Descubrimiento». -->
-        <div class="mt-4 grid gap-2.5 lg:grid-cols-3">
-          <button
+        <div class="mt-3 grid gap-2">
+          <OpcionFila
             v-for="modo in modos"
             :key="modo.id"
-            type="button"
-            class="relative overflow-hidden rounded-xl border p-4 text-left transition-all duration-200"
-            :class="features.listeningMode === modo.id
-              ? 'sk-option-active'
-              : 'sk-option'"
+            as="button"
+            :titulo="modo.title"
+            :detalle="`${modo.description} ${modo.detail}`"
+            :activo="features.listeningMode === modo.id"
             :aria-expanded="modo.id === 'custom' ? panelPersonalizado : undefined"
             @click="elegirModo(modo)"
           >
-            <div
-              v-if="features.listeningMode === modo.id"
-              class="pointer-events-none absolute inset-0 bg-gradient-to-br from-brand-400/[0.10] to-transparent"
-            />
-            <!-- Icono y marcador arriba, título debajo a todo el ancho. En una
-                 sola fila los tres, «Descubrimiento» se quedaba en 26 px útiles
-                 con la rejilla de tres columnas y salía recortado; así el título
-                 siempre dispone del ancho entero de la tarjeta. -->
-            <div class="relative flex items-center gap-2.5">
-              <span
-                class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-base transition-colors"
-                :class="features.listeningMode === modo.id ? 'bg-brand-400/25' : 'bg-white/[0.08]'"
-              >{{ modo.icon }}</span>
-              <span
+            <template #icono><AjusteIcon :name="modo.icon" class="h-8 w-8" /></template>
+            <template #fin>
+              <MacroIcon
                 v-if="modo.id === 'custom'"
-                class="ml-auto shrink-0 text-[13px] text-slate-400 transition-transform"
+                name="siguiente"
+                class="h-4 w-4 shrink-0 text-slate-400 transition-transform duration-200"
                 :class="panelPersonalizado ? 'rotate-90' : ''"
-              >›</span>
+              />
               <span
                 v-else
-                class="ml-auto flex h-4 w-4 shrink-0 items-center justify-center rounded-full border transition-colors"
+                class="flex h-4 w-4 shrink-0 items-center justify-center rounded-full border transition-colors"
                 :class="features.listeningMode === modo.id ? 'border-brand-400/60 text-brand-400' : 'border-white/15'"
                 aria-hidden="true"
               >
                 <span v-if="features.listeningMode === modo.id" class="h-1.5 w-1.5 rounded-full bg-current" />
               </span>
-            </div>
-
-            <p class="relative mt-2.5 text-sm font-bold leading-tight text-white">{{ modo.title }}</p>
-            <p class="relative mt-1.5 text-[11px] leading-relaxed text-slate-400">{{ modo.description }}</p>
-            <p class="relative mt-1.5 text-[11px] leading-relaxed text-slate-500">{{ modo.detail }}</p>
-          </button>
+            </template>
+          </OpcionFila>
         </div>
 
         <!-- Panel del modo personalizado: se abre al pulsarlo y se cierra al
@@ -98,19 +83,17 @@
 
       <!-- ── Calibración del salto ────────────────────────────────────────── -->
       <div data-tour="calibration-cta" class="mt-5 border-t border-white/[0.07] pt-5">
-        <div class="flex flex-wrap items-center gap-3">
-          <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-violet-400/[0.18] text-lg">🩺</span>
-          <div class="min-w-0 flex-1">
-            <h3 class="sk-title">Calibración del salto</h3>
-            <p class="mt-0.5 text-[11px] leading-relaxed text-slate-400">
-              ¿Se salta canciones que no toca, o deja pasar duplicadas? El asistente monta una
-              prueba controlada, identifica el síntoma y ajusta el motor contigo.
-            </p>
-          </div>
-          <button class="sk-btn sk-btn-primary sk-btn-sm shrink-0" @click="abrirCalibracion">
+        <OpcionFila
+          plana
+          tono="violet"
+          titulo="Calibración del salto"
+          detalle="¿Se salta canciones que no toca, o deja pasar duplicadas? El asistente monta una prueba controlada, identifica el síntoma y ajusta el motor contigo."
+        >
+          <template #icono><AjusteIcon name="calibrar" class="h-8 w-8 text-violet-200" /></template>
+          <button class="sk-btn sk-btn-primary sk-btn-sm mt-2.5" @click="abrirCalibracion">
             Calibrar
           </button>
-        </div>
+        </OpcionFila>
       </div>
     </FeaturePanel>
 
@@ -129,32 +112,27 @@
         </span>
       </template>
 
-      <div class="flex items-start gap-4">
-        <span
-          class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-xl transition-colors"
-          :class="features.silenceAds ? 'bg-brand-400/25' : 'bg-white/[0.08]'"
-        >🚫</span>
-
-        <div class="min-w-0 flex-1">
-          <h3 class="sk-title">Silenciar anuncios</h3>
-          <p class="sk-subtitle">
-            Cuando la notificación de Spotify contiene alguna palabra clave, Skippify baja
-            el volumen multimedia mientras dura el anuncio y lo restaura al terminar.
-          </p>
-          <p class="mt-1 text-[11px] text-slate-500">Experimental · Requiere acceso a notificaciones</p>
-        </div>
-
-        <button
-          role="switch"
-          :aria-checked="features.silenceAds"
-          aria-label="Silenciar anuncios"
-          class="sk-switch mt-1"
-          :class="features.silenceAds ? 'border-transparent bg-brand-400' : 'border-transparent bg-white/[0.18]'"
-          @click="features.silenceAds = !features.silenceAds"
-        >
-          <span class="sk-switch-knob" :class="features.silenceAds ? 'translate-x-6' : 'translate-x-1'" />
-        </button>
-      </div>
+      <OpcionFila
+        plana
+        tono="amber"
+        :activo="features.silenceAds"
+        titulo="Silenciar anuncios"
+        detalle="Cuando la notificación de Spotify contiene alguna palabra clave, Skippify baja el volumen multimedia mientras dura el anuncio y lo restaura al terminar. Experimental · Requiere acceso a notificaciones."
+      >
+        <template #icono><FeatureIcon name="silencio" class="h-8 w-8" /></template>
+        <template #fin>
+          <button
+            role="switch"
+            :aria-checked="features.silenceAds"
+            aria-label="Silenciar anuncios"
+            class="sk-switch shrink-0"
+            :class="features.silenceAds ? 'border-transparent bg-brand-400' : 'border-transparent bg-white/[0.18]'"
+            @click="features.silenceAds = !features.silenceAds"
+          >
+            <span class="sk-switch-knob" :class="features.silenceAds ? 'translate-x-6' : 'translate-x-1'" />
+          </button>
+        </template>
+      </OpcionFila>
 
       <Transition name="desplegar">
         <div v-if="features.silenceAds" class="mt-4 border-t border-white/[0.07] pt-4">
@@ -220,6 +198,9 @@ import { useRouter } from 'vue-router'
 import { useFeatures } from '@/composables/useFeatures'
 import FeaturePanel from '@/components/FeaturePanel.vue'
 import FeatureIcon from '@/components/FeatureIcon.vue'
+import AjusteIcon from '@/components/AjusteIcon.vue'
+import MacroIcon from '@/components/MacroIcon.vue'
+import OpcionFila from '@/components/OpcionFila.vue'
 import SleepTimerSettings from '@/components/SleepTimerSettings.vue'
 import { useSleepTimer, formatoCuenta } from '@/composables/useSleepTimer'
 
@@ -246,21 +227,21 @@ const requiredKeywords = ['publicidad', 'anuncio', 'anuncios']
 const modos = [
   {
     id: 'discovery',
-    icon: '🧭',
+    icon: 'brujula',
     title: 'Descubrimiento',
     description: 'Prioriza canciones fuera de tu repertorio habitual para fomentar una escucha más variada.',
     detail: 'Fija el salto de duplicadas en 1 año mientras esté activo.'
   },
   {
     id: 'casual',
-    icon: '🎧',
+    icon: 'casual',
     title: 'Casual',
     description: 'Escucha sin filtros: no se salta ninguna canción por haberla oído antes.',
     detail: 'Desactiva el salto de duplicadas mientras esté activo.'
   },
   {
     id: 'custom',
-    icon: '🛠️',
+    icon: 'ajustes',
     title: 'Personalizado',
     description: 'Tú decides cada cuánto se permite repetir una canción.',
     detail: 'Abre las frecuencias disponibles, de 1 semana a 6 meses.'

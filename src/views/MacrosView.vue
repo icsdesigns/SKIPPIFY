@@ -495,50 +495,53 @@
               ? 'border-white/[0.07] bg-black/30'
               : 'border-white/[0.07] bg-black/20'"
           >
-            <!-- Etiqueta plegada: lo justo para reconocer la macro de un vistazo -->
-            <div class="flex items-center gap-2 p-3">
+            <!-- Etiqueta plegada: icono grande de lo que hace la macro, y a su
+                 derecha nombre, descripción y estado. Tocarla la despliega. -->
+            <div class="flex items-center gap-3.5 p-3">
               <button
                 type="button"
-                class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white/[0.03] text-[10px] text-slate-400 transition-transform"
-                :class="abierta[macro.id] ? 'rotate-90' : ''"
+                class="flex min-w-0 flex-1 items-center gap-3.5 text-left"
+                :class="macro.enabled ? '' : 'opacity-60'"
                 :aria-expanded="!!abierta[macro.id]"
                 :aria-label="abierta[macro.id] ? 'Plegar macro' : 'Desplegar macro'"
                 @click="abierta[macro.id] = !abierta[macro.id]"
-              >▶</button>
-
-              <button
-                type="button"
-                class="min-w-0 flex-1 text-left"
-                :class="macro.enabled ? '' : 'opacity-60'"
-                @click="abierta[macro.id] = !abierta[macro.id]"
               >
-                <p class="truncate text-sm font-bold text-white">{{ macro.name }}</p>
-                <p class="truncate text-[11px] text-slate-500">{{ describeMacro(macro) }}</p>
+                <span
+                  class="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl transition-colors"
+                  :class="macro.enabled ? 'bg-brand-400/[0.22] text-brand-200' : 'bg-white/[0.06] text-slate-300'"
+                ><MacroIcon :name="actionMeta(macro.action?.type)?.glyph || 'playlist'" class="h-8 w-8" /></span>
+
+                <span class="min-w-0 flex-1">
+                  <span class="block truncate text-sm font-bold text-white">{{ macro.name }}</span>
+                  <span class="mt-1 block text-[11px] leading-relaxed text-slate-500 [overflow-wrap:anywhere]">{{ describeMacro(macro) }}</span>
+                  <span class="mt-1.5 flex flex-wrap items-center gap-1.5">
+                    <span
+                      v-if="correEnSegundoPlano(macro)"
+                      class="inline-flex shrink-0 items-center gap-1 rounded-full bg-brand-400/[0.18] px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-brand-200"
+                    >
+                      <span class="h-1 w-1 rounded-full bg-brand-400" />segundo plano
+                    </span>
+                    <span
+                      v-if="esManual(macro)"
+                      class="inline-flex shrink-0 items-center gap-1 rounded-full bg-violet-400/[0.18] px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-violet-200"
+                    >manual</span>
+                    <span
+                      v-if="vinculadaAlBoton(macro)"
+                      class="inline-flex shrink-0 items-center gap-1 rounded-full bg-sky-400/[0.18] px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-sky-200"
+                      title="Se ejecuta con la pulsación larga del botón de los auriculares"
+                    >
+                      <FeatureIcon name="auriculares" class="h-3 w-3" />botón
+                    </span>
+                    <span class="font-mono text-[10px] text-slate-500">{{ ejecuciones(macro) }} ejec.</span>
+                  </span>
+                </span>
+
+                <MacroIcon
+                  name="siguiente"
+                  class="h-4 w-4 shrink-0 text-slate-500 transition-transform duration-200"
+                  :class="abierta[macro.id] ? 'rotate-90' : ''"
+                />
               </button>
-
-              <span
-                v-if="correEnSegundoPlano(macro)"
-                class="hidden shrink-0 items-center gap-1 rounded-full bg-brand-400/[0.18] px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-brand-200 sm:inline-flex"
-              >
-                <span class="h-1 w-1 rounded-full bg-brand-400" />segundo plano
-              </span>
-
-              <span
-                v-if="esManual(macro)"
-                class="hidden shrink-0 items-center gap-1 rounded-full bg-violet-400/[0.18] px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-violet-200 sm:inline-flex"
-              >manual</span>
-
-              <span
-                v-if="vinculadaAlBoton(macro)"
-                class="inline-flex shrink-0 items-center gap-1 rounded-full bg-sky-400/[0.18] px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-sky-200"
-                title="Se ejecuta con la pulsación larga del botón de los auriculares"
-              >
-                <FeatureIcon name="auriculares" class="h-3 w-3" />botón
-              </span>
-
-              <span class="hidden shrink-0 font-mono text-[10px] text-slate-500 sm:inline">
-                {{ ejecuciones(macro) }} ejec.
-              </span>
 
               <!-- Habilitar/deshabilitar sin necesidad de desplegar la macro -->
               <button
@@ -563,34 +566,47 @@
                 Sólo a mano: {{ motivoSinSegundoPlano(macro) }}
               </p>
 
-              <div class="flex flex-wrap items-center gap-2">
+              <!-- Cuatro acciones como teselas: icono arriba, nombre debajo. -->
+              <div class="grid grid-cols-4 gap-2">
                 <button
                   type="button"
-                  class="sk-btn sk-btn-sm bg-sky-400/[0.18] text-sky-100 hover:bg-sky-400/30"
+                  class="sk-option flex flex-col items-center gap-1.5 rounded-xl border px-1 py-2.5 text-[11px] font-semibold text-sky-100 disabled:opacity-40"
                   :disabled="running"
                   @click="onPreview(macro)"
-                >Vista previa</button>
+                >
+                  <span class="flex h-10 w-10 items-center justify-center rounded-2xl bg-sky-400/[0.22]"><AjusteIcon name="ojo" class="h-6 w-6" /></span>
+                  Vista previa
+                </button>
                 <button
                   type="button"
-                  class="sk-btn sk-btn-sm bg-brand-400/[0.18] text-brand-200 hover:bg-brand-400/30"
+                  class="sk-option flex flex-col items-center gap-1.5 rounded-xl border px-1 py-2.5 text-[11px] font-semibold text-brand-200 disabled:opacity-40"
                   :disabled="running"
                   @click="onRun(macro)"
-                >Ejecutar</button>
+                >
+                  <span class="flex h-10 w-10 items-center justify-center rounded-2xl bg-brand-400/[0.22]"><AjusteIcon name="play" class="h-6 w-6" /></span>
+                  Ejecutar
+                </button>
                 <button
                   type="button"
-                  class="sk-btn sk-btn-ghost sk-btn-sm"
+                  class="sk-option flex flex-col items-center gap-1.5 rounded-xl border px-1 py-2.5 text-[11px] font-semibold text-slate-200"
+                  :aria-pressed="!!verHistorial[macro.id]"
                   @click="verHistorial[macro.id] = !verHistorial[macro.id]"
-                >{{ verHistorial[macro.id] ? 'Ocultar historial' : 'Historial' }}</button>
+                >
+                  <span class="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/[0.08]"><AjusteIcon name="registro" class="h-6 w-6" /></span>
+                  {{ verHistorial[macro.id] ? 'Ocultar' : 'Historial' }}
+                </button>
                 <button
                   type="button"
-                  class="sk-btn sk-btn-ghost sk-btn-sm"
+                  class="sk-option flex flex-col items-center gap-1.5 rounded-xl border px-1 py-2.5 text-[11px] font-semibold text-rose-200"
                   @click="deleteMacro(macro.id)"
-                >Borrar</button>
-
-                <span class="ml-auto font-mono text-[10px] text-slate-500">
-                  {{ ejecuciones(macro) }} ejec. · {{ aplicadas(macro) }} canciones
-                </span>
+                >
+                  <span class="flex h-10 w-10 items-center justify-center rounded-2xl bg-rose-400/[0.18]"><MacroIcon name="eliminar" class="h-6 w-6" /></span>
+                  Borrar
+                </button>
               </div>
+              <p class="mt-2 text-right font-mono text-[10px] text-slate-500">
+                {{ ejecuciones(macro) }} ejec. · {{ aplicadas(macro) }} canciones
+              </p>
 
               <!--
                 Siete días de ejecuciones. Un contador acumulado no sirve para
@@ -668,44 +684,78 @@
         <template #icono><FeatureIcon name="auriculares" class="h-5 w-5" /></template>
 
         <div class="space-y-3">
-          <label class="block">
-            <span class="sk-eyebrow">Macro vinculada</span>
-            <select
-              class="mt-2 w-full sk-input px-3 py-2.5 text-xs text-slate-200"
-              :value="nativeState.boton.macroId"
-              :disabled="botonOcupado"
-              @change="onVincularBoton($event.target.value)"
-            >
-              <option value="">Ninguna (el botón hace lo de siempre)</option>
-              <option v-for="macro in macrosParaBoton" :key="macro.id" :value="macro.id">
-                {{ macro.name }}{{ macro.enabled ? '' : ' (pausada)' }}
-              </option>
-            </select>
-          </label>
+          <p class="sk-eyebrow">Macro vinculada</p>
 
-          <p v-if="!macrosParaBoton.length" class="text-[11px] text-amber-300/80">
-            Ninguna de tus macros puede ejecutarse desde el botón:
-            {{ Object.values(nativeState.boton.noElegibles)[0] || 'el servicio no las admite.' }}
-          </p>
+          <div class="grid gap-2" role="radiogroup" aria-label="Macro vinculada al botón">
+            <OpcionFila
+              as="button"
+              role="radio"
+              :aria-checked="!nativeState.boton.macroId"
+              tono="sky"
+              :activo="!nativeState.boton.macroId"
+              titulo="Ninguna"
+              detalle="El botón hace lo de siempre."
+              :disabled="botonOcupado"
+              @click="onVincularBoton('')"
+            >
+              <template #icono><FeatureIcon name="auriculares" class="h-8 w-8" /></template>
+            </OpcionFila>
+
+            <OpcionFila
+              v-for="macro in macrosParaBoton"
+              :key="macro.id"
+              as="button"
+              role="radio"
+              :aria-checked="nativeState.boton.macroId === macro.id"
+              tono="sky"
+              :activo="nativeState.boton.macroId === macro.id"
+              :tenue="!macro.enabled"
+              :titulo="`${macro.name}${macro.enabled ? '' : ' (pausada)'}`"
+              :detalle="describeMacro(macro)"
+              :disabled="botonOcupado"
+              @click="onVincularBoton(macro.id)"
+            >
+              <template #icono><MacroIcon :name="actionMeta(macro.action?.type)?.glyph || 'playlist'" class="h-8 w-8" /></template>
+            </OpcionFila>
+          </div>
+
+          <OpcionFila
+            v-if="!macrosParaBoton.length"
+            plana
+            tono="amber"
+            titulo="Ninguna macro puede ejecutarse desde el botón"
+            :detalle="Object.values(nativeState.boton.noElegibles)[0] || 'El servicio no las admite.'"
+          >
+            <template #icono><AjusteIcon name="ayuda" class="h-8 w-8 text-amber-200" /></template>
+          </OpcionFila>
 
           <template v-if="nativeState.boton.macroId">
-            <ol class="space-y-1.5 rounded-xl bg-black/30 px-3.5 py-3 text-[11px] leading-relaxed text-slate-400">
-              <li>
-                <span class="font-semibold text-slate-200">1.</span>
-                Mantén pulsado el botón de función de los auriculares, el que suele abrir el asistente de voz.
-              </li>
-              <li>
-                <span class="font-semibold text-slate-200">2.</span>
-                La primera vez Android te preguntará con qué app abrirlo: elige
-                <span class="text-slate-200">Skippify · macro</span> y <span class="text-slate-200">Siempre</span>.
-              </li>
-              <li>
-                <span class="font-semibold text-slate-200">3.</span>
-                Un aviso en pantalla te dirá qué ha hecho la macro. También queda en su historial.
-              </li>
-            </ol>
+            <p class="sk-eyebrow pt-1">Cómo se usa</p>
+            <div class="grid gap-2">
+              <OpcionFila
+                plana
+                titulo="Mantén pulsado el botón"
+                detalle="El de función de los auriculares, el que suele abrir el asistente de voz."
+              >
+                <template #icono><MacroIcon name="manual" class="h-8 w-8" /></template>
+              </OpcionFila>
+              <OpcionFila
+                plana
+                titulo="Elige Skippify · macro"
+                detalle="La primera vez Android te preguntará con qué app abrirlo: marca «Siempre»."
+              >
+                <template #icono><AjusteIcon name="tour" class="h-8 w-8" /></template>
+              </OpcionFila>
+              <OpcionFila
+                plana
+                titulo="Mira el aviso"
+                detalle="Un aviso en pantalla te dice qué ha hecho la macro. También queda en su historial."
+              >
+                <template #icono><AjusteIcon name="registro" class="h-8 w-8" /></template>
+              </OpcionFila>
+            </div>
 
-            <p class="text-[10px] leading-relaxed text-slate-500">
+            <p class="rounded-xl bg-black/30 px-3.5 py-3 text-[11px] leading-relaxed text-slate-500">
               El botón la ejecuta aunque esté pausada. Así puedes tener, por ejemplo,
               «la canción que suena → copiar a una playlist» sólo cuando tú lo pidas,
               sin que se aplique a cada canción. Las pulsaciones cortas (pausa, siguiente)
@@ -713,13 +763,15 @@
               propia app (algunos Galaxy Buds o Pixel Buds), cámbiala allí a «asistente de voz».
             </p>
 
-            <div class="flex flex-wrap items-center gap-2">
+            <div class="flex justify-end">
               <button
                 type="button"
-                class="sk-btn sk-btn-sm bg-sky-400/[0.18] text-sky-100 hover:bg-sky-400/30"
+                class="sk-btn sk-btn-sm inline-flex items-center gap-2 bg-sky-400/[0.18] text-sky-100 hover:bg-sky-400/30"
                 :disabled="botonOcupado"
                 @click="onProbarBoton"
-              >{{ botonOcupado ? 'Ejecutando…' : 'Probar ahora' }}</button>
+              >
+                <AjusteIcon name="play" class="h-4 w-4" />{{ botonOcupado ? 'Ejecutando…' : 'Probar ahora' }}
+              </button>
             </div>
 
             <p
@@ -753,6 +805,8 @@
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useSpotify } from '@/composables/useSpotify'
 import FeatureIcon from '@/components/FeatureIcon.vue'
+import AjusteIcon from '@/components/AjusteIcon.vue'
+import OpcionFila from '@/components/OpcionFila.vue'
 import FeaturePanel from '@/components/FeaturePanel.vue'
 import MacroIcon from '@/components/MacroIcon.vue'
 import MacrosGuide from '@/components/MacrosGuide.vue'

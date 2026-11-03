@@ -101,38 +101,39 @@
     <div class="mt-5 border-t border-white/[0.07] pt-5">
       <p class="sk-eyebrow">Al terminar</p>
 
-      <ol class="mt-3 space-y-3">
-        <li class="flex items-start gap-3">
-          <span class="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white/[0.08] text-[10px] font-bold text-slate-300" aria-hidden="true">1</span>
-          <div class="min-w-0 flex-1">
-            <p class="text-sm font-semibold text-white">Pausar al acabar la canción</p>
-            <p class="mt-0.5 text-[11px] leading-relaxed text-slate-400">
-              No corta a mitad: deja terminar la que suena cuando se agota el tiempo.
-            </p>
-          </div>
-        </li>
+      <div class="mt-3 grid gap-2">
+        <OpcionFila
+          plana
+          tono="sky"
+          titulo="Pausar al acabar la canción"
+          detalle="No corta a mitad: deja terminar la que suena cuando se agota el tiempo."
+        >
+          <template #icono><AjusteIcon name="pausa" class="h-8 w-8 text-sky-200" /></template>
+        </OpcionFila>
 
-        <li class="flex items-start gap-3">
-          <span class="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white/[0.08] text-[10px] font-bold text-slate-300" aria-hidden="true">2</span>
-          <div class="min-w-0 flex-1">
-            <p class="text-sm font-semibold text-white">Sonido de aviso</p>
-            <p class="mt-0.5 text-[11px] leading-relaxed text-slate-400">
-              Dos notas suaves al volumen de la música, justo después de la pausa.
-              <button type="button" class="font-semibold text-brand-300 hover:text-brand-200" @click="probarSonido">Escuchar</button>
-            </p>
-          </div>
-          <button
-            role="switch"
-            :aria-checked="timer.sound"
-            aria-label="Sonido de aviso"
-            class="sk-switch mt-0.5"
-            :class="timer.sound ? 'border-transparent bg-brand-400' : 'border-transparent bg-white/[0.18]'"
-            @click="setOpciones({ sound: !timer.sound })"
-          >
-            <span class="sk-switch-knob" :class="timer.sound ? 'translate-x-6' : 'translate-x-1'" />
-          </button>
-        </li>
-      </ol>
+        <OpcionFila
+          plana
+          tono="brand"
+          :activo="timer.sound"
+          titulo="Sonido de aviso"
+          detalle="Dos notas suaves al volumen de la música, justo después de la pausa."
+        >
+          <template #icono><AjusteIcon name="campana" class="h-8 w-8" /></template>
+          <template #fin>
+            <button type="button" class="shrink-0 text-[11px] font-semibold text-brand-300 hover:text-brand-200" @click="probarSonido">Escuchar</button>
+            <button
+              role="switch"
+              :aria-checked="timer.sound"
+              aria-label="Sonido de aviso"
+              class="sk-switch shrink-0"
+              :class="timer.sound ? 'border-transparent bg-brand-400' : 'border-transparent bg-white/[0.18]'"
+              @click="setOpciones({ sound: !timer.sound })"
+            >
+              <span class="sk-switch-knob" :class="timer.sound ? 'translate-x-6' : 'translate-x-1'" />
+            </button>
+          </template>
+        </OpcionFila>
+      </div>
     </div>
   </div>
 </template>
@@ -147,6 +148,8 @@
  * en marcha.
  */
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import AjusteIcon from '@/components/AjusteIcon.vue'
+import OpcionFila from '@/components/OpcionFila.vue'
 import {
   useSleepTimer,
   PRESETS_MINUTOS,
