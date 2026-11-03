@@ -153,6 +153,58 @@ final class EscuchasApi {
         return (o instanceof Number) ? ((Number) o).longValue() : 0L;
     }
 
+    /** Lo que suena ahora en la cuenta (/me/player), en cualquier dispositivo. */
+    static final class Ahora {
+        final String track;
+        final String artist;
+        final String album;
+        final String dispositivo;
+        final long durationMs;
+        final long progressMs;
+        final boolean sonando;
+
+        Ahora(String track, String artist, String album, String dispositivo,
+              long durationMs, long progressMs, boolean sonando) {
+            this.track = track;
+            this.artist = artist;
+            this.album = album == null ? "" : album.trim();
+            this.dispositivo = dispositivo == null ? "" : dispositivo.trim();
+            this.durationMs = durationMs;
+            this.progressMs = progressMs;
+            this.sonando = sonando;
+        }
+    }
+
+    /**
+     * Lo que suena ahora según /me/player, o null si no hay una canción: sin
+     * dispositivo activo la API contesta 204 sin cuerpo, y los podcasts y los
+     * archivos locales no cuentan (igual que en parsear).
+     */
+    static Ahora parsearAhora(String cuerpo) {
+        if (cuerpo == null || cuerpo.trim().isEmpty()) return null;
+        Object raiz = MacroRunner.Json.parse(cuerpo);
+        Map<String, Object> pista = MacroRunner.Json.object(MacroRunner.Json.get(raiz, "item"));
+        if (pista == null) return null;
+        String tipo = MacroRunner.Json.string(pista, "type");
+        if (tipo != null && !"track".equals(tipo)) return null;
+        if (MacroRunner.Json.bool(pista, "is_local")) return null;
+
+        String nombre = MacroRunner.Json.string(pista, "name");
+        String artistas = nombresDeArtistas(pista.get("artists"));
+        if (nombre == null || nombre.trim().isEmpty() || artistas.isEmpty()) return null;
+
+        Map<String, Object> album = MacroRunner.Json.object(pista.get("album"));
+        Map<String, Object> aparato = MacroRunner.Json.object(MacroRunner.Json.get(raiz, "device"));
+        Map<String, Object> cabecera = MacroRunner.Json.object(raiz);
+        return new Ahora(
+                nombre.trim(), artistas,
+                MacroRunner.Json.string(album, "name"),
+                MacroRunner.Json.string(aparato, "name"),
+                numero(pista.get("duration_ms")),
+                cabecera == null ? 0L : numero(cabecera.get("progress_ms")),
+                MacroRunner.Json.bool(cabecera, "is_playing"));
+    }
+
     /** Fin de la reproducción más reciente de la lista, o 0 si no hay ninguna. */
     static long ultimoFin(List<Reproduccion> lista) {
         long max = 0L;

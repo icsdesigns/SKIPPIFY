@@ -526,6 +526,23 @@ public class NotifListenerPlugin extends Plugin
         call.resolve(aJS(EscuchasApiBackground.estado(getContext())));
     }
 
+    /**
+     * Qué suena ahora en la cuenta de Spotify, en cualquier dispositivo. Va en un
+     * hilo propio: es una llamada de red.
+     */
+    @PluginMethod
+    public void getApiNowPlaying(final PluginCall call) {
+        new Thread(new Runnable() {
+            public void run() {
+                try {
+                    call.resolve(aJS(EscuchasApiBackground.ahora(getContext())));
+                } catch (Throwable t) {
+                    call.reject("No se pudo leer qué suena: " + t.getMessage());
+                }
+            }
+        }, "skippify-ahora").start();
+    }
+
     /** Consulta ahora, sin esperar al latido (la app la pide al abrirse). */
     @PluginMethod
     public void pollApiListening(PluginCall call) {
