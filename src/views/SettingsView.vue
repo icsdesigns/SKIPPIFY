@@ -213,6 +213,8 @@
       cobertura no debe dar la lata. El precio es que un fallo real se ve igual
       que «no hay nada nuevo», así que aquí sí se enseña lo que ocurre.
     -->
+    <EscuchasApiPanel />
+
     <section class="overflow-hidden sk-card">
       <header class="sk-card-head">
         <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-400/[0.18]">
@@ -368,6 +370,7 @@ import { usePlayLog } from '@/composables/usePlayLog'
 import { useTour } from '@/composables/useTour'
 import { useAjustesComunidad } from '@/composables/useAjustesComunidad'
 import UpdateIcon from '@/components/UpdateIcon.vue'
+import EscuchasApiPanel from '@/components/EscuchasApiPanel.vue'
 import GrupoIcono from '@/components/grupos/GrupoIcono.js'
 import {
   REGISTER_DUPLICATE_PROGRESS_RATIO,

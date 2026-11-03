@@ -1061,6 +1061,17 @@ public class SpotifyNotificationListener extends NotificationListenerService
         }
     }
 
+    /**
+     * Anota en el log crudo un evento que no viene de la notificación (las
+     * escuchas leídas de la API de Spotify). Pasa por los mismos sitios que los
+     * demás: lo drena la app, lo sube LigaBackground y lo cuenta el widget.
+     */
+    static void registrarEventoExterno(android.content.Context context, JSONObject obj) {
+        if (context == null || obj == null) return;
+        appendJsonLine(context, obj);
+        RegistroEscuchas.anotar(context, obj);
+    }
+
     private static void appendJsonLine(android.content.Context context, JSONObject obj) {
         if (context == null || obj == null) return;
         synchronized (sEventFileLock) {

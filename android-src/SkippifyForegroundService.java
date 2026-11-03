@@ -206,6 +206,14 @@ public class SkippifyForegroundService extends Service {
         } catch (Throwable ignored) {
         }
 
+        // Escuchas de la cuenta de Spotify (otros dispositivos incluidos) y las
+        // que se escaparon con el servicio parado. El freno de cinco minutos
+        // vive en EscuchasApiBackground.
+        try {
+            EscuchasApiBackground.latido(getApplicationContext());
+        } catch (Throwable ignored) {
+        }
+
         // Los widgets: el modo puede haber cambiado y, con el latido, el día.
         WidgetsSkippify.actualizar(getApplicationContext());
 

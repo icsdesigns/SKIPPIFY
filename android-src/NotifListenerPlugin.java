@@ -513,6 +513,26 @@ public class NotifListenerPlugin extends Plugin
         call.resolve(aJS(MacroBackground.refrescarSesion(getContext())));
     }
 
+    /** Estado de la lectura de escuchas por la API de Spotify. */
+    @PluginMethod
+    public void getApiListening(PluginCall call) {
+        call.resolve(aJS(EscuchasApiBackground.estado(getContext())));
+    }
+
+    /** Activa o desactiva la lectura de escuchas por la API y, si se activa, consulta ya. */
+    @PluginMethod
+    public void setApiListening(PluginCall call) {
+        EscuchasApiBackground.configurar(getContext(), Boolean.TRUE.equals(call.getBoolean("enabled", false)));
+        call.resolve(aJS(EscuchasApiBackground.estado(getContext())));
+    }
+
+    /** Consulta ahora, sin esperar al latido (la app la pide al abrirse). */
+    @PluginMethod
+    public void pollApiListening(PluginCall call) {
+        EscuchasApiBackground.consultarAhora(getContext());
+        call.resolve(aJS(EscuchasApiBackground.estado(getContext())));
+    }
+
     @PluginMethod
     public void clearSpotifySession(PluginCall call) {
         MacroBackground.borrarSesion(getContext());
