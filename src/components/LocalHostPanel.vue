@@ -1,11 +1,12 @@
 <template>
   <div class="space-y-4">
+    <!-- El detalle se monta dentro del panel plegable del grupo abierto
+         (CommunityView deja ahí un hueco con id `grupo-cuerpo-<id>`). -->
+    <Teleport v-if="activeGroup && abierto && abierto === activeGroupId" defer :to="`#grupo-cuerpo-${activeGroupId}`">
     <GrupoDetalle
-      v-if="activeGroup"
       :nombre="activeGroup.name"
       :miembros="miembrosVista"
       :ranking="rankingVista"
-      :provisional="provisionales"
       :es-admin="esAdmin"
       :puede-invitar="activeStatus === 'ready'"
       :invitando="invitingExpres"
@@ -15,6 +16,7 @@
       @invitar="onExpres"
       @abandonar="leaveGroup(activeGroup.groupId)"
       @expulsar="onExpulsar"
+      @renombrar="onRenombrar"
     >
       <template #aviso>
         <p
@@ -47,9 +49,10 @@
         />
       </template>
     </GrupoDetalle>
+    </Teleport>
 
-    <!-- Crear o unirme: sube desde abajo al elegir «Nuevo» en el desplegable. -->
-    <HojaInferior :abierta="nuevo" titulo="Nuevo grupo" @cerrar="$emit('update:nuevo', false)">
+    <!-- Crear o unirme: sube desde abajo al pulsar una de las opciones de «Añadir grupo». -->
+    <HojaInferior :abierta="!!nuevo" titulo="Nuevo grupo" @cerrar="$emit('update:nuevo', '')">
       <div class="grid grid-cols-2 gap-2.5">
         <button
           v-for="opcion in opciones"
@@ -112,7 +115,7 @@
 /**
  * Panel de un grupo de Grupos: sus resultados, la invitación exprés y la hoja
  * para crear o unirse a otro. Los grupos viven en los móviles (LocalHost), sin
- * servidor. La lista de grupos y «Nuevo» están en el desplegable de CommunityView.
+ * servidor. La lista de grupos y las opciones de añadir están en CommunityView.
  */
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useLocalLeague } from '@/composables/useLocalLeague'
@@ -124,8 +127,10 @@ import GrupoIcono from '@/components/grupos/GrupoIcono.js'
 import { conectarLocal, grupoLocalPedido } from '@/lib/comunidadLocal'
 
 const props = defineProps({
-  /** La hoja de «Nuevo grupo» está abierta (la abre el desplegable). */
-  nuevo: { type: Boolean, default: false }
+  /** Hoja de «Nuevo grupo»: '' cerrada, o la acción con la que se abre ('crear' | 'unirme'). */
+  nuevo: { type: String, default: '' },
+  /** Id del grupo cuyo panel está abierto (donde se monta el detalle). */
+  abierto: { type: String, default: '' }
 })
 const emit = defineEmits(['update:nuevo'])
 
@@ -148,6 +153,7 @@ const {
   setActiveGroup,
   createExpressInvite,
   expulsarMiembro,
+  renombrarGrupo,
   loadSemanas,
   refreshAll,
   startWatch
@@ -199,10 +205,6 @@ const rankingVista = computed(() => {
   const porSemana = semanas[activeGroupId.value] || {}
   return Object.fromEntries(['actual', 'pasada', 'hace2'].map(c => [c, fichasDe(activeGroupId.value, porSemana[c])]))
 })
-const provisionales = computed(() => {
-  const porSemana = semanas[activeGroupId.value] || {}
-  return Object.fromEntries(Object.entries(porSemana).map(([c, lb]) => [c, !!lb?.provisional]))
-})
 const miembrosVista = computed(() => {
   const minutos = new Map((rankingVista.value.actual || []).map(f => [f.id, f.minutos]))
   return activeMembers.value.map(m => ({
@@ -215,7 +217,7 @@ const miembrosVista = computed(() => {
   }))
 })
 
-function cerrarHoja () { emit('update:nuevo', false) }
+function cerrarHoja () { emit('update:nuevo', '') }
 
 async function onCreate () {
   const id = await createGroup({ displayName: displayName.value, groupName: groupNameInput.value })
@@ -247,6 +249,10 @@ async function onExpulsar (uid) {
   await expulsarMiembro(uid)
 }
 
+async function onRenombrar (nombre) {
+  await renombrarGrupo(nombre)
+}
+
 async function onSelectGroup (groupId) {
   setActiveGroup(groupId)
   expres.value = null
@@ -270,8 +276,9 @@ watch(grupoLocalPedido, (id) => {
 }, { immediate: true })
 
 // Abrir la hoja deja el mensaje de la acción anterior fuera.
-watch(() => props.nuevo, (abierta) => {
-  if (!abierta) return
+watch(() => props.nuevo, (cual) => {
+  if (!cual) return
+  accion.value = cual === 'unirme' ? 'unirme' : 'crear'
   error.value = ''
   message.value = ''
 })

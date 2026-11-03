@@ -1,16 +1,24 @@
 <template>
-  <section class="sk-card overflow-hidden" data-grupo-detalle>
-    <!-- ── Cabecera: nombre, miembros y actualizar (sólo icono) ─────────── -->
-    <header class="portada relative flex items-center gap-3 px-5 py-4">
-      <div class="relative min-w-0 flex-1">
-        <h2 class="sk-clamp-2 text-xl font-extrabold tracking-tightest text-white">{{ nombre }}</h2>
-        <p class="mt-0.5 text-[11px] text-slate-400">
-          {{ miembros.length }} {{ miembros.length === 1 ? 'miembro' : 'miembros' }}
-        </p>
-      </div>
+  <div data-grupo-detalle>
+    <!-- ── Barra del grupo: cambiar nombre (admin) y actualizar, sólo iconos ─
+         El nombre y los miembros los pone el panel plegable que lo contiene. -->
+    <div class="flex items-center justify-end gap-2 px-5 pb-3 pt-1">
+      <p v-if="ultimaSync" class="mr-auto min-w-0 truncate text-[11px] text-slate-500">Sincronizado {{ ultimaSync }}</p>
+      <button
+        v-if="esAdmin"
+        type="button"
+        class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/[0.08] text-slate-200 transition-colors hover:bg-white/[0.16]"
+        :aria-expanded="editando"
+        title="Cambiar el nombre del grupo"
+        aria-label="Cambiar el nombre del grupo"
+        data-renombrar
+        @click="abrirEdicion"
+      >
+        <GrupoIcono name="pencil" class="h-4 w-4" />
+      </button>
       <button
         type="button"
-        class="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/[0.10] text-white transition-colors hover:bg-white/[0.18] disabled:opacity-40"
+        class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/[0.08] text-slate-200 transition-colors hover:bg-white/[0.16] disabled:opacity-40"
         :disabled="actualizando"
         :title="ultimaSync ? `Última sincronización: ${ultimaSync}` : 'Actualizar'"
         aria-label="Actualizar"
@@ -18,7 +26,36 @@
       >
         <GrupoIcono name="refresh" class="h-[18px] w-[18px]" :class="actualizando ? 'girar' : ''" />
       </button>
-    </header>
+    </div>
+
+    <form v-if="editando" class="flex items-center gap-2 px-5 pb-3" @submit.prevent="guardarNombre">
+      <input
+        v-model.trim="nombreNuevo"
+        class="sk-input min-w-0 flex-1"
+        maxlength="32"
+        placeholder="Nombre del grupo (mín. 3 caracteres)"
+        aria-label="Nombre del grupo"
+        data-nombre-grupo
+      >
+      <button
+        type="submit"
+        class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-400 text-black transition-opacity disabled:opacity-40"
+        :disabled="!nombreValido"
+        title="Guardar"
+        aria-label="Guardar nombre"
+      >
+        <GrupoIcono name="check" class="h-[18px] w-[18px]" />
+      </button>
+      <button
+        type="button"
+        class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/[0.08] text-slate-200 hover:bg-white/[0.16]"
+        title="Cancelar"
+        aria-label="Cancelar"
+        @click="editando = false"
+      >
+        <GrupoIcono name="plus" class="h-[18px] w-[18px] rotate-45" />
+      </button>
+    </form>
 
     <slot name="aviso" />
 
@@ -28,9 +65,6 @@
         <SelectorSemana v-model="semanaRanking" :semanas="semanasDisponibles" aria-label="Semana del ranking" />
       </template>
 
-      <p v-if="provisionalRanking" class="mb-2.5 text-[11px] text-amber-200/80">
-        Provisional: puede cambiar cuando los demás miembros abran la app y publiquen sus últimas escuchas.
-      </p>
       <p v-if="!filas.length" class="text-xs text-slate-500">Todavía no se ha podido leer la lista de miembros.</p>
       <p v-else-if="!rankingActual.length" class="mb-2.5 text-xs text-slate-500">No hay escuchas en esta semana.</p>
 
@@ -38,18 +72,28 @@
            reinician su animación cuando alguien sube o baja de puesto. -->
       <ul v-if="filas.length" class="flex flex-col gap-2">
         <MiembroFicha
-          v-for="(item, idx) in filas"
+          v-for="(item, idx) in filasVisibles"
           :key="item.id"
           :ficha="item"
           :posicion="idx + 1"
           :indice="idx"
           :progreso="aporte.get(item.id) || 0"
-          :abierta-al-inicio="item.yo"
           :puede-expulsar="esAdmin && !item.yo"
           :style="{ order: idx }"
           @expulsar="$emit('expulsar', item.id)"
         />
       </ul>
+      <button
+        v-if="filas.length > TOP_PLEGADO"
+        type="button"
+        class="mt-2 flex w-full items-center justify-center gap-1.5 rounded-md py-2 text-[11px] font-semibold text-slate-400 transition-colors hover:bg-white/[0.05] hover:text-slate-200"
+        :aria-expanded="verTodos"
+        data-ver-todos
+        @click="verTodos = !verTodos"
+      >
+        {{ verTodos ? 'Ver menos' : `Ver todos (${filas.length})` }}
+        <GrupoIcono name="chevron" class="h-3.5 w-3.5 transition-transform duration-300" :class="verTodos ? '-rotate-90' : 'rotate-90'" />
+      </button>
       <p v-if="filas.some(f => f.minutos > 0)" class="mt-2 text-[11px] text-slate-500">
         Toca a un miembro para ver sus cifras. El anillo es su tiempo respecto al que más ha escuchado.
       </p>
@@ -129,13 +173,13 @@
       </div>
       <slot name="invitacion" />
     </footer>
-  </section>
+  </div>
 </template>
 
 <script setup>
 /**
- * Detalle de un grupo: cabecera con el nombre, el número de miembros y el botón
- * de actualizar; el ranking y la escucha común (cada uno con su desplegable de
+ * Detalle de un grupo (va dentro de su panel plegable, que ya muestra el nombre y
+ * el número de miembros): barra con cambiar nombre (administrador) y actualizar; el ranking y la escucha común (cada uno con su desplegable de
  * semana: actual, anterior y hace dos); y los botones de invitar y abandonar.
  *
  * Es sólo presentación. Invitar y expulsar son cosa del administrador: el botón
@@ -159,15 +203,13 @@ const props = defineProps({
    * [{ id, nombre, yo, minutos, canciones, … }] ya ordenada por tiempo.
    */
   ranking: { type: Object, default: () => ({}) },
-  /** { actual: true, … }: las cifras todavía pueden moverse. */
-  provisional: { type: Object, default: () => ({}) },
   esAdmin: { type: Boolean, default: false },
   puedeInvitar: { type: Boolean, default: true },
   invitando: { type: Boolean, default: false },
   actualizando: { type: Boolean, default: false },
   ultimaSync: { type: String, default: '' }
 })
-const emit = defineEmits(['actualizar', 'invitar', 'abandonar', 'expulsar'])
+const emit = defineEmits(['actualizar', 'invitar', 'abandonar', 'expulsar', 'renombrar'])
 
 const semanasDisponibles = [
   { id: 'actual', etiqueta: 'Esta semana' },
@@ -176,7 +218,6 @@ const semanasDisponibles = [
 ]
 const semanaRanking = ref('actual')
 const rankingActual = computed(() => props.ranking[semanaRanking.value] || [])
-const provisionalRanking = computed(() => !!props.provisional[semanaRanking.value])
 
 /**
  * Una fila por miembro: primero quienes tienen cifras en la semana elegida (ya
@@ -197,6 +238,25 @@ const filas = computed(() => {
   return [...conDatos, ...resto]
 })
 const aporte = computed(() => proporciones(filas.value))
+
+/** Plegado, sólo el podio del ranking; el resto sale con «Ver todos». */
+const TOP_PLEGADO = 3
+const verTodos = ref(false)
+const filasVisibles = computed(() => verTodos.value ? filas.value : filas.value.slice(0, TOP_PLEGADO))
+
+// Cambiar el nombre (sólo administrador): el campo sale al pulsar el lápiz.
+const editando = ref(false)
+const nombreNuevo = ref('')
+const nombreValido = computed(() => nombreNuevo.value.length >= 3 && nombreNuevo.value !== props.nombre)
+function abrirEdicion () {
+  editando.value = !editando.value
+  nombreNuevo.value = props.nombre
+}
+function guardarNombre () {
+  if (!nombreValido.value) return
+  emit('renombrar', nombreNuevo.value)
+  editando.value = false
+}
 
 // Escucha común: la semana elegida es la del desplegable de esa sección.
 const semanaComun = ref('actual')
@@ -225,11 +285,6 @@ onBeforeUnmount(() => clearTimeout(confirmTimer))
 </script>
 
 <style scoped>
-.portada {
-  background:
-    radial-gradient(120% 90% at 0% 0%, rgba(30, 215, 96, 0.28), transparent 60%),
-    radial-gradient(90% 80% at 100% 10%, rgba(30, 215, 96, 0.10), transparent 60%);
-}
 .girar { animation: girar 0.9s linear infinite; }
 @keyframes girar { to { transform: rotate(360deg); } }
 .anillo-par { transition: stroke-dashoffset 1s cubic-bezier(0.22, 1, 0.36, 1); }

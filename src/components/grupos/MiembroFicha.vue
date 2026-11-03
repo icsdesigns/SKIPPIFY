@@ -12,10 +12,10 @@
     <button
       type="button"
       class="flex w-full items-center gap-3 px-3 py-3 text-left"
-      :class="sinDatos ? 'cursor-default' : 'hover:bg-white/[0.03]'"
-      :aria-expanded="sinDatos ? undefined : abierta"
-      :aria-controls="sinDatos ? undefined : `ficha-${ficha.id}`"
-      :disabled="sinDatos"
+      :class="expandible ? 'hover:bg-white/[0.03]' : 'cursor-default'"
+      :aria-expanded="expandible ? abierta : undefined"
+      :aria-controls="expandible ? `ficha-${ficha.id}` : undefined"
+      :disabled="!expandible"
       @click="abierta = !abierta"
     >
       <!-- Posición: medalla para el podio, número para el resto. -->
@@ -62,7 +62,7 @@
           :class="sinDatos ? 'text-slate-600' : 'text-brand-400'"
         >{{ sinDatos ? '—' : formatearHoras(ficha.minutos) }}</span>
         <GrupoIcono
-          v-if="!sinDatos"
+          v-if="expandible"
           name="chevron"
           class="h-4 w-4 text-slate-500 transition-transform duration-300"
           :class="abierta ? '-rotate-90' : 'rotate-90'"
@@ -73,7 +73,7 @@
     <!-- Detalle desplegable. Se queda en el DOM (también para lectores de
          pantalla con la ficha abierta); la altura anima con grid-rows. -->
     <div
-      v-if="!sinDatos"
+      v-if="expandible"
       :id="`ficha-${ficha.id}`"
       class="desplegable grid"
       :class="abierta ? 'abierta' : ''"
@@ -81,7 +81,7 @@
       <div class="min-h-0 overflow-hidden">
         <div class="space-y-3 px-3 pb-3">
           <!-- Lo más escuchado, con las veces que sonó. -->
-          <div v-if="ficha.artista || ficha.tema" class="grid gap-1.5 sm:grid-cols-2">
+          <div v-if="!sinDatos && (ficha.artista || ficha.tema)" class="grid gap-1.5 sm:grid-cols-2">
             <p v-if="ficha.artista" class="flex min-w-0 items-center gap-2 rounded-md bg-white/[0.05] px-2.5 py-2 text-[11px]" :title="ficha.artista">
               <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-400/15 text-brand-300">
                 <GrupoIcono name="mic" class="h-3.5 w-3.5" />
@@ -105,7 +105,7 @@
           </div>
 
           <!-- Mosaico de cifras. -->
-          <ul v-if="cifras.length" class="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
+          <ul v-if="!sinDatos && cifras.length" class="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
             <li
               v-for="(c, i) in cifras"
               :key="c.clave"
@@ -128,20 +128,21 @@
           </ul>
 
           <p v-if="ficha.desde" class="text-[10px] text-slate-500">Miembro desde {{ ficha.desde }}</p>
+
+          <!-- Sólo el administrador, nunca sobre sí mismo, y sólo con la ficha
+               desplegada: así no hay un botón destructivo a la vista de todos. -->
+          <div v-if="puedeExpulsar" class="flex justify-end">
+            <button
+              type="button"
+              class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold text-rose-300 transition-colors hover:bg-rose-500/[0.16]"
+              :data-expulsar="ficha.id"
+              @click="pedirExpulsion"
+            >
+              <GrupoIcono name="userX" class="h-3.5 w-3.5" />{{ confirmandoExpulsion ? '¿Seguro? Pulsa otra vez' : 'Expulsar' }}
+            </button>
+          </div>
         </div>
       </div>
-    </div>
-
-    <!-- Sólo el administrador, y nunca sobre sí mismo. -->
-    <div v-if="puedeExpulsar" class="flex justify-end px-3 pb-2.5" :class="sinDatos ? '' : 'pt-0'">
-      <button
-        type="button"
-        class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold text-rose-300 transition-colors hover:bg-rose-500/[0.16]"
-        :data-expulsar="ficha.id"
-        @click="pedirExpulsion"
-      >
-        <GrupoIcono name="userX" class="h-3.5 w-3.5" />{{ confirmandoExpulsion ? '¿Seguro? Pulsa otra vez' : 'Expulsar' }}
-      </button>
     </div>
   </li>
 </template>
@@ -191,7 +192,9 @@ function pedirExpulsion () {
 onBeforeUnmount(() => clearTimeout(confirmTimer))
 
 const sinDatos = computed(() => !(Number(props.ficha.minutos) > 0))
-const abierta = ref(props.abiertaAlInicio && !sinDatos.value)
+/** Con datos se despliegan las cifras; sin ellos, sólo hay algo que abrir si se puede expulsar. */
+const expandible = computed(() => !sinDatos.value || props.puedeExpulsar)
+const abierta = ref(props.abiertaAlInicio && expandible.value)
 const cifras = computed(() => cifrasDe(props.ficha.datos))
 
 // El anillo y las barras parten de cero y crecen al montarse la ficha. En el
