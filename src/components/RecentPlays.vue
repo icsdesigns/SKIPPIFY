@@ -123,6 +123,14 @@
             <span class="block truncate text-sm font-semibold text-white">{{ e.track }}</span>
             <span class="block truncate text-xs text-slate-400">{{ e.artist }}</span>
           </span>
+          <span
+            v-if="e.origen"
+            class="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide"
+            :class="e.origen === 'api' ? 'bg-brand-400/[0.18] text-brand-400' : 'bg-white/[0.08] text-slate-300'"
+            :title="e.origen === 'api'
+              ? 'Registrada desde la API de Spotify'
+              : 'Registrada desde las notificaciones'"
+          >{{ e.origen === 'api' ? 'API' : 'Notif.' }}</span>
           <span class="shrink-0 text-right text-[11px] leading-tight text-slate-500">
             <span class="block whitespace-nowrap">{{ e.date }}</span>
             <span class="block whitespace-nowrap text-slate-500">{{ e.time }}</span>
@@ -325,6 +333,16 @@ const filteredEvents = computed(() => {
 const PAGE_SIZE = 100
 const visibleCount = ref(PAGE_SIZE)
 
+/**
+ * De dónde salió el registro: la API de Spotify o las notificaciones (el sistema
+ * de siempre). Lo anterior a esta casilla, o importado, no lo sabe y no marca nada.
+ */
+function origenDe (source) {
+  if (source === 'spotify_api') return 'api'
+  if (source === 'notification' || source === 'notification_background') return 'notif'
+  return ''
+}
+
 const visibleRows = computed(() =>
   filteredEvents.value.slice(0, visibleCount.value).map(e => {
     const parts = formatDateParts(e.played_at)
@@ -332,6 +350,7 @@ const visibleRows = computed(() =>
       key: `${e.played_at}|${e.track}|${e.artist}`,
       track: e.track,
       artist: e.artist,
+      origen: origenDe(e.source),
       date: parts.date,
       time: parts.time
     }

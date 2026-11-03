@@ -539,11 +539,14 @@ export function useNotifListener () {
         const track = (e?.track || '').toString().trim()
         const artist = (e?.artist || '').toString().trim()
         const album = (e?.album || '').toString().trim()
+        // Las escuchas leídas de la API de Spotify llegan como eventos sintéticos
+        // con su propio origen; las demás vienen de la notificación.
+        const origin = (e?.source || '').toString() === 'spotify_api' ? 'spotify_api' : 'notification_background'
         const durationMs = Number(e?.duration_ms || 0)
         let evt = event
         if (!evt) evt = (track || artist) ? (e?.is_playing ? 'playing' : 'paused') : ''
         if (!evt) return null
-        return { t, played_at: playedAt, event: evt, track, artist, album, durationMs }
+        return { t, played_at: playedAt, event: evt, track, artist, album, durationMs, origin }
       })
       .filter(Boolean)
       .sort((a, b) => a.t - b.t)
@@ -568,7 +571,7 @@ export function useNotifListener () {
         duration_ms: Number(current.durationMs || 0),
         ms_played: Math.round(msPlayed),
         genres: [],
-        source: 'notification_background',
+        source: current.origin || 'notification_background',
         reason: 'background'
       })
       current = null
@@ -586,6 +589,7 @@ export function useNotifListener () {
           artist: e.artist,
           album: e.album,
           durationMs: Number(e.durationMs || 0),
+          origin: e.origin,
           startT: e.t
         }
         continue
