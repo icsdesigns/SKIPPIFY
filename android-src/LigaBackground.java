@@ -77,6 +77,11 @@ public final class LigaBackground {
     public static void guardar(Context ctx, String uid, String refreshToken, String apiKey,
                                String projectId, JSONArray groupIds, String activeGroupId,
                                String origin) {
+        // Grupos con servidor deshabilitados: no se guarda sesión; se borra la que hubiera.
+        if (true) {
+            borrar(ctx);
+            return;
+        }
         EscuchasNube.Store s = store(ctx);
         String anterior = s.get(EscuchasNube.K_UID);
         if (anterior != null && !anterior.equals(uid)) {
@@ -122,21 +127,16 @@ public final class LigaBackground {
 
     private static String valor(String s) { return s == null ? "" : s; }
 
-    /** Latido del servicio: sube en su hilo si toca. */
+    /**
+     * Latido del servicio. Los grupos con servidor (Firebase) están
+     * deshabilitados: ya no se sube nada a Firestore. Si el móvil conservaba la
+     * sesión anónima de una versión anterior, se borra aquí (una sola vez: con
+     * la sesión ya vacía, `configurado` es falso y no hace nada). Los datos que
+     * ya hubiera en Firebase no se tocan.
+     */
     public static void latido(final Context ctx) {
         final Context app = ctx.getApplicationContext();
-        if (!EscuchasNube.configurado(store(app))) return;
-        POOL.execute(new Runnable() {
-            public void run() {
-                try {
-                    int n = EscuchasNube.subir(store(app), new EscuchasNube.UrlHttp(), PARSER, RELOJ,
-                            leerLog(app), TimeZone.getDefault(), false);
-                    if (n != 0) Log.i(TAG, "escuchas subidas en segundo plano: " + n);
-                } catch (Throwable t) {
-                    Log.w(TAG, "la subida en segundo plano ha fallado", t);
-                }
-            }
-        });
+        if (EscuchasNube.configurado(store(app))) borrar(app);
     }
 
     /** Lee el log crudo SIN vaciarlo: eso sigue siendo cosa de la app al abrirse. */

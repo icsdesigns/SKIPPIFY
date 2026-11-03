@@ -75,11 +75,33 @@ public final class LigaResultados {
      * que se puede llamar desde cada latido, al arrancar y al sincronizar.
      */
     public static void programar(Context ctx) {
-        Context app = ctx.getApplicationContext();
-        long ahora = System.currentTimeMillis();
-        long cuando = ResultadosLiga.siguienteAlarma(ahora, hayPendientes(app, ahora));
-        if (prefs(app).getLong(K_ALARMA, 0L) == cuando) return;
-        ponerAlarma(app, cuando);
+        // Grupos con servidor deshabilitados: ya no hay ranking que avisar. Quien
+        // llamaba a programar() (arranque, latido, sincronización) ahora apaga.
+        apagar(ctx);
+    }
+
+    /**
+     * Cancela la alarma del domingo y olvida lo apuntado. Idempotente y barato:
+     * se puede llamar siempre. No toca nada de Firebase.
+     */
+    public static void apagar(Context ctx) {
+        try {
+            Context app = ctx.getApplicationContext();
+            AlarmManager am = (AlarmManager) app.getSystemService(Context.ALARM_SERVICE);
+            Intent intent = new Intent(app, BootCompletedReceiver.class);
+            intent.setAction(ACTION_ALARMA);
+            int flags = PendingIntent.FLAG_NO_CREATE;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) flags |= PendingIntent.FLAG_IMMUTABLE;
+            PendingIntent pi = PendingIntent.getBroadcast(app, ALARMA_REQUEST_CODE, intent, flags);
+            if (pi != null) {
+                if (am != null) am.cancel(pi);
+                pi.cancel();
+            }
+            SharedPreferences sp = prefs(app);
+            if (!sp.getAll().isEmpty()) sp.edit().clear().apply();
+        } catch (Throwable t) {
+            Log.w(TAG, "no se pudo apagar el aviso del ranking", t);
+        }
     }
 
     private static void ponerAlarma(Context app, long cuando) {
@@ -111,25 +133,13 @@ public final class LigaResultados {
 
     /** Ha sonado la alarma: se comprueba en su hilo y se reprograma. */
     public static void alSonar(Context ctx, final BroadcastReceiver.PendingResult pendiente) {
-        final Context app = ctx.getApplicationContext();
-        // Se deja puesto el reintento antes de tocar la red: si Android corta
-        // el receptor a mitad, la próxima alarma ya está en su sitio.
-        prefs(app).edit().putLong(K_ALARMA, 0L).apply();
-        ponerAlarma(app, ResultadosLiga.siguienteAlarma(System.currentTimeMillis(), true));
-        POOL.execute(new Runnable() {
-            public void run() {
-                try {
-                    comprobar(app, true);
-                } catch (Throwable t) {
-                    Log.w(TAG, "la comprobación del ranking ha fallado", t);
-                } finally {
-                    try { programar(app); } catch (Throwable ignored) { }
-                    if (pendiente != null) {
-                        try { pendiente.finish(); } catch (Throwable ignored) { }
-                    }
-                }
-            }
-        });
+        // Grupos con servidor deshabilitados: una alarma que sonara de una versión
+        // anterior se descarta y se cancela.
+        try {
+            apagar(ctx);
+        } finally {
+            if (pendiente != null) pendiente.finish();
+        }
     }
 
     /**
@@ -137,6 +147,9 @@ public final class LigaResultados {
      * cerca de las 15:00 o mientras se espera la semana, comprueba.
      */
     public static void latido(Context ctx) {
+        // Grupos con servidor deshabilitados: sólo se asegura de que no queda alarma.
+        apagar(ctx);
+        if (true) return;
         final Context app = ctx.getApplicationContext();
         if (!EscuchasNube.configurado(LigaBackground.store(app))) return;
         programar(app);
@@ -265,6 +278,8 @@ public final class LigaResultados {
      * grupo. Lo usan la alarma y la app; devuelve si ha sonado.
      */
     public static synchronized boolean avisar(Context ctx, String groupId, String nombre, String revealAt) {
+        // Grupos con servidor deshabilitados: no hay ranking de Firebase que avisar.
+        if (true) return false;
         Context app = ctx.getApplicationContext();
         SharedPreferences sp = prefs(app);
         boolean conFecha = revealAt != null && !revealAt.isEmpty();
