@@ -102,6 +102,21 @@
             </svg>
           </button>
 
+          <!-- Guía de Macros: sólo en esa pestaña, para repasarla cuando se quiera. -->
+          <button
+            v-if="macrosGuide.showHeaderIcon.value && route.path === '/macros'"
+            type="button"
+            data-tour="macros-guide"
+            class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-400/[0.18] text-brand-300 transition-colors hover:bg-brand-400/[0.28]"
+            aria-label="Ver la guía de Macros"
+            @click="macrosGuide.open()"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="9" />
+              <path d="M10.2 8.6C11.6 9.4 12.9 10.3 14.3 11.9C12.9 13.5 11.6 14.5 10.2 15.4Z" fill="currentColor" />
+            </svg>
+          </button>
+
           <!-- Configuración no cabe en la barra de pestañas: vive aquí, como el
                engranaje de Spotify. -->
           <button
@@ -175,6 +190,7 @@ import { useAppUpdate } from '@/composables/useAppUpdate'
 import { useLeague } from '@/composables/useLeague'
 import { useLocalLeague } from '@/composables/useLocalLeague'
 import { useTour } from '@/composables/useTour'
+import { useMacrosGuide } from '@/composables/useMacrosGuide'
 
 // Vestigio del cajón lateral que había en móvil, ahora sustituido por la barra
 // de pestañas inferior. AppSidebar sigue declarando la prop: quitarlo obligaría
@@ -190,6 +206,7 @@ const nowPlaying = ref({ mode: 'stopped' })
 const router = useRouter()
 const route = useRoute()
 const tour = useTour()
+const macrosGuide = useMacrosGuide()
 const showSplash = ref(true)
 const scrolled = ref(false)
 const SPLASH_MS = 1500
