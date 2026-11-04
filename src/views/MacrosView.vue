@@ -513,7 +513,7 @@
 
                 <span class="min-w-0 flex-1">
                   <span class="block truncate text-sm font-bold text-white">{{ macro.name }}</span>
-                  <span class="mt-1 block text-[11px] leading-relaxed text-slate-500 [overflow-wrap:anywhere]">{{ describeMacro(macro) }}</span>
+                  <span class="mt-1 line-clamp-2 block text-[11px] leading-relaxed text-slate-500 [overflow-wrap:anywhere]">{{ describeMacro(macro) }}</span>
                   <span class="mt-1.5 flex flex-wrap items-center gap-1.5">
                     <span
                       v-if="correEnSegundoPlano(macro)"

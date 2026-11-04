@@ -13,8 +13,8 @@
     ><slot name="icono" /></span>
 
     <span class="min-w-0 flex-1">
-      <span class="block text-sm font-bold text-white [overflow-wrap:anywhere]">{{ titulo }}</span>
-      <span v-if="detalle" class="mt-1 block text-[11px] leading-relaxed text-slate-500">{{ detalle }}</span>
+      <span class="block line-clamp-2 text-sm font-bold text-white [overflow-wrap:anywhere]">{{ titulo }}</span>
+      <span v-if="detalle" class="mt-1 line-clamp-4 block text-[11px] leading-relaxed text-slate-500">{{ detalle }}</span>
       <slot />
     </span>
 
@@ -30,6 +30,10 @@
  * Sirve igual de botón elegible (`as="button"` + `activo`), que de ficha
  * informativa (`as="div"`), y admite un hueco `#fin` para un interruptor, una
  * insignia o una flecha. `tono` colorea la tesela y el borde cuando está activa.
+ *
+ * Alto máximo: el de la tarjeta «Personalizado» de Funciones, es decir, título
+ * (dos líneas como mucho) y cuatro líneas de descripción. Lo que no cabe —un
+ * botón, un formulario, una explicación larga— va fuera de la tarjeta, debajo.
  */
 import { computed } from 'vue'
 

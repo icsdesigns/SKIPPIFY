@@ -18,33 +18,36 @@
       </template>
 
       <div class="space-y-2">
-        <!-- `anywhere` en el título: uno de ellos lleva el identificador del
-             permiso de Android (POST_NOTIFICATIONS), una única palabra que a
-             320 px no cabe. Partir un identificador es lo correcto; lo que no
-             vale es que ensanche la tarjeta. -->
-        <OpcionFila
-          v-for="card in orderedPermissionCards"
-          :key="card.id"
-          as="article"
-          plana
-          :tono="card.granted ? 'brand' : 'amber'"
-          :activo="true"
-          :titulo="card.title"
-          :detalle="card.meta"
-        >
-          <template #icono><AjusteIcon :name="card.icon" class="h-8 w-8" /></template>
-
-          <span
-            class="sk-badge mt-2"
-            :class="card.granted ? 'sk-badge-ok' : 'sk-badge-warn'"
+        <!-- Cada permiso es una tarjeta de opción de alto acotado: el botón, la
+             ayuda manual y la explicación van debajo, fuera de ella.
+             El título ya no lleva el identificador de Android: con él, el
+             título ocupaba dos líneas y la tarjeta crecía más que las demás. -->
+        <div v-for="card in orderedPermissionCards" :key="card.id">
+          <OpcionFila
+            as="article"
+            plana
+            :tono="card.granted ? 'brand' : 'amber'"
+            :activo="true"
+            :titulo="card.title"
+            :detalle="`${card.granted ? 'Concedido' : 'No concedido'} · ${card.meta}`"
           >
-            <span class="h-1.5 w-1.5 rounded-full" :class="card.granted ? 'bg-brand-400' : 'bg-amber-300'" />
-            {{ card.granted ? 'Concedido' : 'No concedido' }}
-          </span>
+            <template #icono><AjusteIcon :name="card.icon" class="h-8 w-8" /></template>
+            <template #fin>
+              <button
+                class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/[0.08] text-slate-300 transition-colors hover:bg-white/[0.16]"
+                type="button"
+                aria-label="Qué hace este permiso"
+                :aria-expanded="expandedPermissionId === card.id"
+                @click="togglePermissionInfo(card.id)"
+              >
+                <AjusteIcon name="ayuda" class="h-4 w-4" />
+              </button>
+            </template>
+          </OpcionFila>
 
           <button
             v-if="!card.granted && isCapacitor"
-            class="sk-btn sk-btn-sm mt-2.5 block w-full bg-amber-400/[0.18] text-amber-100 hover:bg-amber-400/30 sm:w-auto"
+            class="sk-btn sk-btn-sm mt-2 block w-full bg-amber-400/[0.18] text-amber-100 hover:bg-amber-400/30 sm:w-auto"
             type="button"
             :disabled="checkingPermissions"
             @click="activarPermiso(card.id)"
@@ -60,27 +63,15 @@
                parecía no hacer nada. -->
           <p
             v-if="ayudaManual(card.id, card.granted)"
-            class="mt-2.5 rounded-md bg-amber-400/[0.14] px-3 py-2.5 text-[11px] leading-relaxed text-amber-100"
+            class="mt-2 rounded-md bg-amber-400/[0.14] px-3 py-2.5 text-[11px] leading-relaxed text-amber-100"
           >
             {{ ayudaManual(card.id, card.granted) }}
           </p>
 
-          <div v-if="expandedPermissionId === card.id" class="sk-well mt-2.5 px-3 py-2.5">
+          <div v-if="expandedPermissionId === card.id" class="sk-well mt-2 px-3 py-2.5">
             <p class="text-[11px] leading-relaxed text-slate-400">{{ card.description }}</p>
           </div>
-
-          <template #fin>
-            <button
-              class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/[0.08] text-slate-300 transition-colors hover:bg-white/[0.16]"
-              type="button"
-              aria-label="Qué hace este permiso"
-              :aria-expanded="expandedPermissionId === card.id"
-              @click="togglePermissionInfo(card.id)"
-            >
-              <AjusteIcon name="ayuda" class="h-4 w-4" />
-            </button>
-          </template>
-        </OpcionFila>
+        </div>
 
         <p
           v-if="notifError"
@@ -188,7 +179,7 @@
             tono="sky"
             :disabled="playLogBusy"
             :titulo="playLogBusy ? 'Exportando…' : 'Exportar registro de saltado'"
-            :detalle="`Cada canción que suena queda anotada con su decisión, el motivo y los criterios activos. Se guarda solo en tu móvil.${playLogTotal !== null ? ` Ahora mismo hay ${playLogTotal} registradas.` : ''}`"
+            :detalle="`Cada canción con su decisión y su motivo, solo en tu móvil.${playLogTotal !== null ? ` Hay ${playLogTotal}.` : ''}`"
             @click="exportSkipLog"
           >
             <template #icono><AjusteIcon name="registro" class="h-8 w-8" /></template>
@@ -428,9 +419,9 @@ const orderedPermissionCards = computed(() => [
   {
     id: 'post-notifications',
     icon: 'globo',
-    title: 'Permiso POST_NOTIFICATIONS',
+    title: 'Mostrar notificaciones',
     description: 'Necesario para mostrar notificaciones y mantener operativo el servicio de detección en primer plano.',
-    meta: 'Requerido en Android 13+ (API 33)',
+    meta: 'Requerido en Android 13+',
     granted: postNotifGranted.value,
     actionLabel: 'Solicitar permiso'
   },
@@ -439,7 +430,7 @@ const orderedPermissionCards = computed(() => [
     icon: 'bateria',
     title: 'Optimización de batería',
     description: 'Excluir Skippify evita pausas agresivas del sistema y mejora la captura cuando la app está en segundo plano.',
-    meta: 'Recomendado · Android 6+ · Crítico en capas OEM restrictivas',
+    meta: 'Recomendado · Crítico en capas restrictivas',
     granted: batteryOptimizationIgnored.value,
     actionLabel: 'Excluir de optimización'
   }

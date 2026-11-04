@@ -84,15 +84,16 @@
       <!-- ── Calibración del salto ────────────────────────────────────────── -->
       <div data-tour="calibration-cta" class="mt-5 border-t border-white/[0.07] pt-5">
         <OpcionFila
-          plana
+          as="button"
           tono="violet"
-          titulo="Calibración del salto"
-          detalle="¿Se salta canciones que no toca, o deja pasar duplicadas? El asistente monta una prueba controlada, identifica el síntoma y ajusta el motor contigo."
+          titulo="Calibrar el salto"
+          detalle="¿Salta canciones que no toca o deja pasar duplicadas? Una prueba guiada ajusta el motor contigo."
+          @click="abrirCalibracion"
         >
           <template #icono><AjusteIcon name="calibrar" class="h-8 w-8 text-violet-200" /></template>
-          <button class="sk-btn sk-btn-primary sk-btn-sm mt-2.5" @click="abrirCalibracion">
-            Calibrar
-          </button>
+          <template #fin>
+            <MacroIcon name="siguiente" class="h-4 w-4 shrink-0 text-slate-400" />
+          </template>
         </OpcionFila>
       </div>
     </FeaturePanel>
@@ -117,7 +118,7 @@
         tono="amber"
         :activo="features.silenceAds"
         titulo="Silenciar anuncios"
-        detalle="Cuando la notificación de Spotify contiene alguna palabra clave, Skippify baja el volumen multimedia mientras dura el anuncio y lo restaura al terminar. Experimental · Requiere acceso a notificaciones."
+        detalle="Baja el volumen mientras dura un anuncio y lo restaura al terminar. Experimental."
       >
         <template #icono><FeatureIcon name="silencio" class="h-8 w-8" /></template>
         <template #fin>
@@ -229,22 +230,22 @@ const modos = [
     id: 'discovery',
     icon: 'brujula',
     title: 'Descubrimiento',
-    description: 'Prioriza canciones fuera de tu repertorio habitual para fomentar una escucha más variada.',
-    detail: 'Fija el salto de duplicadas en 1 año mientras esté activo.'
+    description: 'Prioriza canciones fuera de tu repertorio habitual.',
+    detail: 'Fija el salto de duplicadas en 1 año.'
   },
   {
     id: 'casual',
     icon: 'casual',
     title: 'Casual',
-    description: 'Escucha sin filtros: no se salta ninguna canción por haberla oído antes.',
-    detail: 'Desactiva el salto de duplicadas mientras esté activo.'
+    description: 'Escucha sin filtros: no se salta nada por haberlo oído antes.',
+    detail: 'Desactiva el salto de duplicadas.'
   },
   {
     id: 'custom',
     icon: 'ajustes',
     title: 'Personalizado',
     description: 'Tú decides cada cuánto se permite repetir una canción.',
-    detail: 'Abre las frecuencias disponibles, de 1 semana a 6 meses.'
+    detail: 'De 1 semana a 6 meses.'
   }
 ]
 
