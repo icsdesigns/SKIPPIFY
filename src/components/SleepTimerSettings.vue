@@ -116,11 +116,10 @@
           tono="brand"
           :activo="timer.sound"
           titulo="Sonido de aviso"
-          detalle="Dos notas suaves al volumen de la música, justo después de la pausa."
+          detalle="Dos notas suaves justo después de la pausa."
         >
           <template #icono><AjusteIcon name="campana" class="h-8 w-8" /></template>
           <template #fin>
-            <button type="button" class="shrink-0 text-[11px] font-semibold text-brand-300 hover:text-brand-200" @click="probarSonido">Escuchar</button>
             <button
               role="switch"
               :aria-checked="timer.sound"
@@ -133,6 +132,7 @@
             </button>
           </template>
         </OpcionFila>
+        <button type="button" class="justify-self-end px-1 text-[11px] font-semibold text-brand-300 hover:text-brand-200" @click="probarSonido">Escuchar el aviso</button>
       </div>
     </div>
   </div>

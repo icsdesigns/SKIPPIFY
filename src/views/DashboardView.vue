@@ -1,5 +1,8 @@
 <template>
   <div class="sk-stagger space-y-5">
+    <!-- Cuenta de Spotify: registrar escuchas con la API, de cualquier dispositivo. -->
+    <SpotifyCuentaPanel />
+
     <div data-tour="now-playing">
       <NowPlaying :state="nowPlaying" />
     </div>
@@ -14,6 +17,7 @@
 
 <script setup>
 import NowPlaying from '@/components/NowPlaying.vue'
+import SpotifyCuentaPanel from '@/components/SpotifyCuentaPanel.vue'
 import KpiCards from '@/components/KpiCards.vue'
 import DuplicateKpiCards from '@/components/DuplicateKpiCards.vue'
 import SessionKpiCards from '@/components/SessionKpiCards.vue'

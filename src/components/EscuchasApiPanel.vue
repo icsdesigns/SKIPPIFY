@@ -69,8 +69,10 @@
               @click="desconectar"
             >Desconectar</button>
           </template>
+        </OpcionFila>
 
-          <template v-if="!conectada">
+        <!-- El formulario va fuera de la tarjeta, que no crece por él. -->
+        <div v-if="!conectada" class="sk-well px-3.5 py-3">
             <p class="mt-2 text-[11px] leading-relaxed text-slate-400">
               Necesitas el Client ID de tu aplicación de Spotify y que
               <span class="text-slate-300">{{ redirectUri() }}</span>
@@ -94,8 +96,7 @@
             <p v-if="state.error" class="mt-2.5 rounded-md bg-rose-500/[0.16] px-3 py-2 text-[11px] text-rose-200">
               {{ state.error }}
             </p>
-          </template>
-        </OpcionFila>
+        </div>
 
         <!-- Qué ha hecho -->
         <dl v-if="activo" class="grid grid-cols-2 gap-2.5 text-center">
