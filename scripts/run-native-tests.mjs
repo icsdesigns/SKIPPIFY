@@ -35,7 +35,11 @@ const FUENTES = [
   join(raiz, 'scripts', 'native-tests', 'PruebasResultados.java'),
   // Las escuchas leídas de la API de Spotify: umbrales y duplicados.
   join(raiz, 'android-src', 'EscuchasApi.java'),
-  join(raiz, 'scripts', 'native-tests', 'PruebasEscuchasApi.java')
+  join(raiz, 'scripts', 'native-tests', 'PruebasEscuchasApi.java'),
+  // La medición de fundido entre canciones y el reloj de las sesiones de escucha.
+  join(raiz, 'android-src', 'FundidoDetector.java'),
+  join(raiz, 'android-src', 'SesionEscuchaReloj.java'),
+  join(raiz, 'scripts', 'native-tests', 'PruebasFundido.java')
 ]
 
 for (const f of FUENTES) {
@@ -71,6 +75,7 @@ try {
   execFileSync('java', ['-Dfile.encoding=UTF-8', '-cp', salida, 'com.skippify.app.PruebasWidgetMes'], { stdio: 'inherit' })
   execFileSync('java', ['-Dfile.encoding=UTF-8', '-cp', salida, 'com.skippify.app.PruebasResultados'], { stdio: 'inherit' })
   execFileSync('java', ['-Dfile.encoding=UTF-8', '-cp', salida, 'com.skippify.app.PruebasEscuchasApi'], { stdio: 'inherit' })
+  execFileSync('java', ['-Dfile.encoding=UTF-8', '-cp', salida, 'com.skippify.app.PruebasFundido'], { stdio: 'inherit' })
 } finally {
   rmSync(salida, { recursive: true, force: true })
 }
