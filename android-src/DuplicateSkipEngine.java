@@ -643,9 +643,9 @@ final class DuplicateSkipEngine {
             if (mFunPrevValid && mFunPrevPosMs >= 0L && mFunPrevDurationMs > 0L) {
                 // Lo que le quedaba a la anterior en ESTE instante, extrapolando su
                 // última posición si sonaba. Puede salir negativo.
-                long pos = mFunPrevPosMs;
-                if (mFunPrevPlaying) pos += Math.max(0L, obs.uptimeMs - mFunPrevPosUptimeMs);
-                mFunPrevRemainingMs = mFunPrevDurationMs - pos;
+                mFunPrevRemainingMs = FundidoDetector.restanteExtrapolado(
+                        mFunPrevDurationMs, mFunPrevPosMs, mFunPrevPlaying,
+                        obs.uptimeMs - mFunPrevPosUptimeMs);
                 mFunPrevRemainingKnown = true;
             }
         }

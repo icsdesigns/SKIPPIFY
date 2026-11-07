@@ -77,6 +77,15 @@ public final class PruebasFundido {
         r = FundidoDetector.clasificar(e);
         check("parada al final de la pista no cuenta como pausa", r.etiqueta, FundidoDetector.SIN_FUNDIDO);
 
+        // Extrapolación de la anterior: parada en la recta final = terminada (sigue contando).
+        check("sonando: avanza con el reloj", FundidoDetector.restanteExtrapolado(200_000L, 190_000L, true, 4_000L), 6_000L);
+        check("pausada a mitad: no avanza", FundidoDetector.restanteExtrapolado(200_000L, 100_000L, false, 4_000L), 100_000L);
+        check("parada a 1 s del final y aviso 8 s tarde: ya acabó", FundidoDetector.restanteExtrapolado(200_000L, 199_000L, false, 8_300L), -7_300L);
+        e = base(FundidoDetector.restanteExtrapolado(200_000L, 199_000L, false, 8_300L), 8_000L);
+        e.anteriorSonandoAlCerrar = false;
+        r = FundidoDetector.clasificar(e);
+        check("final natural con «parado» y aviso tardío: sin fundido", r.etiqueta, FundidoDetector.SIN_FUNDIDO);
+
         // Reanudación tras una pausa larga: la nueva empieza mucho después del final.
         e = base(0L, 300L);
         e.huecoSesionesMs = 40_000L;

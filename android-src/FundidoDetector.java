@@ -132,6 +132,22 @@ final class FundidoDetector {
 
     private FundidoDetector() {}
 
+    /**
+     * Lo que le queda a la anterior `transcurridoMs` después de su última
+     * posición vista. Si sonaba, avanza con el reloj. Si estaba «parada» pero a
+     * menos de PAUSA_EN_RECTA_FINAL_MS del final, también: algunos móviles
+     * publican «parado» al acabar la pista, y si no se extrapolara, un aviso
+     * de la nueva que llegara tarde (5-11 s) dejaría R≈0 y el solape saldría
+     * igual a P, un falso fundido en un final natural. Una pausa de verdad
+     * (más lejos del final) no avanza. Puede salir negativo.
+     */
+    static long restanteExtrapolado(long duracionMs, long posicionMs, boolean sonaba, long transcurridoMs) {
+        long pos = posicionMs;
+        boolean rectaFinal = duracionMs - posicionMs <= PAUSA_EN_RECTA_FINAL_MS;
+        if (sonaba || rectaFinal) pos += Math.max(0L, transcurridoMs);
+        return duracionMs - pos;
+    }
+
     static Resultado clasificar(Entrada e) {
         if (e == null) return noAplica("sin_datos", SIN_DATO, SIN_DATO, SIN_DATO);
 
