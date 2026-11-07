@@ -123,14 +123,109 @@ public final class PruebasFundido {
         r = FundidoDetector.clasificar(e);
         check("sonda y vista tardía restan confianza", r.confianza < 0.85 && r.etiqueta.equals(FundidoDetector.PROBABLE), true);
 
+        pruebasReloj();
+
         System.out.println();
         System.out.println("Fundido: " + (total - fallos) + "/" + total + " pruebas correctas");
         if (fallos > 0) System.exit(1);
     }
 
+
+    static final long MIN = 60_000L;
+
+    /** Observa «sonando» cada 4 min durante `dur` ms desde `desde`; devuelve el instante final. */
+    static long suena(SesionEscuchaReloj k, long desde, long dur) {
+        long t = desde;
+        long fin = desde + dur;
+        while (t + 4 * MIN < fin) {
+            t += 4 * MIN;
+            k.alObservar(t, true, true);
+        }
+        k.alObservar(fin, true, false);
+        return fin;
+    }
+
+    /** Sesiones de escucha: 10 min de hueco, 30 min de escucha activa. */
+    static void pruebasReloj() {
+        SesionEscuchaReloj.Cierre c;
+
+        // 40 min seguidos con canciones de 4 min y luego silencio: un aviso.
+        SesionEscuchaReloj k = new SesionEscuchaReloj();
+        long t = 1_000_000L;
+        k.alObservar(t, true, true);
+        k.id = 7L;
+        for (int i = 1; i < 10; i++) {
+            t += 4 * MIN;
+            c = k.alObservar(t, true, true);
+            check("sin cierres mientras suena (" + i + ")", c, null);
+        }
+        t += 4 * MIN;
+        k.alObservar(t, false, false);
+        check("40 min sonando acumulados", k.activoMs, 40 * MIN);
+        check("10 canciones", k.canciones, 10);
+        c = k.alVencer(t + 10 * MIN - 1);
+        check("a 10 min menos 1 ms no vence", c, null);
+        c = k.alVencer(t + 10 * MIN + 1);
+        check("pasados 10 min sin sonar vence", c != null, true);
+        check("  pregunta (>= 30 min)", c.avisar, true);
+        check("  con el id apuntado", c.id, 7L);
+        check("  el fin es el último sonido", c.finMs, t);
+        check("  y la sesión queda cerrada", k.abierta, false);
+        check("  sin cerrarse dos veces", k.alVencer(t + 60 * MIN), null);
+
+        // Una pausa de 5 min no corta la sesión y no cuenta como escucha.
+        k = new SesionEscuchaReloj();
+        t = 5_000_000L;
+        k.alObservar(t, true, true);
+        t = suena(k, t, 20 * MIN);
+        k.alObservar(t, false, false);
+        t += 5 * MIN;
+        c = k.alObservar(t, true, false);
+        check("pausa de 5 min: misma sesión", c, null);
+        t = suena(k, t, 15 * MIN);
+        k.alObservar(t, false, false);
+        check("pausa excluida del tiempo activo", k.activoMs, 35 * MIN);
+
+        // Una pausa de 12 min parte la sesión en dos; ninguna llega a 30 min.
+        k = new SesionEscuchaReloj();
+        t = 9_000_000L;
+        k.alObservar(t, true, true);
+        t = suena(k, t, 25 * MIN);
+        k.alObservar(t, false, false);
+        t += 12 * MIN;
+        c = k.alObservar(t, true, true);
+        check("pausa de 12 min cierra la anterior", c != null, true);
+        check("  que no llega a 30 min", c.avisar, false);
+        check("  tras 25 min activos", c.activoMs, 25 * MIN);
+        check("  y abre una nueva", k.abierta && k.id == 0L, true);
+        check("  con su canción contada", k.canciones, 1);
+
+        // Si se pierde el aviso de pausa no se cuentan horas fantasma.
+        k = new SesionEscuchaReloj();
+        t = 20_000_000L;
+        k.alObservar(t, true, true);
+        c = k.alObservar(t + 3 * 60 * MIN, false, false);
+        check("sin avisos durante 3 h se recorta a 20 min", c != null && c.activoMs == 20 * MIN, true);
+        check("  no hay pregunta", c.avisar, false);
+
+        // Restaurar tras reiniciar el proceso y vencer.
+        k = new SesionEscuchaReloj();
+        k.restaurar(3L, 100L, 100L + 35 * MIN, 33 * MIN, 9);
+        check("restaurada y reciente sigue abierta", k.alVencer(100L + 40 * MIN), null);
+        c = k.alVencer(100L + 46 * MIN);
+        check("restaurada y vencida se cierra con pregunta", c != null && c.avisar && c.id == 3L, true);
+
+        // Parada definitiva.
+        k = new SesionEscuchaReloj();
+        k.alObservar(1_000L, true, true);
+        long fin = suena(k, 1_000L, 31 * MIN);
+        c = k.cerrarAhora(fin);
+        check("parada del listener cierra y pregunta", c != null && c.avisar, true);
+    }
+
     static void check(String etiqueta, Object real, Object esperado) {
         total++;
-        boolean ok = esperado.equals(real);
+        boolean ok = esperado == null ? real == null : esperado.equals(real);
         if (!ok) fallos++;
         System.out.println("  " + (ok ? "✓" : "✗") + " " + etiqueta
                 + (ok ? "" : "  (esperado " + esperado + ", obtenido " + real + ")"));
