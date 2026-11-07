@@ -4,6 +4,7 @@
  *
  *   node scripts/pruebas-funcionalidad.mjs
  */
+import { aBase64, pasar } from '../src/lib/localhost/escuchas.js'
 import {
   desempaquetarRegistro, empaquetarRegistro, registroMeta, registrosDeSubida, resumirFuncionalidad,
   tocaSubir, MAX_TROZOS, TOPE_FILAS, TROZO_CHARS, SUBIDA_CADA_MS, SUBIDA_TRAS_RESPUESTA_MS, REINTENTO_MS
@@ -39,6 +40,10 @@ console.log('\nEmpaquetado')
   check('la respuesta se une por sesión', des.filas[5].fundido.respuestaUsuario === true)
   check('sin sesión conocida, la respuesta es null', (await desempaquetarRegistro((await empaquetarRegistro({ filas: [fila(1, 9)], sesiones: [], total: 1 })).piezas)).filas[0].fundido.respuestaUsuario === null)
   check('un trozo corrupto no rompe', (await desempaquetarRegistro(['@@@'])) === null)
+
+  // Una «bomba» gzip (muy pequeña, enorme al descomprimir) no debe agotar la memoria.
+  const bomba = aBase64(await pasar(new Uint8Array(40 * 1024 * 1024), new CompressionStream('gzip')))
+  check('una bomba gzip se rechaza', (await desempaquetarRegistro([bomba])) === null)
 
   const muchas = Array.from({ length: 5000 }, (_, i) => fila(i, i))
   const grande = await empaquetarRegistro({ filas: muchas, sesiones: [], total: 5000 })

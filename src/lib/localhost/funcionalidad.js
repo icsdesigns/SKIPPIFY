@@ -40,6 +40,8 @@ export const TOPE_FILAS = 1200
 export const TROZO_CHARS = 16000
 /** Trozos máximos por subida (~190 KB). */
 export const MAX_TROZOS = 12
+/** Tamaño máximo del JSON al descomprimir: un registro normal ronda los 400 KB; esto frena una «bomba» gzip. */
+export const MAX_DESCOMPRIMIDO = 8 * 1024 * 1024
 
 /** Entre subidas completas pasa como mínimo esto... */
 export const SUBIDA_CADA_MS = 6 * 3600 * 1000
@@ -137,11 +139,32 @@ export async function empaquetarRegistro ({ filas, sesiones, total }, ahora = Da
   }
 }
 
+/** Descomprime gzip sin pasar de `max` bytes: lo que subió otro miembro no es de fiar. */
+async function descomprimirAcotado (bytes, max) {
+  const lector = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip')).getReader()
+  const partes = []
+  let n = 0
+  for (;;) {
+    const { done, value } = await lector.read()
+    if (done) break
+    n += value.length
+    if (n > max) {
+      await lector.cancel().catch(() => {})
+      throw new Error('registro demasiado grande')
+    }
+    partes.push(value)
+  }
+  const out = new Uint8Array(n)
+  let pos = 0
+  for (const p of partes) { out.set(p, pos); pos += p.length }
+  return out
+}
+
 /** Inversa de empaquetarRegistro: { filas, sesiones, total, generado } o null si no se puede leer. */
 export async function desempaquetarRegistro (piezas) {
   if (!puedeComprimir() || !Array.isArray(piezas) || !piezas.length) return null
   try {
-    const crudo = await pasar(deBase64(piezas.join('')), new DecompressionStream('gzip'))
+    const crudo = await descomprimirAcotado(deBase64(piezas.join('')), MAX_DESCOMPRIMIDO)
     const dato = JSON.parse(new TextDecoder().decode(crudo))
     if (!dato || dato.f !== FORMATO || !Array.isArray(dato.filas)) return null
     const sesiones = (Array.isArray(dato.ses) ? dato.ses : []).map(tuplaASesion)
