@@ -791,6 +791,13 @@ async function publicarFuncionalidad (groupId) {
   // 2. Compartir apagado: lo ya publicado se retira del grupo.
   if (!compartir) {
     for (const id of mio?.ids.trozos || []) await coll.remove(id)
+    // Sin registro publicado no hay "última subida" que respetar: al volver a
+    // activarlo se sube en la siguiente sincronización, no a las 6 horas.
+    const estadoPrevio = leerEstadoSubida()
+    if (estadoPrevio[groupId]) {
+      delete estadoPrevio[groupId]
+      guardarEstadoSubida(estadoPrevio)
+    }
     return
   }
   if (!puedeComprimir()) return
