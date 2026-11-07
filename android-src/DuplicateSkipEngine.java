@@ -73,6 +73,9 @@ final class DuplicateSkipEngine {
     private static final String PREF_SKIP_DUPLICATES = "skipDuplicates";
     private static final String PREF_SKIP_INTERVAL = "skipDuplicatesInterval";
     private static final String PREF_LISTENING_MODE = "listeningMode";
+    // «Registro de funcionalidad»: medición de fundido (experimental) y compartir el registro.
+    static final String PREF_FUNDIDO_MEDIR = "fundidoMedir";
+    static final String PREF_FUNDIDO_COMPARTIR = "fundidoCompartir";
 
     // ── Ajustes de la pestaña «Calibración» ───────────────────────────────────
     static final String PREF_DEV_DECISION_WINDOW_MS = "devDecisionWindowMs";
@@ -255,6 +258,42 @@ final class DuplicateSkipEngine {
     private boolean mLogIndexReady = false;
     private String mLogConfigJson = "";
 
+    // ── Medición de fundido (solo lectura: nunca influye en una decisión) ─────
+    // Sesiones de escucha y notificación de pregunta; se crean en attach().
+    private volatile SesionesEscucha mSesiones;
+
+    // Instantánea de la última canción real que se cerró. Sobrevive a las
+    // sesiones de clave vacía (metadatos que desaparecen un instante).
+    private boolean mPrevValid = false;
+    private String mPrevKey = "";
+    private long mPrevDurationMs = -1L;
+    private long mPrevPosMs = -1L;
+    private long mPrevPosUptimeMs = 0L;
+    private boolean mPrevPlaying = false;
+    private long mPrevCloseUptimeMs = 0L;
+
+    // Última posición vista de la sesión en curso (para ser la «anterior» de la siguiente).
+    private long mCurLastPosMs = -1L;
+    private long mCurLastPosUptimeMs = 0L;
+    private boolean mCurLastPlaying = false;
+
+    // Datos de la transición que dio paso a la sesión en curso, copiados al abrirla.
+    private boolean mFunEnabled = false;
+    private boolean mFunSame = false;
+    private boolean mFunPrevValid = false;
+    private long mFunPrevDurationMs = -1L;
+    private long mFunPrevPosMs = -1L;
+    private long mFunPrevPosUptimeMs = 0L;
+    private boolean mFunPrevPlaying = false;
+    private long mFunGapMs = 0L;
+    // Primera observación válida de la sesión en curso (sonando y con posición).
+    private boolean mFunSeen = false;
+    private long mFunFirstPosMs = -1L;
+    private long mFunFirstAgeMs = -1L;
+    private String mFunFirstSource = "";
+    private boolean mFunPrevRemainingKnown = false;
+    private long mFunPrevRemainingMs = 0L;
+
     // Silenciado previo. Se pide dentro del lock de sesión pero se APLICA fuera:
     // tocar el AudioManager con el lock cogido invita a bloqueos cruzados.
     private boolean mPremutePending = false;
@@ -289,6 +328,24 @@ final class DuplicateSkipEngine {
         if (context != null) mContext = context.getApplicationContext();
         if (transport != null) mTransport = transport;
         loadIndexAsync();
+
+        // Sesiones de escucha: se retoman (o se cierran) las que dejó abiertas un
+        // proceso anterior. Va al hilo de fondo; no retrasa el enganche.
+        Context ctx = mContext;
+        if (ctx != null) {
+            SesionesEscucha s = mSesiones;
+            if (s == null) {
+                s = new SesionesEscucha(ctx, mWriter);
+                mSesiones = s;
+            }
+            final SesionesEscucha sesiones = s;
+            mWriter.execute(new Runnable() {
+                @Override
+                public void run() {
+                    sesiones.recuperar();
+                }
+            });
+        }
     }
 
     void detach() {
@@ -337,6 +394,7 @@ final class DuplicateSkipEngine {
                 accumulateLocked(obs.isPlaying, obs.uptimeMs);
                 updateSessionMetaLocked(obs);
                 maybeCommitLocked(obs.uptimeMs);
+                noteFundidoLocked(obs);
             }
 
             generation = mSessionGeneration;
@@ -452,6 +510,23 @@ final class DuplicateSkipEngine {
             }
         }
 
+        // Sesiones de escucha: solo se encola la observación. Todo el trabajo
+        // (reloj, base de datos, notificación) ocurre en el hilo de fondo, que
+        // mantiene el orden con las filas del registro que se encolan al cerrar
+        // cada sesión de reproducción.
+        final SesionesEscucha sesiones = mSesiones;
+        if (sesiones != null) {
+            final long epochMs = obs.epochMs;
+            final boolean sonando = obs.isPlaying && !key.isEmpty();
+            final boolean cancionNueva = sessionChanged && !key.isEmpty();
+            mWriter.execute(new Runnable() {
+                @Override
+                public void run() {
+                    sesiones.alObservar(epochMs, sonando, cancionNueva);
+                }
+            });
+        }
+
         recordTelemetry(obs, key, reason, doSkip, sessionAgeMs, lookupNs);
         return new Decision(doSkip, reason);
     }
@@ -500,6 +575,27 @@ final class DuplicateSkipEngine {
         mLogConfigJson = "";
         accumulateLocked(obs.isPlaying, obs.uptimeMs);
 
+        // Medición de fundido: se copian los datos de la canción anterior y se
+        // reinicia el seguimiento. Aritmética y asignaciones, nada más.
+        mFunEnabled = !key.isEmpty() && fundidoActivo(ctx);
+        mFunSame = mPrevValid && key.equals(mPrevKey);
+        mFunPrevValid = mPrevValid;
+        mFunPrevDurationMs = mPrevDurationMs;
+        mFunPrevPosMs = mPrevPosMs;
+        mFunPrevPosUptimeMs = mPrevPosUptimeMs;
+        mFunPrevPlaying = mPrevPlaying;
+        mFunGapMs = mPrevValid ? Math.max(0L, obs.uptimeMs - mPrevCloseUptimeMs) : 0L;
+        mFunSeen = false;
+        mFunFirstPosMs = -1L;
+        mFunFirstAgeMs = -1L;
+        mFunFirstSource = "";
+        mFunPrevRemainingKnown = false;
+        mFunPrevRemainingMs = 0L;
+        mCurLastPosMs = -1L;
+        mCurLastPosUptimeMs = 0L;
+        mCurLastPlaying = false;
+        noteFundidoLocked(obs);
+
         if (!mSessionDecided) {
             long generation = mSessionGeneration;
 
@@ -520,6 +616,50 @@ final class DuplicateSkipEngine {
         accumulateLocked(false, nowUptimeMs);
         maybeCommitLocked(nowUptimeMs);
         logSessionLocked(nowUptimeMs);
+
+        // Esta canción pasa a ser «la anterior» de la siguiente que se abra.
+        mPrevValid = true;
+        mPrevKey = mSessionKey;
+        mPrevDurationMs = mSessionDurationMs;
+        mPrevPosMs = mCurLastPosMs;
+        mPrevPosUptimeMs = mCurLastPosUptimeMs;
+        mPrevPlaying = mCurLastPlaying;
+        mPrevCloseUptimeMs = nowUptimeMs;
+    }
+
+    /**
+     * Medición de fundido, con {@link #mSessionLock} cogido: anota la primera
+     * observación válida de la sesión (sonando y con posición) y la última
+     * posición vista. Solo asignaciones y aritmética; no decide nada.
+     */
+    private void noteFundidoLocked(Observation obs) {
+        if (!mFunEnabled) return;
+
+        if (!mFunSeen && obs.isPlaying && obs.positionMs >= 0L) {
+            mFunSeen = true;
+            mFunFirstPosMs = obs.positionMs;
+            mFunFirstAgeMs = obs.uptimeMs - mSessionStartedUptimeMs;
+            mFunFirstSource = obs.source;
+            if (mFunPrevValid && mFunPrevPosMs >= 0L && mFunPrevDurationMs > 0L) {
+                // Lo que le quedaba a la anterior en ESTE instante, extrapolando su
+                // última posición si sonaba. Puede salir negativo.
+                long pos = mFunPrevPosMs;
+                if (mFunPrevPlaying) pos += Math.max(0L, obs.uptimeMs - mFunPrevPosUptimeMs);
+                mFunPrevRemainingMs = mFunPrevDurationMs - pos;
+                mFunPrevRemainingKnown = true;
+            }
+        }
+
+        if (obs.positionMs >= 0L) {
+            mCurLastPosMs = obs.positionMs;
+            mCurLastPosUptimeMs = obs.uptimeMs;
+            mCurLastPlaying = obs.isPlaying;
+        } else if (mCurLastPosMs >= 0L) {
+            // Sin posición en esta observación: si sonaba, sigue avanzando.
+            if (mCurLastPlaying) mCurLastPosMs += Math.max(0L, obs.uptimeMs - mCurLastPosUptimeMs);
+            mCurLastPosUptimeMs = obs.uptimeMs;
+            mCurLastPlaying = obs.isPlaying;
+        }
     }
 
     /**
@@ -560,7 +700,45 @@ final class DuplicateSkipEngine {
             e.mode = cfg.optString("listeningMode", e.mode);
         } catch (Throwable ignored) {
         }
-        mWriter.execute(() -> PlayLogStore.insert(ctx, e));
+
+        // Entrada del detector de fundido: se copia aquí (bajo el lock) y se
+        // clasifica en el hilo de fondo, junto con la escritura.
+        final FundidoDetector.Entrada fundidoIn;
+        if (mFunEnabled) {
+            fundidoIn = new FundidoDetector.Entrada();
+            fundidoIn.mismaCancion = mFunSame;
+            fundidoIn.anteriorDuracionMs = mFunPrevValid ? mFunPrevDurationMs : -1L;
+            fundidoIn.anteriorRestanteConocido = mFunPrevRemainingKnown;
+            fundidoIn.anteriorRestanteMs = mFunPrevRemainingMs;
+            fundidoIn.anteriorSonandoAlCerrar = mFunPrevPlaying;
+            fundidoIn.huecoSesionesMs = mFunGapMs;
+            fundidoIn.posicionPrimeraVistaMs = mFunSeen ? mFunFirstPosMs : -1L;
+            fundidoIn.edadSesionMs = mFunFirstAgeMs;
+            fundidoIn.origen = mFunFirstSource;
+            fundidoIn.nuevaDuracionMs = mSessionDurationMs;
+        } else {
+            fundidoIn = null;
+        }
+
+        mWriter.execute(new Runnable() {
+            @Override
+            public void run() {
+                if (fundidoIn != null) {
+                    FundidoDetector.Resultado r = FundidoDetector.clasificar(fundidoIn);
+                    e.fundidoLabel = r.etiqueta;
+                    e.fundidoConfidence = r.confianza;
+                    e.fundidoOverlapMs = r.solapeMs == FundidoDetector.SIN_DATO ? null : Long.valueOf(r.solapeMs);
+                    e.fundidoPrevRemainingMs = r.restanteAnteriorMs == FundidoDetector.SIN_DATO
+                            ? null : Long.valueOf(r.restanteAnteriorMs);
+                    e.fundidoFirstPosMs = r.posicionPrimeraVistaMs == FundidoDetector.SIN_DATO
+                            ? null : Long.valueOf(r.posicionPrimeraVistaMs);
+                    e.fundidoReason = r.motivo;
+                }
+                SesionesEscucha sesiones = mSesiones;
+                e.listeningSessionId = sesiones != null ? sesiones.idActual() : 0L;
+                PlayLogStore.insert(ctx, e);
+            }
+        });
     }
 
     /** Criterios y calibrado vigentes ahora mismo, tal como los ve el motor. */
@@ -1727,6 +1905,28 @@ final class DuplicateSkipEngine {
         if (sp == null) return "1w";
         String raw = safeTrim(sp.getString(PREF_SKIP_INTERVAL, "1w")).toLowerCase(Locale.ROOT);
         return raw.isEmpty() ? "1w" : raw;
+    }
+
+    /** «Medir fundido (experimental)»: activado por defecto. */
+    static boolean fundidoActivo(@Nullable Context ctx) {
+        SharedPreferences sp = prefs(ctx);
+        return sp == null || sp.getBoolean(PREF_FUNDIDO_MEDIR, true);
+    }
+
+    /** «Compartir mi registro de funcionalidad con mis grupos»: activado por defecto. */
+    static boolean fundidoCompartir(@Nullable Context ctx) {
+        SharedPreferences sp = prefs(ctx);
+        return sp == null || sp.getBoolean(PREF_FUNDIDO_COMPARTIR, true);
+    }
+
+    static void setFundidoConfig(@Nullable Context ctx, @Nullable Boolean medir,
+                                 @Nullable Boolean compartir) {
+        SharedPreferences sp = prefs(ctx);
+        if (sp == null) return;
+        SharedPreferences.Editor e = sp.edit();
+        if (medir != null) e.putBoolean(PREF_FUNDIDO_MEDIR, medir);
+        if (compartir != null) e.putBoolean(PREF_FUNDIDO_COMPARTIR, compartir);
+        e.apply();
     }
 
     static int devDecisionWindowMs(@Nullable Context ctx) {

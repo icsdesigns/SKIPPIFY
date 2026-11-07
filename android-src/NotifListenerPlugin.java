@@ -771,6 +771,42 @@ public class NotifListenerPlugin extends Plugin
         }
     }
 
+    /**
+     * Las sesiones de escucha con la respuesta del usuario a «¿has estado
+     * escuchando con fundido?». Devuelve `{ sessions: [...] }`; el fichero
+     * exportado y la subida a los grupos las usan junto con las filas.
+     */
+    @PluginMethod
+    public void getListeningSessions(PluginCall call) {
+        JSObject result = new JSObject();
+        try {
+            result.put("sessions", new JSArray(PlayLogStore.sessions(getContext()).toString()));
+            call.resolve(result);
+        } catch (Throwable t) {
+            call.reject("No se pudieron leer las sesiones: " + t.getMessage());
+        }
+    }
+
+    /** Ajustes de «Registro de funcionalidad»: medir fundido y compartir con los grupos. */
+    @PluginMethod
+    public void getFundidoConfig(PluginCall call) {
+        JSObject result = new JSObject();
+        result.put("medir", DuplicateSkipEngine.fundidoActivo(getContext()));
+        result.put("compartir", DuplicateSkipEngine.fundidoCompartir(getContext()));
+        call.resolve(result);
+    }
+
+    /** Cambia los ajustes de fundido. Cualquier campo omitido se deja igual. */
+    @PluginMethod
+    public void setFundidoConfig(PluginCall call) {
+        DuplicateSkipEngine.setFundidoConfig(
+                getContext(),
+                call.getBoolean("medir"),
+                call.getBoolean("compartir")
+        );
+        getFundidoConfig(call);
+    }
+
     /** Vacía el registro de reproducciones (no toca el historial de duplicadas). */
     @PluginMethod
     public void clearPlayLog(PluginCall call) {

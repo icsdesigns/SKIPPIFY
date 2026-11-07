@@ -454,6 +454,25 @@ if ($manifestContent -notmatch "BotonAuricularesActivity") {
     Write-Step "AndroidManifest.xml ya contiene el botón de los auriculares"
 }
 
+# Respuesta «Sí / No» de la notificación «¿Has estado escuchando música con
+# fundido?». Sin exportar: sólo la alcanza el PendingIntent explícito de la
+# notificación, y funciona con la app cerrada.
+if ($manifestContent -notmatch "FundidoRespuestaReceiver") {
+    $fundidoXml = @'
+
+        <!-- Skippify: botones Sí/No de la pregunta de fundido (Registro de funcionalidad) -->
+        <receiver
+            android:name=".FundidoRespuestaReceiver"
+            android:enabled="true"
+            android:exported="false" />
+'@
+    $manifestContent = $manifestContent -replace '</application>', "$fundidoXml`n    </application>"
+    $manifestChanged = $true
+    Write-Step "AndroidManifest.xml parcheado con FundidoRespuestaReceiver"
+} else {
+    Write-Step "AndroidManifest.xml ya contiene FundidoRespuestaReceiver"
+}
+
 if ($manifestChanged) {
     $utf8NoBom2 = New-Object System.Text.UTF8Encoding($false)
     [System.IO.File]::WriteAllText($manifestPath, $manifestContent, $utf8NoBom2)
