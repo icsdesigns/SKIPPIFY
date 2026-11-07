@@ -12,6 +12,8 @@
       :invitando="invitingExpres"
       :actualizando="syncing"
       :ultima-sync="lastSync"
+      :registros="registrosVista"
+      :descargar-registro="onDescargarRegistro"
       @actualizar="onRefresh"
       @invitar="onExpres"
       @abandonar="leaveGroup(activeGroup.groupId)"
@@ -144,6 +146,8 @@ const {
   activeMembers,
   semanas,
   lastSyncByGroup,
+  funcionalidad,
+  descargarFuncionalidad,
   syncing,
   error,
   message,
@@ -216,6 +220,12 @@ const miembrosVista = computed(() => {
     minutos: minutos.get(m.uid) || 0
   }))
 })
+
+const registrosVista = computed(() => funcionalidad[activeGroupId.value] || [])
+
+function onDescargarRegistro (uid) {
+  return descargarFuncionalidad(activeGroupId.value, uid)
+}
 
 function cerrarHoja () { emit('update:nuevo', '') }
 

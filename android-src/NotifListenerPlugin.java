@@ -749,7 +749,7 @@ public class NotifListenerPlugin extends Plugin
         call.resolve(result);
     }
 
-    // ── Registro de reproducciones (exportable desde Ajustes) ─────────────────
+    // ── Registro de funcionalidad (exportable desde Ajustes) ──────────────────
 
     /**
      * Una página del registro: una fila por canción reproducida con su
@@ -807,7 +807,7 @@ public class NotifListenerPlugin extends Plugin
         getFundidoConfig(call);
     }
 
-    /** Vacía el registro de reproducciones (no toca el historial de duplicadas). */
+    /** Vacía el registro de funcionalidad (no toca el historial de duplicadas). */
     @PluginMethod
     public void clearPlayLog(PluginCall call) {
         PlayLogStore.clear(getContext());

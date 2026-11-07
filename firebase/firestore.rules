@@ -51,6 +51,31 @@ service cloud.firestore {
         allow delete: if isOwner(uid) || isGroupOwner(groupId);
       }
 
+      // Registros de funcionalidad (modo con servidor): cada miembro escribe SOLO
+      // lo suyo (el documento con id = su uid) y los miembros del grupo leen.
+      // El documento lleva la versión de la app en claro (`appVersion`, visible
+      // para todo el grupo, se comparta o no el registro) y los datos del
+      // registro, si se comparte, van comprimidos en `chunks/{n}`: Firestore
+      // limita cada documento a ~1 MiB, así que cada trozo lleva como mucho
+      // ~700 KB de texto. La clave de descarga de la interfaz NO se aplica aquí:
+      // es una puerta de interfaz, no una regla de acceso.
+      match /functionality_logs/{uid} {
+        allow read: if isGroupMember(groupId);
+        allow create, update: if isOwner(uid) && isGroupMember(groupId) &&
+          request.resource.data.appVersion is string &&
+          request.resource.data.appVersion.size() <= 40;
+        allow delete: if isOwner(uid) && isGroupMember(groupId);
+
+        match /chunks/{chunkId} {
+          allow read: if isGroupMember(groupId);
+          allow create, update: if isOwner(uid) && isGroupMember(groupId) &&
+            request.resource.data.keys().hasOnly(['z', 'i', 'n', 'rows', 'uploadedAt']) &&
+            request.resource.data.z is string &&
+            request.resource.data.z.size() <= 700000;
+          allow delete: if isOwner(uid) && isGroupMember(groupId);
+        }
+      }
+
       // El ranking sí es dato compartido y se queda tras la pertenencia. La app
       // rehace la ficha de miembro y reintenta si aquí recibe permission-denied.
       match /weekly_results/{weekId} {

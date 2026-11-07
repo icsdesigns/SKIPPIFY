@@ -167,26 +167,84 @@
           <p v-if="backupWarning" class="text-[11px] text-amber-300">{{ backupWarning }}</p>
           <p v-if="backupError" class="text-[11px] text-rose-200">{{ backupError }}</p>
         </div>
+      </div>
+    </FeaturePanel>
 
-        <!--
-          Registro del motor de saltado: una fila por canción con su decisión y
-          los criterios y el calibrado de ese momento. Sirve para averiguar por
-          qué una canción no se saltó, así que se exporta aparte del respaldo.
-        -->
-        <template v-if="isCapacitor">
-          <OpcionFila
-            as="button"
-            tono="sky"
-            :disabled="playLogBusy"
-            :titulo="playLogBusy ? 'Exportando…' : 'Exportar registro de saltado'"
-            :detalle="`Cada canción con su decisión y su motivo, solo en tu móvil.${playLogTotal !== null ? ` Hay ${playLogTotal}.` : ''}`"
-            @click="exportSkipLog"
-          >
-            <template #icono><AjusteIcon name="registro" class="h-8 w-8" /></template>
-          </OpcionFila>
-          <p v-if="playLogMessage" class="text-[11px] font-semibold text-brand-400">{{ playLogMessage }}</p>
-          <p v-if="playLogError" class="text-[11px] text-rose-200">{{ playLogError }}</p>
-        </template>
+    <!-- ── Registro de funcionalidad ──────────────────────────────────────── -->
+    <!--
+      Una fila por canción con su decisión, los criterios y el calibrado de ese
+      momento y la medición de fundido. Sirve para averiguar por qué una canción
+      no se saltó y para medir con qué precisión se detecta un fundido, así que
+      se exporta aparte del respaldo.
+    -->
+    <FeaturePanel
+      v-if="isCapacitor"
+      title="Registro de funcionalidad"
+      subtitle="Qué decide el motor con cada canción, solo en tu móvil."
+      icon-class="bg-sky-400/[0.18] text-sky-200"
+    >
+      <template #icono><AjusteIcon name="registro" class="h-5 w-5" /></template>
+      <template #estado>
+        <span class="sk-badge bg-sky-400/[0.18] text-sky-200">Experimental</span>
+      </template>
+
+      <div class="space-y-3">
+        <OpcionFila
+          as="button"
+          tono="sky"
+          :disabled="playLogBusy"
+          :titulo="playLogBusy ? 'Exportando…' : 'Exportar registro de funcionalidad'"
+          :detalle="`Cada canción con su decisión, su motivo y la medición de fundido.${playLogTotal !== null ? ` Hay ${playLogTotal}.` : ''}`"
+          @click="exportSkipLog"
+        >
+          <template #icono><AjusteIcon name="registro" class="h-8 w-8" /></template>
+        </OpcionFila>
+        <p v-if="playLogMessage" class="text-[11px] font-semibold text-brand-400">{{ playLogMessage }}</p>
+        <p v-if="playLogError" class="text-[11px] text-rose-200">{{ playLogError }}</p>
+
+        <OpcionFila
+          plana
+          tono="sky"
+          :activo="fundidoMedir"
+          titulo="Medir fundido (experimental)"
+          detalle="Detecta si una canción empieza con fundido (DJ, Mix o crossfade de Spotify) y, tras escuchar 30 minutos seguidos, te pregunta en una notificación si lo hubo."
+        >
+          <template #icono><AjusteIcon name="registro" class="h-8 w-8" /></template>
+          <template #fin>
+            <button
+              role="switch"
+              :aria-checked="fundidoMedir"
+              aria-label="Medir fundido"
+              class="sk-switch shrink-0"
+              :class="fundidoMedir ? 'border-transparent bg-brand-400' : 'border-transparent bg-white/[0.18]'"
+              @click="setFundidoMedir(!fundidoMedir)"
+            >
+              <span class="sk-switch-knob" :class="fundidoMedir ? 'translate-x-6' : 'translate-x-1'" />
+            </button>
+          </template>
+        </OpcionFila>
+
+        <OpcionFila
+          plana
+          tono="sky"
+          :activo="fundidoCompartir"
+          titulo="Compartir mi registro de funcionalidad con mis grupos"
+          detalle="El registro contiene los títulos y artistas de las canciones que escuchas. Lo verán los miembros de tus grupos que tengan la clave de descarga. Desactívalo y se retira de tus grupos; la versión de tu app se sigue mostrando."
+        >
+          <template #icono><AjusteIcon name="copia" class="h-8 w-8" /></template>
+          <template #fin>
+            <button
+              role="switch"
+              :aria-checked="fundidoCompartir"
+              aria-label="Compartir mi registro de funcionalidad con mis grupos"
+              class="sk-switch shrink-0"
+              :class="fundidoCompartir ? 'border-transparent bg-brand-400' : 'border-transparent bg-white/[0.18]'"
+              @click="setFundidoCompartir(!fundidoCompartir)"
+            >
+              <span class="sk-switch-knob" :class="fundidoCompartir ? 'translate-x-6' : 'translate-x-1'" />
+            </button>
+          </template>
+        </OpcionFila>
       </div>
     </FeaturePanel>
 
@@ -797,7 +855,17 @@ function onAppVisibleAgain () {
   }
 }
 
-const { busy: playLogBusy, total: playLogTotal, exportPlayLog, refreshTotal: refreshPlayLogTotal } = usePlayLog()
+const {
+  busy: playLogBusy,
+  total: playLogTotal,
+  fundidoMedir,
+  fundidoCompartir,
+  exportPlayLog,
+  refreshTotal: refreshPlayLogTotal,
+  leerAjustesFundido,
+  setFundidoMedir,
+  setFundidoCompartir
+} = usePlayLog()
 const playLogMessage = ref('')
 const playLogError = ref('')
 
@@ -806,17 +874,18 @@ async function exportSkipLog () {
   playLogError.value = ''
   try {
     const { path, rows } = await exportPlayLog()
-    playLogMessage.value = `Registro exportado en ${path} (${rows} canciones).`
+    playLogMessage.value = `Registro de funcionalidad exportado en ${path} (${rows} canciones).`
   } catch (error) {
     const detail = (error?.message || '').toString().trim()
     playLogError.value = detail
-      ? `No se pudo exportar el registro: ${detail}`
-      : 'No se pudo exportar el registro.'
+      ? `No se pudo exportar el registro de funcionalidad: ${detail}`
+      : 'No se pudo exportar el registro de funcionalidad.'
   }
 }
 
 onMounted(async () => {
   refreshPlayLogTotal()
+  leerAjustesFundido()
   await refreshAllStatuses()
   window.addEventListener('focus', refreshAllStatuses)
   document.addEventListener('visibilitychange', onAppVisibleAgain)

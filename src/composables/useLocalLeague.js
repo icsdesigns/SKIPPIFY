@@ -26,6 +26,10 @@ import { NostrTransport, DEFAULT_RELAYS } from '@/lib/localhost/nostrTransport'
 import { esCodigoExpres, formatearCodigo, generarCodigo, publicarExpres, resolverExpres, EXPRES_TTL_MS } from '@/lib/localhost/expres'
 import { actividadPorPersona, elegirExpulsados, LATIDO_MS, REVISION_MS } from '@/lib/localhost/inactividad'
 import { SEMANAS, decodeEscuchas, encodeEscuchas, partirEnLotes, ventanaSemana, puntuarSemana } from '@/lib/localhost/escuchas'
+import {
+  COLL_FUNCIONALIDAD, TOPE_FILAS, SUBIDA_TRAS_RESPUESTA_MS, desempaquetarRegistro, empaquetarRegistro,
+  puedeComprimir, registroMeta, registrosDeSubida, resumirFuncionalidad, tocaSubir
+} from '@/lib/localhost/funcionalidad'
 
 const STATE_KEY = 'skippify-localhost-state'
 const MAX_GROUPS = 5
@@ -78,6 +82,8 @@ const leaderboards = reactive({})
 const semanas = reactive({})
 /** { [groupId]: ms de la última sincronización con éxito } */
 const lastSyncByGroup = reactive({})
+/** { [groupId]: [{ id, nombre, yo, version, subidoEn, filas, total }] } — registros de funcionalidad. */
+const funcionalidad = reactive({})
 
 const runtimes = new Map()
 let kitPromise = null
@@ -280,6 +286,7 @@ function refreshMembers (groupId, group) {
       you: m.person === group.me.person
     }))
   members[groupId] = list
+  try { refrescarFuncionalidad(groupId, group, nombres) } catch { /* solo informativo */ }
   const meta = findGroup(groupId)
   if (meta) {
     meta.role = list.find(m => m.you)?.role || meta.role
@@ -707,6 +714,167 @@ async function publicarEscuchas (groupId, { desdeFondo = false } = {}) {
   return publicadas
 }
 
+// ── Registros de funcionalidad ──────────────────────────────────────────────
+//
+// Cada miembro publica la versión de su app (siempre) y, si lo permite en
+// Ajustes, su registro de funcionalidad (formato y límites en
+// lib/localhost/funcionalidad.js). Todo es secundario respecto al ranking: nunca
+// se espera a ello desde la sincronización y cualquier fallo se ignora y se
+// reintenta más tarde.
+
+const FUNC_KEY = 'skippify-funcionalidad-subida'
+let subiendoFuncionalidad = false
+
+function leerEstadoSubida () {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(FUNC_KEY) || '{}')
+    return parsed && typeof parsed === 'object' ? parsed : {}
+  } catch {
+    return {}
+  }
+}
+
+function guardarEstadoSubida (estado) {
+  try { localStorage.setItem(FUNC_KEY, JSON.stringify(estado)) } catch { /* se reintentará */ }
+}
+
+/** Registros de la colección con la persona sacada de la firma del evento, no del contenido. */
+function entradasFuncionalidad (group) {
+  const vista = group.membershipView()
+  const out = []
+  for (const item of group.records(COLL_FUNCIONALIDAD).items()) {
+    if (item.removed || !item.data) continue
+    const persona = vista.personOf(item.author)
+    if (persona) out.push({ id: item.id, persona, hlc: item.hlc, data: item.data })
+  }
+  return out
+}
+
+function refrescarFuncionalidad (groupId, group, nombres = nombresDe(group)) {
+  const resumen = resumirFuncionalidad(entradasFuncionalidad(group))
+  funcionalidad[groupId] = group.members()
+    .filter(m => !m.removed)
+    .map((m) => {
+      const r = resumen.get(m.person)
+      return {
+        id: m.person,
+        nombre: nombres.get(m.person) || m.name || 'Sin nombre',
+        yo: m.person === group.me.person,
+        version: r?.version || '',
+        subidoEn: r?.completa ? r.subidaEn : 0,
+        filas: r?.completa ? r.filas : 0,
+        total: r?.completa ? r.total : 0
+      }
+    })
+}
+
+async function publicarFuncionalidad (groupId) {
+  // Con la app en segundo plano (WebView del servicio) no hay puente al registro.
+  if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return
+  const rt = runtimes.get(groupId)
+  if (!rt || rt.group.status !== 'ready' || !rt.group.canSeal() || rt.group.removedInOwnView()) return
+  const { group } = rt
+  const coll = group.records(COLL_FUNCIONALIDAD)
+  const mio = resumirFuncionalidad(entradasFuncionalidad(group)).get(group.me.person)
+  const ahora = Date.now()
+
+  // 1. La versión, se comparta o no el registro: se anota al cambiar y se retira la anterior.
+  const app = typeof __APP_VERSION__ === 'string' ? __APP_VERSION__ : ''
+  if (app && mio?.version !== app) {
+    await coll.add(registroMeta(app, ahora))
+    for (const id of mio?.ids.meta || []) await coll.remove(id)
+  }
+
+  const reg = await import('@/composables/usePlayLog')
+  const { compartir } = await reg.leerAjustesFundido()
+
+  // 2. Compartir apagado: lo ya publicado se retira del grupo.
+  if (!compartir) {
+    for (const id of mio?.ids.trozos || []) await coll.remove(id)
+    return
+  }
+  if (!puedeComprimir()) return
+
+  // 3. Aún no toca: ni se lee el registro.
+  const estado = leerEstadoSubida()
+  const previo = estado[groupId]
+  if (previo?.at && !previo.fallo && ahora - previo.at < SUBIDA_TRAS_RESPUESTA_MS) return
+  const resumenLocal = await reg.leerResumenRegistro()
+  if (!resumenLocal || !tocaSubir(previo, { filas: resumenLocal.filas, respuestaMasReciente: resumenLocal.respuestaMasReciente }, ahora)) return
+
+  try {
+    const local = await reg.leerRegistroParaGrupos(TOPE_FILAS)
+    if (!local || !local.filas.length) return
+    const emp = await empaquetarRegistro({ filas: local.filas, sesiones: local.sesiones, total: local.total }, ahora)
+    if (!emp) return
+    const trozosViejos = mio?.ids.trozos || []
+    for (const dato of registrosDeSubida(emp.piezas, { app, filas: emp.filas, total: local.total }, ahora)) {
+      await coll.add(dato)
+    }
+    // Los trozos de la subida anterior se retiran DESPUÉS de publicar los nuevos.
+    for (const id of trozosViejos) await coll.remove(id)
+    estado[groupId] = { at: ahora, respuestaAt: local.respuestaMasReciente }
+  } catch {
+    // Sin red o relays caídos: se anota el fallo y se reintenta pasado un rato.
+    estado[groupId] = { ...(previo || {}), fallo: ahora }
+  }
+  guardarEstadoSubida(estado)
+}
+
+/** Lanza la publicación sin esperarla: solo una a la vez y sin que un error llegue a nadie. */
+function publicarFuncionalidadEnSegundoPlano (groupId) {
+  if (subiendoFuncionalidad) return
+  subiendoFuncionalidad = true
+  publicarFuncionalidad(groupId)
+    .catch(() => { /* en silencio: se reintenta en la siguiente sincronización */ })
+    .finally(() => { subiendoFuncionalidad = false })
+}
+
+/**
+ * Descarga como JSON el registro de un miembro (o de todos si `uid` es null).
+ * Devuelve la ruta del fichero. La clave de descarga se pide en la interfaz.
+ */
+async function descargarFuncionalidad (groupId, uid = null) {
+  const rt = runtimes.get(groupId)
+  if (!rt) throw new Error('Abre el grupo para descargar sus registros.')
+  const resumen = resumirFuncionalidad(entradasFuncionalidad(rt.group))
+  const nombres = nombresDe(rt.group)
+  const iso = ms => (Number.isFinite(ms) && ms > 0 ? new Date(ms).toISOString() : null)
+
+  const miembros = []
+  for (const persona of uid ? [uid] : [...resumen.keys()]) {
+    const r = resumen.get(persona)
+    if (!r?.completa) continue
+    const reg = await desempaquetarRegistro(r.piezas)
+    if (!reg) continue
+    miembros.push({
+      miembro: nombres.get(persona) || 'Sin nombre',
+      versionApp: r.version,
+      subidoEn: iso(r.subidaEn),
+      filasSubidas: reg.filas.length,
+      filasEnSuMovil: reg.total,
+      sesionesDeEscucha: reg.sesiones.map(x => ({ ...x, inicio: iso(x.inicio), fin: iso(x.fin), respuestaEn: iso(x.respuestaEn) })),
+      registro: reg.filas.map(x => ({ ...x, startedAt: iso(x.startedAt), endedAt: iso(x.endedAt) }))
+    })
+  }
+  if (!miembros.length) throw new Error(uid ? 'Ese miembro no ha subido su registro.' : 'Nadie ha subido su registro todavía.')
+
+  const grupo = (findGroup(groupId)?.name || 'grupo').toString()
+  const limpio = t => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Za-z0-9_-]+/g, '_').slice(0, 30)
+  const reglas = await import('@/composables/usePlayLog')
+  const payload = {
+    schema: 'skippify-play-log-grupo',
+    version: 1,
+    descargadoEn: new Date().toISOString(),
+    grupo,
+    miembros
+  }
+  return reglas.saveJson(
+    `skippify-registro-funcionalidad-${limpio(grupo)}-${uid ? limpio(miembros[0].miembro) : 'todos'}-${reglas.stampDeFichero()}.json`,
+    JSON.stringify(payload, null, 2)
+  )
+}
+
 // ── Ranking ─────────────────────────────────────────────────────────────────
 
 async function calcularRanking (groupId, cual = 'actual', leidas = null) {
@@ -857,6 +1025,7 @@ async function syncGroup (groupId, { silent = true } = {}) {
     if (rt.group.status === 'ready' && !rt.group.removedInOwnView()) {
       await asegurarPerfil(rt.group)
       await publicarEscuchas(groupId)
+      publicarFuncionalidadEnSegundoPlano(groupId)
       try { await mantenimiento(groupId, rt, report) } catch { /* se reintenta en la siguiente */ }
     }
     refreshMembers(groupId, rt.group)
@@ -1018,6 +1187,8 @@ export function useLocalLeague () {
     leaderboards,
     semanas,
     lastSyncByGroup,
+    funcionalidad,
+    descargarFuncionalidad,
     activeMembers: computed(() => members[state.value.activeGroupId] || []),
     activeLeaderboard: computed(() => leaderboards[state.value.activeGroupId] || null),
     syncing,

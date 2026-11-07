@@ -155,6 +155,11 @@
       </template>
     </SeccionGrupo>
 
+    <!-- ── Registros de funcionalidad ──────────────────────────────────── -->
+    <SeccionGrupo id="registros" titulo="Registros de funcionalidad" icono="copy">
+      <RegistrosFuncionalidad :registros="registros" :descargar="descargarRegistro" />
+    </SeccionGrupo>
+
     <!-- ── Invitar y abandonar ──────────────────────────────────────────── -->
     <footer class="border-t border-white/[0.07] px-5 py-4">
       <div class="flex gap-2">
@@ -180,7 +185,9 @@
 /**
  * Detalle de un grupo (va dentro de su panel plegable, que ya muestra el nombre y
  * el número de miembros): barra con cambiar nombre (administrador) y actualizar; el ranking y la escucha común (cada uno con su desplegable de
- * semana: actual, anterior y hace dos); y los botones de invitar y abandonar.
+ * semana: actual, anterior y hace dos); los registros de funcionalidad de los
+ * miembros (versión de la app y descarga con clave); y los botones de invitar y
+ * abandonar.
  *
  * Es sólo presentación. Invitar y expulsar son cosa del administrador: el botón
  * y la acción de cada ficha sólo salen con `esAdmin`, y el kit lo vuelve a
@@ -191,6 +198,7 @@ import GrupoIcono from './GrupoIcono.js'
 import MiembroFicha from './MiembroFicha.vue'
 import SeccionGrupo from './SeccionGrupo.vue'
 import SelectorSemana from './SelectorSemana.vue'
+import RegistrosFuncionalidad from './RegistrosFuncionalidad.vue'
 import { inicialDe, proporciones } from '@/lib/gruposResumen'
 import { paresEnComun } from '@/lib/gruposExtras'
 
@@ -207,7 +215,11 @@ const props = defineProps({
   puedeInvitar: { type: Boolean, default: true },
   invitando: { type: Boolean, default: false },
   actualizando: { type: Boolean, default: false },
-  ultimaSync: { type: String, default: '' }
+  ultimaSync: { type: String, default: '' },
+  /** [{ id, nombre, yo, version, subidoEn, filas, total }] — versión y registro de cada miembro. */
+  registros: { type: Array, default: () => [] },
+  /** async (id | null) => ruta del JSON descargado. */
+  descargarRegistro: { type: Function, default: async () => '' }
 })
 const emit = defineEmits(['actualizar', 'invitar', 'abandonar', 'expulsar', 'renombrar'])
 
