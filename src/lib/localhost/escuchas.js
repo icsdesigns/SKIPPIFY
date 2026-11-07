@@ -22,20 +22,20 @@ export function partirEnLotes (tuplas, tamano = ESCUCHAS_POR_LOTE) {
   return lotes
 }
 
-function aBase64 (bytes) {
+export function aBase64 (bytes) {
   let s = ''
   for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode(...bytes.subarray(i, i + 0x8000))
   return btoa(s)
 }
 
-function deBase64 (b64) {
+export function deBase64 (b64) {
   const s = atob(b64)
   const out = new Uint8Array(s.length)
   for (let i = 0; i < s.length; i += 1) out[i] = s.charCodeAt(i)
   return out
 }
 
-async function pasar (bytes, stream) {
+export async function pasar (bytes, stream) {
   const resp = new Response(new Blob([bytes]).stream().pipeThrough(stream))
   return new Uint8Array(await resp.arrayBuffer())
 }
