@@ -209,6 +209,8 @@ export function calcularWrapped (eventos, clave = 'week', ahoraMs = Date.now(), 
     3
   )
 
+  // Mejor racha DENTRO del periodo elegido (la imagen lo rotula «En este periodo»).
+  // En «Este año» coincide con el cartel de Estadísticas, que usa 365 días.
   const racha = calcularRacha(lista, ahoraMs, periodo.dias)
   const v = Number.isFinite(variedad) ? Math.max(0, Math.min(100, Math.round(variedad))) : null
 

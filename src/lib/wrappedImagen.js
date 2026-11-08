@@ -7,7 +7,7 @@
  * Todo texto variable se recorta con puntos suspensivos MIDIENDO con
  * `ctx.measureText`: nada se sale de su tarjeta.
  */
-import { BRAND_S_PATH, BRAND_S_WIDTH, BRAND_GRADIENT } from '@/lib/brandMark'
+import { BRAND_S_PATH, BRAND_S_WIDTH } from '@/lib/brandMark'
 import { STAT_ICONOS } from '@/lib/statIconos'
 
 export const WRAPPED_ANCHO = 1080
@@ -115,13 +115,20 @@ function tesela (ctx, nombre, x, y, size, { fondo = C.teselaVerde, color = C.ver
 }
 
 function marca (ctx, x, y, size) {
+  // Igual que en la app (cabecera y barra lateral): disco verde de marca con la
+  // «S» en negro, a 0,55 del diámetro.
+  ctx.fillStyle = C.verde
+  ctx.beginPath()
+  ctx.arc(x + size / 2, y + size / 2, size / 2, 0, Math.PI * 2)
+  ctx.fill()
+  const m = size * 0.56
+  x += (size - m) / 2
+  y += (size - m) / 2
+  size = m
   ctx.save()
   ctx.translate(x, y)
   ctx.scale(size / 24, size / 24)
-  // Del azul de la base al lima del remate, igual que BrandMark con `gradient`.
-  const g = ctx.createLinearGradient(0, 24, 24, 0)
-  for (const stop of BRAND_GRADIENT) g.addColorStop(stop.offset, stop.color)
-  ctx.strokeStyle = g
+  ctx.strokeStyle = '#000000'
   ctx.lineWidth = BRAND_S_WIDTH
   ctx.lineCap = 'round'
   ctx.lineJoin = 'round'
@@ -181,11 +188,11 @@ function sinDatos (ctx, x, y, w, alto) {
 function minitarjeta (ctx, x, y, w, h, nombreIcono, etiqueta, valor, pista) {
   tarjeta(ctx, x, y, w, h)
   const pad = 28
-  texto(ctx, etiqueta, x + pad, y + 50, { peso: 700, px: 21, color: C.gris400, ls: 1.6, max: w - pad * 2 - 56 })
-  tesela(ctx, nombreIcono, x + w - pad - 52, y + pad - 4, 52)
+  tesela(ctx, nombreIcono, x + pad, y + 24, 52)
+  texto(ctx, etiqueta, x + pad, y + 122, { peso: 700, px: 24, color: C.gris400, ls: 1.2, max: w - pad * 2 })
   const px = ajustarPx(ctx, 800, valor, 58, 30, w - pad * 2)
-  texto(ctx, valor, x + pad, y + 123, { peso: 800, px, color: C.blanco, max: w - pad * 2, ls: -1 })
-  texto(ctx, pista, x + pad, y + 162, { peso: 500, px: 21, color: C.gris500, max: w - pad * 2 })
+  texto(ctx, valor, x + pad, y + 180, { peso: 800, px, color: C.blanco, max: w - pad * 2, ls: -1 })
+  texto(ctx, pista, x + pad, y + 218, { peso: 500, px: 26, color: C.gris400, max: w - pad * 2 })
 }
 
 /**
@@ -205,8 +212,13 @@ export function dibujarWrapped (canvas, datos) {
   g.addColorStop(1, 'rgba(30, 215, 96, 0)')
   ctx.fillStyle = g
   ctx.fillRect(0, 0, WRAPPED_ANCHO, WRAPPED_ALTO)
-  g = ctx.createRadialGradient(0, WRAPPED_ALTO, 0, 0, WRAPPED_ALTO, 900)
-  g.addColorStop(0, 'rgba(30, 215, 96, 0.09)')
+  g = ctx.createRadialGradient(0, WRAPPED_ALTO, 0, 0, WRAPPED_ALTO, 1150)
+  g.addColorStop(0, 'rgba(30, 215, 96, 0.24)')
+  g.addColorStop(1, 'rgba(30, 215, 96, 0)')
+  ctx.fillStyle = g
+  ctx.fillRect(0, 0, WRAPPED_ANCHO, WRAPPED_ALTO)
+  g = ctx.createRadialGradient(WRAPPED_ANCHO, WRAPPED_ALTO * 0.64, 0, WRAPPED_ANCHO, WRAPPED_ALTO * 0.64, 800)
+  g.addColorStop(0, 'rgba(30, 215, 96, 0.10)')
   g.addColorStop(1, 'rgba(30, 215, 96, 0)')
   ctx.fillStyle = g
   ctx.fillRect(0, 0, WRAPPED_ANCHO, WRAPPED_ALTO)
@@ -231,7 +243,7 @@ export function dibujarWrapped (canvas, datos) {
 
   // ── Tiempo escuchado ──────────────────────────────────────────────────────
   let y = 368
-  const hHero = 262
+  const hHero = 250
   tarjeta(ctx, M, y, CW, hHero)
   tesela(ctx, 'reloj', M + 36, y + 36, 112)
   const hx = M + 36 + 112 + 32
@@ -243,10 +255,10 @@ export function dibujarWrapped (canvas, datos) {
     ? 'Sin escuchas registradas'
     : `${datos.escuchas} ${datos.escuchas === 1 ? 'escucha' : 'escuchas'} · ${datos.cancionesDistintas} ${datos.cancionesDistintas === 1 ? 'canción distinta' : 'canciones distintas'}`
   texto(ctx, detalle, M + 40, y + hHero - 38, { peso: 600, px: 28, color: C.gris400, max: CW - 80 })
-  y += hHero + 28
+  y += hHero + 24
 
   // ── Top canciones ─────────────────────────────────────────────────────────
-  const altoCan = 110
+  const altoCan = 104
   const hCan = 36 + 68 + 22 + altoCan * 3 + 18
   tarjeta(ctx, M, y, CW, hCan)
   cabeceraTarjeta(ctx, M, y, 'cancion', 'Top canciones')
@@ -256,10 +268,10 @@ export function dibujarWrapped (canvas, datos) {
   } else {
     sinDatos(ctx, M + 36, ry, CW - 72, altoCan * 3 - 8)
   }
-  y += hCan + 28
+  y += hCan + 24
 
   // ── Top artistas ──────────────────────────────────────────────────────────
-  const altoArt = 90
+  const altoArt = 84
   const hArt = 36 + 68 + 22 + altoArt * 3 + 18
   tarjeta(ctx, M, y, CW, hArt)
   cabeceraTarjeta(ctx, M, y, 'artista', 'Top artistas')
@@ -269,23 +281,25 @@ export function dibujarWrapped (canvas, datos) {
   } else {
     sinDatos(ctx, M + 36, ay, CW - 72, altoArt * 3 - 8)
   }
-  y += hArt + 28
+  y += hArt + 24
 
   // ── Hora favorita · mejor racha · variedad ────────────────────────────────
+  // Siempre tres: la tercera es la variedad si se conoce y, si no, las canciones distintas.
+  // La racha se mide DENTRO del periodo (en «Este año» coincide con la cifra de Estadísticas).
   const minis = [
-    { icono: 'reloj', etiqueta: 'HORA FAVORITA', valor: datos.horaFavorita ? datos.horaFavorita.etiqueta : '—', pista: 'Cuando más escuchas' },
-    { icono: 'racha', etiqueta: 'MEJOR RACHA', valor: `${datos.mejorRacha} ${datos.mejorRacha === 1 ? 'día' : 'días'}`, pista: 'Seguidos con música' }
+    { icono: 'reloj', etiqueta: 'HORA FAVORITA', valor: datos.horaFavorita ? datos.horaFavorita.etiqueta : '—', pista: 'Tu hora punta' },
+    { icono: 'racha', etiqueta: 'MEJOR RACHA', valor: `${datos.mejorRacha} ${datos.mejorRacha === 1 ? 'día' : 'días'}`, pista: 'En este periodo' },
+    (datos.variedad !== null && datos.variedad !== undefined)
+      ? { icono: 'variedad', etiqueta: 'VARIEDAD', valor: `${datos.variedad} %`, pista: 'Sin repetir' }
+      : { icono: 'cancion', etiqueta: 'CANCIONES', valor: String(datos.cancionesDistintas), pista: 'Distintas' }
   ]
-  if (datos.variedad !== null && datos.variedad !== undefined) {
-    minis.push({ icono: 'variedad', etiqueta: 'VARIEDAD', valor: `${datos.variedad} %`, pista: 'Sin repetir canciones' })
-  }
   const hueco = 24
   const wMini = (CW - hueco * (minis.length - 1)) / minis.length
-  const hMini = 190
+  const hMini = 232
   minis.forEach((m, i) => minitarjeta(ctx, M + i * (wMini + hueco), y, wMini, hMini, m.icono, m.etiqueta, m.valor, m.pista))
 
   // ── Pie ───────────────────────────────────────────────────────────────────
-  texto(ctx, 'Hecho con Skippify', WRAPPED_ANCHO / 2, WRAPPED_ALTO - 52, { peso: 600, px: 26, color: C.gris600, align: 'center' })
+  texto(ctx, 'Hecho con Skippify', WRAPPED_ANCHO / 2, WRAPPED_ALTO - 46, { peso: 600, px: 26, color: C.gris600, align: 'center' })
 
   return canvas
 }

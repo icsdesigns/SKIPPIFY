@@ -48,7 +48,13 @@
                 :class="i === 0 ? 'bg-brand-400 text-black' : 'bg-white/[0.08] text-slate-300'"
               >{{ i + 1 }}</span>
               <!-- En «Top canciones» el artista va a continuación del título, con un guion. -->
-              <span class="min-w-0 flex-1 line-clamp-2 text-sm font-semibold text-white [overflow-wrap:anywhere]">{{ item.name }}<span v-if="board.withArtist && item.sub" class="font-medium text-slate-400"> - {{ item.sub }}</span></span>
+              <!-- Canciones: el título se recorta con «…» y el «- Artista» se queda siempre
+                   visible (con su propio máximo). Artistas: hasta dos líneas. -->
+              <span v-if="board.withArtist" class="flex min-w-0 flex-1 items-baseline gap-1.5 text-sm" :title="item.sub ? `${item.name} - ${item.sub}` : item.name">
+                <span class="min-w-0 truncate font-semibold text-white">{{ item.name }}</span>
+                <span v-if="item.sub" class="max-w-[50%] shrink-0 truncate font-medium text-slate-400">- {{ item.sub }}</span>
+              </span>
+              <span v-else class="min-w-0 flex-1 line-clamp-2 text-sm font-semibold text-white [overflow-wrap:anywhere]">{{ item.name }}</span>
               <span class="shrink-0 font-mono text-sm font-bold tabular-nums text-brand-400">{{ item.count }}</span>
             </div>
           </li>
@@ -122,7 +128,7 @@
            entra entera hasta en las pantallas más estrechas. -->
       <div class="pb-1">
         <div class="w-full">
-          <div class="grid gap-[3px] sm:gap-1" style="grid-template-columns: 22px repeat(7, minmax(0, 1fr)) 30px;">
+          <div class="grid gap-[3px] sm:gap-1" style="grid-template-columns: 22px repeat(7, minmax(0, 1fr)) minmax(40px, 0.5fr);">
             <div />
             <div
               v-for="day in heatmapDays"
