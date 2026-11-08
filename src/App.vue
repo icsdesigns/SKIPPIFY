@@ -102,14 +102,16 @@
             </svg>
           </button>
 
-          <!-- Guía de Macros: sólo en esa pestaña, para repasarla cuando se quiera. -->
+          <!-- Guía de la pestaña actual (si tiene una): para repasarla cuando se
+               quiera. Cada guía se registra en src/guias/index.js y este botón
+               sirve para todas. -->
           <button
-            v-if="macrosGuide.showHeaderIcon.value && route.path === '/macros'"
+            v-if="guiaActual && guiaActual.showHeaderIcon.value"
             type="button"
-            data-tour="macros-guide"
+            :data-tour="`guia-${guiaActual.id}`"
             class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-400/[0.18] text-brand-300 transition-colors hover:bg-brand-400/[0.28]"
-            aria-label="Ver la guía de Macros"
-            @click="macrosGuide.open()"
+            :aria-label="guiaActual.botonLabel"
+            @click="guiaActual.open()"
           >
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <circle cx="12" cy="12" r="9" />
@@ -190,7 +192,7 @@ import { useEventStore } from '@/stores/events'
 import { useAppUpdate } from '@/composables/useAppUpdate'
 import { useLocalLeague } from '@/composables/useLocalLeague'
 import { useTour } from '@/composables/useTour'
-import { useMacrosGuide } from '@/composables/useMacrosGuide'
+import { guiaDeRuta } from '@/guias'
 
 // Vestigio del cajón lateral que había en móvil, ahora sustituido por la barra
 // de pestañas inferior. AppSidebar sigue declarando la prop: quitarlo obligaría
@@ -206,7 +208,7 @@ const nowPlaying = ref({ mode: 'stopped' })
 const router = useRouter()
 const route = useRoute()
 const tour = useTour()
-const macrosGuide = useMacrosGuide()
+const guiaActual = computed(() => guiaDeRuta(route.path))
 const showSplash = ref(true)
 const scrolled = ref(false)
 const SPLASH_MS = 1500

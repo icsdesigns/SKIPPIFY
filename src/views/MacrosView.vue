@@ -3,7 +3,7 @@
 
     <!-- Guía animada: se abre sola la primera vez; después, desde el icono de
          la cabecera. -->
-    <MacrosGuide />
+    <GuiaInteractiva :guia="guiaMacros" />
 
     <!-- Todos los paneles de la pestaña son plegables y nacen plegados. -->
 
@@ -809,8 +809,8 @@ import AjusteIcon from '@/components/AjusteIcon.vue'
 import OpcionFila from '@/components/OpcionFila.vue'
 import FeaturePanel from '@/components/FeaturePanel.vue'
 import MacroIcon from '@/components/MacroIcon.vue'
-import MacrosGuide from '@/components/MacrosGuide.vue'
-import { useMacrosGuide } from '@/composables/useMacrosGuide'
+import GuiaInteractiva from '@/components/GuiaInteractiva.vue'
+import { guiaMacros } from '@/guias'
 import { useTour } from '@/composables/useTour'
 import {
   useMacros,
@@ -1317,13 +1317,12 @@ async function onVisibilityChange () {
   if (connected.value && !loadingPlaylists.value) await loadPlaylists()
 }
 
-const macrosGuide = useMacrosGuide()
 const tour = useTour()
 
 onMounted(async () => {
   // Primera visita a la pestaña: la guía se abre sola, una única vez. Si el
   // tour de la app está a la vista, espera: dos paneles a la vez no se leen.
-  if (!tour.state.open) macrosGuide.autoStart()
+  if (!tour.state.open) guiaMacros.autoStart()
 
   // Vuelta del navegador: en la app llega por evento nativo; en el navegador,
   // en la propia barra de direcciones.

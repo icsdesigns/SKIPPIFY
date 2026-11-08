@@ -20,8 +20,10 @@ import AppTour from '../src/components/AppTour.vue'
 import { useFeatures, sanitizeListeningMode } from '../src/composables/useFeatures.js'
 import { useNotifListener } from '../src/composables/useNotifListener.js'
 import { useTour, TOUR_STEPS, TOUR_KEY } from '../src/composables/useTour.js'
-import MacrosGuide from '../src/components/MacrosGuide.vue'
-import { useMacrosGuide, MACROS_GUIDE_STEPS, MACROS_GUIDE_KEY } from '../src/composables/useMacrosGuide.js'
+import GuiaInteractiva from '../src/components/GuiaInteractiva.vue'
+import { guiaMacros, GUIAS, guiaDeRuta } from '../src/guias/index.js'
+import { crearGuia } from '../src/composables/crearGuia.js'
+import { MACROS_GUIDE_STEPS, MACROS_GUIDE_KEY } from '../src/guias/macros.js'
 
 const failures = []
 const FEATURES_KEY = 'skippify-features'
@@ -135,8 +137,10 @@ async function main () {
   check('y se construye con los componentes de la app (StatTile)', html.includes('sk-stat-hint') || html.includes('sk-eyebrow'))
   check('tiene el botón «Abrir esta ventana»', html.includes('Abrir esta ventana'))
   check('en el primer paso «Anterior» está desactivado', /disabled[^>]*>\s*Anterior/.test(html))
-  const puntos = (html.match(/<li class="flex items-start gap-2\.5/g) || []).length
-  check('con entre dos y cuatro viñetas', puntos >= 2 && puntos <= 4, `(hay ${puntos})`)
+  const puntos = (html.match(/<li><div class="[^"]*rounded-xl border/g) || []).length
+  check('con entre dos y cuatro tarjetas de opción', puntos >= 2 && puntos <= 4, `(hay ${puntos})`)
+  check('compactas (tesela de 40 px, no la grande)', html.includes('h-10 w-10 rounded-xl') && !html.includes('h-14 w-14'))
+  check('y sin viñetas sueltas', !html.includes('rounded-full bg-brand-400'))
 
   console.log('\nEstado del tour')
 
@@ -252,17 +256,22 @@ async function main () {
 
   console.log('\nGuía animada de Macros')
 
-  const g = useMacrosGuide()
+  const g = guiaMacros
   g.reset()
   check('antes de la primera visita no hay icono en la cabecera', g.showHeaderIcon.value === false)
   check('la primera visita la abre sola', g.autoStart() === true && g.state.open === true)
   check('desde el primer paso', g.state.step === 0)
   check('con el panel abierto no se enseña el icono', g.showHeaderIcon.value === false)
 
-  const pintarG = () => renderToString(createSSRApp({ components: { MacrosGuide }, template: '<MacrosGuide />' }))
+  const pintarG = () => renderToString(createSSRApp({
+    components: { GuiaInteractiva },
+    setup: () => ({ guia: guiaMacros }),
+    template: '<GuiaInteractiva :guia="guia" />'
+  }))
   const htmlG = await pintarG()
   check('el panel se pinta', htmlG.includes('Cómo funciona la pestaña Macros'))
-  check('son tres pasos', htmlG.includes('1 / 3') && (htmlG.match(/class="[^"]*mg-dot[ "]/g) || []).length === MACROS_GUIDE_STEPS)
+  check('son tres pasos', htmlG.includes('1 / 3') && (htmlG.match(/class="[^"]*gi-dot[ "]/g) || []).length === MACROS_GUIDE_STEPS)
+  check('los puntos son tarjetas de opción compactas', htmlG.includes('h-10 w-10 rounded-xl') && htmlG.includes('Crea una aplicación'))
   check('el primero es conectar la cuenta', htmlG.includes('Conecta tu cuenta de Spotify') && htmlG.includes('mg-typed'))
 
   g.next()
@@ -289,6 +298,25 @@ async function main () {
   check('y ya no se abre sola', g.autoStart() === false && g.state.open === false)
   const guardadoG = JSON.parse(globalThis.localStorage.getItem(MACROS_GUIDE_KEY) || '{}')
   check('lo visto se guarda', guardadoG.seen === true)
+
+  console.log('\nFábrica de guías')
+
+  const guiaPrueba = crearGuia({
+    id: 'prueba', clave: 'skippify.prueba-guide.v1', ruta: '/prueba', etiqueta: 'Prueba',
+    pasos: [
+      { id: 'a', titulo: 'Uno', puntos: [{ icono: 'ajuste:ayuda', titulo: 'T', detalle: 'D' }] },
+      { id: 'b', titulo: 'Dos', puntos: [{ icono: 'macro:copiar', titulo: 'T2', detalle: 'D2' }] }
+    ]
+  })
+  check('cada guía tiene su propia clave y su propio estado',
+    guiaPrueba.clave !== MACROS_GUIDE_KEY && guiaPrueba.state !== guiaMacros.state)
+  check('la cabecera encuentra la guía por la ruta', guiaDeRuta('/prueba') === guiaPrueba && guiaDeRuta('/macros') === guiaMacros)
+  check('una pestaña sin guía no tiene botón', guiaDeRuta('/stats') === null)
+  check('Macros figura en la lista de guías', GUIAS.includes(guiaMacros))
+  guiaPrueba.autoStart(); guiaPrueba.next(); guiaPrueba.next()
+  check('la guía nueva avanza y se detiene en el último paso', guiaPrueba.state.step === 1)
+  check('y guarda en su clave, no en la de Macros',
+    JSON.parse(globalThis.localStorage.getItem('skippify.prueba-guide.v1') || '{}').seen === true)
 
   console.log(`\nGuía rápida: ${failures.length ? `${failures.length} fallo(s)` : 'todo correcto'}.`)
   // Salida explícita: montar la app deja temporizadores vivos (el reloj de

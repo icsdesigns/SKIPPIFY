@@ -40,12 +40,8 @@
           <component :is="paso.schema" :key="paso.id" />
         </div>
 
-        <ul class="mt-4 space-y-2">
-          <li v-for="punto in paso.points" :key="punto" class="flex items-start gap-2.5 text-sm leading-snug text-slate-300">
-            <span class="mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full bg-brand-400" aria-hidden="true" />
-            <span>{{ punto }}</span>
-          </li>
-        </ul>
+        <!-- Cada punto, como tarjeta de opción compacta (mismo formato que las guías). -->
+        <GuiaPuntos class="mt-4" :puntos="paso.points" />
 
         <button type="button" class="sk-btn sk-btn-ghost mt-4 w-full" @click="abrirVentana">
           Abrir esta ventana
@@ -87,7 +83,7 @@
  *
  * Cada paso enseña un esquema de la pantalla (hecho con los mismos
  * componentes y estilos que la app, con datos de ejemplo y sin interacción),
- * unos puntos clave y un botón que lleva a la pantalla de verdad. El estado
+ * unos puntos clave —tarjetas de opción compactas, con icono— y un botón que lleva a la pantalla de verdad. El estado
  * (paso, minimizado, terminado) vive en `useTour` y se guarda en el navegador.
  * El panel sigue el estilo del tour de Salbus: velo detrás, versión arriba,
  * un punto por paso y los dos botones a lo ancho.
@@ -95,6 +91,7 @@
 import { computed, nextTick, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useTour } from '@/composables/useTour'
+import GuiaPuntos from '@/components/GuiaPuntos.vue'
 import SchemaInicio from '@/components/tour/SchemaInicio.vue'
 import SchemaStats from '@/components/tour/SchemaStats.vue'
 import SchemaFunciones from '@/components/tour/SchemaFunciones.vue'
@@ -120,9 +117,9 @@ const STEPS = [
     route: '/',
     schema: SchemaInicio,
     points: [
-      'Aquí ves qué suena ahora, con su avance.',
-      'Las tarjetas resumen tu semana.',
-      'Más abajo, el historial de lo que has escuchado.'
+      { icono: 'ajuste:play', titulo: 'Ahora suena', detalle: 'Aquí ves qué suena ahora, con su avance.' },
+      { icono: 'ajuste:registro', titulo: 'Tu semana', detalle: 'Las tarjetas resumen tu semana.' },
+      { icono: 'ajuste:reloj', titulo: 'Historial', detalle: 'Más abajo, el historial de lo que has escuchado.' }
     ]
   },
   {
@@ -131,9 +128,9 @@ const STEPS = [
     route: '/stats',
     schema: SchemaStats,
     points: [
-      'Rankings de tus canciones y artistas.',
-      'Cámbialos entre semana, mes y año.',
-      'Rachas de escucha, horas por mes y un mapa de calor con tus horas punta.'
+      { icono: 'macro:top', titulo: 'Rankings', detalle: 'Rankings de tus canciones y artistas.' },
+      { icono: 'ajuste:calibrar', titulo: 'Semana, mes y año', detalle: 'Cámbialos entre semana, mes y año.' },
+      { icono: 'ajuste:umbral', titulo: 'Rachas y horas punta', detalle: 'Rachas de escucha, horas por mes y un mapa de calor con tus horas punta.' }
     ]
   },
   {
@@ -142,10 +139,10 @@ const STEPS = [
     route: '/features',
     schema: SchemaFunciones,
     points: [
-      'Salta las canciones que ya has oído hace poco.',
-      'Elige un modo: Descubrimiento, Casual o Personalizado.',
-      'Silencia los anuncios si no tienes Premium.',
-      'Programa un temporizador para dormirte con música.'
+      { icono: 'feature:salto', titulo: 'Saltar repetidas', detalle: 'Salta las canciones que ya has oído hace poco.' },
+      { icono: 'ajuste:brujula', titulo: 'Modo de escucha', detalle: 'Elige un modo: Descubrimiento, Casual o Personalizado.' },
+      { icono: 'feature:silencio', titulo: 'Sin anuncios', detalle: 'Silencia los anuncios si no tienes Premium.' },
+      { icono: 'feature:luna', titulo: 'Temporizador', detalle: 'Programa un temporizador para dormirte con música.' }
     ]
   },
   {
@@ -154,9 +151,9 @@ const STEPS = [
     route: '/comunidad',
     schema: SchemaComunidad,
     points: [
-      'Crea un grupo o únete con un código de invitación.',
-      'Compara el ranking y la escucha en común, esta semana o las anteriores.',
-      'Los grupos viven en vuestros móviles, sin servidor.'
+      { icono: 'ajuste:cuenta', titulo: 'Crea o únete', detalle: 'Crea un grupo o únete con un código de invitación.' },
+      { icono: 'macro:top', titulo: 'Compara', detalle: 'Compara el ranking y la escucha en común, esta semana o las anteriores.' },
+      { icono: 'ajuste:antena', titulo: 'Sin servidor', detalle: 'Los grupos viven en vuestros móviles, sin servidor.' }
     ]
   },
   {
@@ -165,9 +162,9 @@ const STEPS = [
     route: '/macros',
     schema: SchemaMacros,
     points: [
-      'Encadena un origen, una acción y un destino.',
-      'Por ejemplo: copiar las novedades de una playlist a Tus me gusta.',
-      'Se ejecutan con la app abierta y recuerdan por dónde iban.'
+      { icono: 'macro:nueva', titulo: 'Origen, acción, destino', detalle: 'Encadena un origen, una acción y un destino.' },
+      { icono: 'macro:copiar', titulo: 'Un ejemplo', detalle: 'Por ejemplo: copiar las novedades de una playlist a Tus me gusta.' },
+      { icono: 'macro:reiniciar', titulo: 'Con memoria', detalle: 'Se ejecutan con la app abierta y recuerdan por dónde iban.' }
     ]
   },
   {
@@ -176,10 +173,10 @@ const STEPS = [
     route: '/settings',
     schema: SchemaAjustes,
     points: [
-      'Concede los tres permisos: sin ellos Skippify no oye lo que suena.',
-      'Haz copias del historial y restáuralas cuando quieras.',
-      'Limpia los datos antiguos.',
-      'Para repetir este tour: Ajustes, Ayuda, Tour de la app.'
+      { icono: 'ajuste:escudo', titulo: 'Los tres permisos', detalle: 'Concede los tres permisos: sin ellos Skippify no oye lo que suena.', tono: 'amber' },
+      { icono: 'ajuste:copia', titulo: 'Copias', detalle: 'Haz copias del historial y restáuralas cuando quieras.' },
+      { icono: 'macro:vaciar', titulo: 'Limpieza', detalle: 'Limpia los datos antiguos.' },
+      { icono: 'ajuste:tour', titulo: 'Repetir el tour', detalle: 'Para repetir este tour: Ajustes, Ayuda, Tour de la app.' }
     ]
   }
 ]

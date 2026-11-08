@@ -1,19 +1,19 @@
 <template>
   <component
     :is="as"
-    class="flex items-center gap-3.5 rounded-xl border p-3 text-left transition-all"
-    :class="clases"
+    class="flex items-center rounded-xl border text-left transition-all"
+    :class="[compacta ? 'gap-3 p-2.5' : 'gap-3.5 p-3', clases]"
     :type="as === 'button' ? 'button' : undefined"
   >
     <!-- Icono grande a la izquierda: es lo que da a «Crear una macro» su
          aspecto y lo que se reparte ahora por el resto de pestañas. -->
     <span
-      class="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl transition-colors"
-      :class="teselaClase"
+      class="flex shrink-0 items-center justify-center transition-colors"
+      :class="[compacta ? 'h-10 w-10 rounded-xl' : 'h-14 w-14 rounded-2xl', teselaClase]"
     ><slot name="icono" /></span>
 
     <span class="min-w-0 flex-1">
-      <span class="block line-clamp-2 text-sm font-bold text-white [overflow-wrap:anywhere]">{{ titulo }}</span>
+      <span class="block line-clamp-2 font-bold text-white [overflow-wrap:anywhere]" :class="compacta ? 'text-[13px] leading-snug' : 'text-sm'">{{ titulo }}</span>
       <span v-if="detalle" class="mt-1 line-clamp-4 block text-[11px] leading-relaxed text-slate-500">{{ detalle }}</span>
       <slot />
     </span>
@@ -48,7 +48,12 @@ const props = defineProps({
   /** Ficha informativa: superficie hundida en vez de botón elegible. */
   plana: { type: Boolean, default: false },
   /** Se ve apagada (macro pausada, permiso sin conceder…). */
-  tenue: { type: Boolean, default: false }
+  tenue: { type: Boolean, default: false },
+  /** Versión reducida (tesela de 40 px y menos relleno) para listas de puntos
+   *  —tour, guías—. Mismos topes de líneas: título 2, descripción 4. */
+  compacta: { type: Boolean, default: false },
+  /** En una ficha plana, tesela con el color del `tono` en vez de gris. */
+  colorTesela: { type: Boolean, default: false }
 })
 
 const TONOS = {
@@ -67,5 +72,6 @@ const clases = computed(() => {
   return ['sk-option', props.tenue ? 'opacity-70' : '']
 })
 
-const teselaClase = computed(() => props.activo ? tono.value.tesela : 'bg-white/[0.06] text-slate-300')
+const teselaClase = computed(() =>
+  (props.activo || props.colorTesela) ? tono.value.tesela : 'bg-white/[0.06] text-slate-300')
 </script>
