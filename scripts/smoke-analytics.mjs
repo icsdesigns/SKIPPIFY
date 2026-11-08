@@ -171,6 +171,127 @@ async function main () {
   store.setEvents([escucha(0, 'A', 'Ana'), escucha(29, 'B', 'Ana'), escucha(31, 'C', 'Ana')])
   check('últimos 30 días: la de hace 31 queda fuera', analytics.last30Events.value.length, 2)
 
+  // ── Rachas (actual / mejor) ───────────────────────────────────────────────
+  console.log('\nRachas: actual / mejor')
+  const W = await import('../src/lib/wrapped.js')
+  const ahora = Date.now()
+  // Hoy, ayer y anteayer (racha de 3) + otra racha anterior de 5 días seguidos
+  const diasConEscucha = [0, 1, 2, 10, 11, 12, 13, 14]
+  const r1 = W.calcularRacha(diasConEscucha.map(d => escucha(d, 'A', 'Ana')), ahora)
+  check('racha actual de 3 días', r1.current, 3)
+  check('mejor racha de 5 días', r1.best, 5)
+  check('días activos', r1.activeDays, 8)
+  check('sin escuchas no hay NaN', JSON.stringify(W.calcularRacha([], ahora)), '{"current":0,"best":0,"activeDays":0}')
+  const r2 = W.calcularRacha([escucha(0, 'A', 'Ana')], ahora)
+  check('la racha actual nunca supera a la mejor', r2.current <= r2.best, true)
+
+  // ── Este dispositivo vs otros ─────────────────────────────────────────────
+  console.log('\nEste dispositivo vs otros (30 días, campo source)')
+  const conFuente = (dias, source, ms = 180000) => ({ ...escucha(dias, `Tema ${dias}`, 'Ana'), source, ms_played: ms })
+  const rep = W.repartoDispositivos([
+    conFuente(1, 'notification'), conFuente(2, 'notification_background'), conFuente(3, 'notification'),
+    conFuente(4, 'spotify_api', 360000),
+    { ...escucha(5, 'Sin fuente', 'Ana') }, // sin source: cuenta como este dispositivo
+    conFuente(40, 'spotify_api') // fuera de los 30 días
+  ], ahora)
+  check('4 escuchas de este dispositivo (3 + sin fuente)', rep.este.count, 4)
+  check('1 de otros dispositivos', rep.otros.count, 1)
+  check('80 % este dispositivo', rep.pctEste, 80)
+  check('20 % otros', rep.pctOtros, 20)
+  check('los porcentajes suman 100', rep.pctEste + rep.pctOtros, 100)
+  check('porcentaje por tiempo (720 s de 1080 s = 67 %)', rep.pctEsteTiempo, 67)
+  check('hay lectura por API', rep.hayApi, true)
+  const sinApi = W.repartoDispositivos([conFuente(1, 'notification')], ahora)
+  check('sin API: 100 % este dispositivo', sinApi.pctEste, 100)
+  check('sin API: no hay otros', sinApi.hayApi, false)
+  const vacioRep = W.repartoDispositivos([], ahora)
+  check('vacío: marca vacio y 0/0 sin NaN', JSON.stringify([vacioRep.vacio, vacioRep.pctEste, vacioRep.pctOtros, vacioRep.pctEsteTiempo]), '[true,0,0,null]')
+  check('anuncios no cuentan', W.repartoDispositivos([{ ...conFuente(1, 'notification'), track: 'Anuncio' }], ahora).total, 0)
+
+  // ── Wrapped: cálculos ─────────────────────────────────────────────────────
+  console.log('\nWrapped: cálculos')
+  const h = (dias, hora) => {
+    const d = new Date(ahora - dias * DIA); d.setHours(hora, 0, 0, 0); return d.toISOString()
+  }
+  const hist = [
+    { ...escucha(1, 'Uno', 'Ana'), played_at: h(1, 21) }, { ...escucha(1, 'uno', 'ANA'), played_at: h(1, 21) },
+    { ...escucha(2, 'Uno', 'Ana'), played_at: h(2, 21) },
+    { ...escucha(2, 'Dos', 'Beto'), played_at: h(2, 8) }, { ...escucha(3, 'Dos', 'Beto'), played_at: h(3, 8) },
+    { ...escucha(3, 'Tres', 'Beto'), played_at: h(3, 21) },
+    { ...escucha(3, 'Cuatro', 'Cleo'), played_at: h(3, 21) },
+    { ...escucha(20, 'Antigua', 'Zoe'), played_at: h(20, 3) },
+    { ...escucha(1, 'Anuncio', 'Spotify'), played_at: h(1, 5) }
+  ]
+  const ws = W.calcularWrapped(hist, 'week', ahora, { variedad: 82.4 })
+  check('semana: 7 escuchas (sin anuncio ni la de hace 20 días)', ws.escuchas, 7)
+  check('top 1 canción (agrupa mayúsculas y tildes)', ws.canciones[0].titulo, 'Uno')
+  check('top 1 canción con 3 escuchas', ws.canciones[0].count, 3)
+  check('máximo 3 canciones', ws.canciones.length, 3)
+  check('top 1 artista', ws.artistas[0].nombre, 'Ana')
+  check('hora favorita 21:00', ws.horaFavorita.etiqueta, '21:00')
+  check('mejor racha de la semana (días 1, 2 y 3)', ws.mejorRacha, 3)
+  check('variedad redondeada', ws.variedad, 82)
+  check('tiempo total: 7 × 3 min = 21 min', ws.tiempo, '21 min')
+  check('el mes sí incluye la de hace 20 días', W.calcularWrapped(hist, 'month', ahora).escuchas, 8)
+  check('periodo desconocido cae en semana', W.calcularWrapped(hist, 'x', ahora).periodo, 'week')
+  const wv = W.calcularWrapped([], 'year', ahora)
+  check('vacío: sin NaN y con marca', JSON.stringify([wv.vacio, wv.escuchas, wv.tiempo, wv.horaFavorita, wv.mejorRacha, wv.variedad]), '[true,0,"0 min",null,0,null]')
+  check('formato de duración con horas', W.formatearDuracion(3 * 3600000 + 5 * 60000), '3 h 5 min')
+  check('formato de duración exacta', W.formatearDuracion(2 * 3600000), '2 h')
+
+  // ── Wrapped: dibujo (contexto simulado) y recorte con measureText ─────────
+  console.log('\nWrapped: imagen')
+  const { recortarTexto, dibujarWrapped, WRAPPED_ANCHO, WRAPPED_ALTO } = await import('../src/lib/wrappedImagen.js')
+  const ctxMedida = { measureText: t => ({ width: String(t).length * 10 }) }
+  check('texto corto no se recorta', recortarTexto(ctxMedida, 'Hola', 100), 'Hola')
+  const largo = recortarTexto(ctxMedida, 'Un título larguísimo que no cabe en la tarjeta', 150)
+  check('texto largo termina en puntos suspensivos', largo.endsWith('…'), true)
+  check('texto largo mide como mucho el máximo', largo.length * 10 <= 150, true)
+  check('hueco nulo da cadena vacía', recortarTexto(ctxMedida, 'Hola', 0), '')
+  globalThis.Path2D = class { constructor (d) { this.d = d } }
+  const dibujados = []
+  const grad = { addColorStop () {} }
+  const ctxFalso = new Proxy({}, {
+    get: (o, k) => {
+      if (k === 'measureText') return t => ({ width: String(t).length * 14 })
+      if (k === 'fillText') return (t, x) => dibujados.push({ t, x, align: o.textAlign })
+      if (k === 'createLinearGradient' || k === 'createRadialGradient') return () => grad
+      if (k in o) return o[k]
+      return () => {}
+    },
+    set: (o, k, v) => { o[k] = v; return true }
+  })
+  const lienzoFalso = { getContext: () => ctxFalso }
+  const largoTit = 'Título extraordinariamente largo '.repeat(8)
+  dibujarWrapped(lienzoFalso, W.calcularWrapped([
+    { ...escucha(1, largoTit, 'Artista con un nombre también larguísimo '.repeat(6)), played_at: h(1, 10) }
+  ], 'week', ahora, { variedad: 90 }))
+  check('lienzo de 1080 × 1920', `${lienzoFalso.width}x${lienzoFalso.height}`, `${WRAPPED_ANCHO}x${WRAPPED_ALTO}`)
+  check('ningún texto dibujado supera el ancho de la tarjeta', dibujados.every(d => d.t.length * 14 <= 952), true)
+  check('el título largo se recortó con puntos suspensivos', dibujados.some(d => d.t.startsWith('Título extra') && d.t.endsWith('…')), true)
+  dibujarWrapped(lienzoFalso, W.calcularWrapped([], 'month', ahora))
+  check('sin datos también se dibuja', dibujados.some(d => d.t === 'Aún sin escuchas en este periodo'), true)
+
+  // ── Compartir / guardar ───────────────────────────────────────────────────
+  console.log('\nCompartir imagen')
+  const { compartirPng } = await import('../src/lib/compartirImagen.js')
+  const png = new Blob([new Uint8Array([1, 2, 3])], { type: 'image/png' })
+  let compartidos = 0
+  const navOk = { canShare: () => true, share: async () => { compartidos++ } }
+  check('con navigator.share de archivos se comparte', (await compartirPng(png, 'a.png', {}, { navigator: navOk, nativo: true })).estado, 'compartido')
+  check('se llamó a share una vez', compartidos, 1)
+  const navCancel = { canShare: () => true, share: async () => { const e = new Error('x'); e.name = 'AbortError'; throw e } }
+  check('cancelar no guarda ni falla', (await compartirPng(png, 'a.png', {}, { navigator: navCancel, nativo: true })).estado, 'cancelado')
+  let guardado = ''
+  const guardar = async (b, n) => { guardado = n }
+  const navSin = { canShare: () => false, share: async () => {} }
+  const rg = await compartirPng(png, 'w.png', {}, { navigator: navSin, nativo: true, guardar })
+  check('sin soporte en nativo se guarda en Documentos', rg.estado, 'guardado')
+  check('y se devuelve la ruta', rg.ruta, 'Documents/Skippify/wrapped/w.png')
+  check('el archivo se escribió', guardado, 'w.png')
+  const navRoto = { canShare: () => true, share: async () => { throw new Error('NotAllowedError') } }
+  check('si share falla en nativo se guarda', (await compartirPng(png, 'w.png', {}, { navigator: navRoto, nativo: true, guardar })).estado, 'guardado')
+
   console.log(fallos ? `\nFallos: ${fallos}` : '\nInicio: todo correcto.')
   process.exit(fallos ? 1 : 0)
 }

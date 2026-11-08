@@ -1,0 +1,64 @@
+/**
+ * Iconos propios de Estadísticas y del Wrapped. Mismo trazo que MacroIcon /
+ * FeatureIcon / AjusteIcon (viewBox 24, trazo 2,2 redondeado, sin relleno).
+ * Los usan el componente `StatIcon.vue` y, como `Path2D`, la imagen del Wrapped:
+ * una sola geometría para ambos.
+ */
+export const STAT_ICONOS = {
+  // Nota musical
+  cancion: [
+    'M9.2 18V6.6L18.4 4.8V16.6',
+    'M9.2 18a2.4 2.4 0 1 1-4.8 0a2.4 2.4 0 1 1 4.8 0z',
+    'M18.4 16.6a2.4 2.4 0 1 1-4.8 0a2.4 2.4 0 1 1 4.8 0z'
+  ],
+  // Micrófono
+  artista: [
+    'M12 3.8c-1.7 0-3 1.3-3 3v5c0 1.7 1.3 3 3 3s3-1.3 3-3v-5c0-1.7-1.3-3-3-3z',
+    'M5.8 11.4c.3 3.5 3 5.9 6.2 5.9s5.9-2.4 6.2-5.9',
+    'M12 17.3V20.4',
+    'M8.8 20.4h6.4'
+  ],
+  // Reloj
+  reloj: [
+    'M12 3.6a8.4 8.4 0 1 1 0 16.8a8.4 8.4 0 1 1 0-16.8z',
+    'M12 7.6V12.2L15.2 14'
+  ],
+  // Llama de la racha
+  racha: [
+    'M12.4 3.4C12.8 6.4 15.9 8 16.8 11.2C17.6 14.1 15.9 18.8 12 20.2C8 18.9 6.4 15.2 7.6 12.2C8.2 13 8.7 13.4 9.6 13.6C9.1 10 10.5 6 12.4 3.4z'
+  ],
+  // Variedad: dos caminos que se cruzan
+  variedad: [
+    'M4.5 7.2H8.2C11.6 7.2 12.6 16.8 16 16.8H19.5',
+    'M4.5 16.8H8.2C9.4 16.8 10.3 15.7 11 14.2',
+    'M13 9.8C13.7 8.3 14.7 7.2 16 7.2H19.5',
+    'M17.2 4.9L19.6 7.2L17.2 9.5',
+    'M17.2 14.5L19.6 16.8L17.2 19.1'
+  ],
+  // Móvil: este dispositivo
+  movil: [
+    'M8.2 3.6h7.6a1.6 1.6 0 0 1 1.6 1.6v13.6a1.6 1.6 0 0 1-1.6 1.6H8.2a1.6 1.6 0 0 1-1.6-1.6V5.2a1.6 1.6 0 0 1 1.6-1.6z',
+    'M10.8 17.6h2.4'
+  ],
+  // Pantalla: otros dispositivos
+  otros: [
+    'M5 5.6h14a1.4 1.4 0 0 1 1.4 1.4v8.2a1.4 1.4 0 0 1-1.4 1.4H5a1.4 1.4 0 0 1-1.4-1.4V7A1.4 1.4 0 0 1 5 5.6z',
+    'M12 16.6V19.6',
+    'M8.4 19.6h7.2'
+  ],
+  // Tarjeta de imagen con destello
+  wrapped: [
+    'M5.4 3.8h13.2a1.6 1.6 0 0 1 1.6 1.6v13.2a1.6 1.6 0 0 1-1.6 1.6H5.4a1.6 1.6 0 0 1-1.6-1.6V5.4a1.6 1.6 0 0 1 1.6-1.6z',
+    'M12 8.2c.4 2.2 1.4 3.2 3.6 3.6c-2.2.4-3.2 1.4-3.6 3.6c-.4-2.2-1.4-3.2-3.6-3.6c2.2-.4 3.2-1.4 3.6-3.6z'
+  ],
+  compartir: [
+    'M12 15.2V4.4',
+    'M8.2 8L12 4.2L15.8 8',
+    'M5.4 12.6V18.4a1.6 1.6 0 0 0 1.6 1.6H17a1.6 1.6 0 0 0 1.6-1.6V12.6'
+  ],
+  descargar: [
+    'M12 4.4V15',
+    'M8.2 11.4L12 15.2L15.8 11.4',
+    'M5.4 17.6V18.6a1.6 1.6 0 0 0 1.6 1.6H17a1.6 1.6 0 0 0 1.6-1.6V17.6'
+  ]
+}
