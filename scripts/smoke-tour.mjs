@@ -21,7 +21,8 @@ import { useFeatures, sanitizeListeningMode } from '../src/composables/useFeatur
 import { useNotifListener } from '../src/composables/useNotifListener.js'
 import { useTour, TOUR_STEPS, TOUR_KEY } from '../src/composables/useTour.js'
 import GuiaInteractiva from '../src/components/GuiaInteractiva.vue'
-import { guiaMacros, GUIAS, guiaDeRuta } from '../src/guias/index.js'
+import { guiaMacros, guiaFunciones, GUIAS, guiaDeRuta } from '../src/guias/index.js'
+import { FUNCIONES_GUIDE_KEY, FUNCIONES_GUIDE_STEPS } from '../src/guias/funciones.js'
 import { crearGuia } from '../src/composables/crearGuia.js'
 import { MACROS_GUIDE_STEPS, MACROS_GUIDE_KEY } from '../src/guias/macros.js'
 
@@ -298,6 +299,34 @@ async function main () {
   check('y ya no se abre sola', g.autoStart() === false && g.state.open === false)
   const guardadoG = JSON.parse(globalThis.localStorage.getItem(MACROS_GUIDE_KEY) || '{}')
   check('lo visto se guarda', guardadoG.seen === true)
+
+  console.log('\nGuía animada de Funciones')
+
+  const gf = guiaFunciones
+  gf.reset()
+  check('tiene su propia clave de localStorage', gf.clave === FUNCIONES_GUIDE_KEY && gf.clave !== MACROS_GUIDE_KEY)
+  check('está registrada para la ruta de Funciones', guiaDeRuta('/features') === gf && GUIAS.includes(gf))
+  check('Macros sigue en su ruta', guiaDeRuta('/macros') === guiaMacros)
+  check('tiene un paso por funcionalidad', FUNCIONES_GUIDE_STEPS === 6)
+  check('la primera visita la abre sola, una vez', gf.autoStart() === true && gf.autoStart() === false)
+  const pintarF = () => renderToString(createSSRApp({
+    components: { GuiaInteractiva },
+    setup: () => ({ guia: guiaFunciones }),
+    template: '<GuiaInteractiva :guia="guia" />'
+  }))
+  const titulosF = ['Salto de duplicadas', 'Elige un modo de escucha', 'Calibra el salto', 'Silencia los anuncios', 'Temporizador', 'Ajustes rápidos']
+  const clavesEscena = ['fg-skip', 'Descubrimiento', 'Prueba guiada', 'Anuncio detectado', 'Música pausada', 'Anuncios']
+  for (let i = 0; i < titulosF.length; i++) {
+    gf.goTo(i)
+    const h = await pintarF()
+    check(`paso ${i + 1}: «${titulosF[i]}» con su escena y tarjetas compactas`,
+      h.includes(titulosF[i]) && h.includes(clavesEscena[i]) && h.includes('h-10 w-10 rounded-xl') && h.includes(`${i + 1} / 6`))
+  }
+  check('y todos los puntos llevan icono propio (sin emoji)',
+    guiaFunciones.pasos.every(p => p.puntos.every(pt => /^(ajuste|feature|macro):/.test(pt.icono) && !/\p{Extended_Pictographic}/u.test(pt.titulo + pt.detalle))))
+  gf.finish()
+  const guardadoF = JSON.parse(globalThis.localStorage.getItem(FUNCIONES_GUIDE_KEY) || '{}')
+  check('lo visto se guarda en su clave', guardadoF.seen === true)
 
   console.log('\nFábrica de guías')
 

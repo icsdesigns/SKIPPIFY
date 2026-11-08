@@ -44,13 +44,23 @@ async function main () {
   check('parado ofrece los presets', parado.includes('1 h 30 min') && parado.includes('Iniciar temporizador'))
   check('explica el orden del cierre', parado.includes('Pausar al acabar la canción') && parado.includes('Sonido de aviso'))
   check('ya no ofrece nada de Bluetooth', !/bluetooth/i.test(parado))
+  check('los presets son opciones elegibles, no un segmentado aparte', parado.includes('sk-option') && !parado.includes('sk-segment'))
+  check('la hora prevista es una tarjeta de opción', parado.includes('Se parará hacia las'))
+
+  const { default: SleepTimerRapido } = await import('../src/components/SleepTimerRapido.vue')
+  const pintarRapido = () => renderToString(createSSRApp({ render: () => h(SleepTimerRapido) }))
+  const rapidoParado = await pintarRapido()
+  check('la vista rápida ofrece 15 min, 30 min y 1 h', rapidoParado.includes('15 min') && rapidoParado.includes('30 min') && rapidoParado.includes('>1 h<'))
+  check('y el sonido de aviso', rapidoParado.includes('Sonido de aviso'))
 
   const { state } = useSleepTimer()
   state.phase = 'counting'
   state.now = Date.now()
   state.endAt = state.now + 30 * 60_000
   const enMarcha = await pintar()
-  check('en marcha enseña la cuenta atrás', enMarcha.includes('30:00'))
+  check('en marcha enseña la cuenta atrás', enMarcha.includes('Quedan 30:00'))
+  check('con aria-live para anunciarla', enMarcha.includes('aria-live="polite"'))
+  check('y la vista rápida pasa a enseñar el estado', (await pintarRapido()).includes('Quedan 30:00'))
   check('en marcha se puede cancelar y alargar', enMarcha.includes('Cancelar') && enMarcha.includes('+15 min'))
 
   state.phase = 'waiting'

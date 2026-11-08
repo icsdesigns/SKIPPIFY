@@ -5,8 +5,9 @@
  * lista. Para crear una nueva, ver `composables/crearGuia.js`.
  */
 import { guiaMacros } from './macros'
+import { guiaFunciones } from './funciones'
 
-export const GUIAS = [guiaMacros]
+export const GUIAS = [guiaMacros, guiaFunciones]
 
-export { guiaMacros }
+export { guiaMacros, guiaFunciones }
 export { guiaDeRuta } from '@/composables/crearGuia'

@@ -3,20 +3,22 @@
     <!-- ── Sin temporizador: elegir cuánto ───────────────────────────────── -->
     <div v-if="!activo">
       <p class="sk-eyebrow">Parar la música dentro de</p>
-      <div class="sk-segment mt-3">
+      <!-- Los presets son opciones elegibles como las frecuencias del salto de
+           duplicadas: mismo botón, misma activa. -->
+      <div class="mt-3 grid grid-cols-3 gap-2 lg:grid-cols-5">
         <button
           v-for="min in PRESETS_MINUTOS"
           :key="min"
           type="button"
-          class="sk-segment-item"
-          :class="minutosElegidos === min ? 'sk-segment-item-active' : ''"
+          class="rounded-xl border px-1.5 py-2.5 text-center text-xs font-semibold transition-all duration-200"
+          :class="minutosElegidos === min ? 'sk-option-active' : 'sk-option text-slate-200'"
           @click="elegirPreset(min)"
         >{{ formatoDuracion(min) }}</button>
       </div>
 
-      <div class="mt-4 flex flex-wrap items-center gap-3">
-        <label class="text-[11px] text-slate-400" for="temporizador-horas">O escribe hh:mm</label>
-        <div class="flex items-center gap-1.5">
+      <div class="mt-4">
+        <label class="sk-eyebrow" for="temporizador-horas">O a medida (hh:mm)</label>
+        <div class="mt-2 flex items-center gap-1.5">
           <input
             id="temporizador-horas"
             v-model="horas"
@@ -42,59 +44,34 @@
         </div>
       </div>
 
-      <p class="mt-3 min-h-[1.25rem] text-[11px] leading-relaxed" :class="duracionValida ? 'text-slate-400' : 'text-rose-200'">
-        <template v-if="duracionValida">
-          Se para hacia las <span class="font-semibold text-white">{{ horaPrevista }}</span>,
-          al acabar la canción que esté sonando entonces.
-        </template>
-        <template v-else>Escribe una duración entre 00:01 y 23:59.</template>
-      </p>
+      <!-- Hora prevista: la misma tarjeta de opción que el estado en marcha. -->
+      <OpcionFila
+        class="mt-4"
+        plana
+        color-tesela
+        :tono="duracionValida ? 'sky' : 'rose'"
+        :titulo="duracionValida ? `Se parará hacia las ${horaPrevista}` : 'Duración no válida'"
+        :detalle="duracionValida
+          ? 'Al acabar la canción que esté sonando entonces.'
+          : 'Escribe una duración entre 00:01 y 23:59.'"
+      >
+        <template #icono><AjusteIcon name="reloj" class="h-8 w-8" /></template>
+      </OpcionFila>
 
       <button
         type="button"
-        class="sk-btn sk-btn-primary mt-3 w-full sm:w-auto"
+        class="sk-btn sk-btn-primary mt-4 w-full sm:w-auto"
         :disabled="!duracionValida"
         @click="empezar"
       >Iniciar temporizador</button>
 
-      <p v-if="ultimoCierre" class="mt-3 text-[11px] text-slate-500">{{ ultimoCierre }}</p>
+      <p v-if="ultimoCierre" class="mt-3 text-[11px] leading-relaxed text-slate-500">{{ ultimoCierre }}</p>
     </div>
 
     <!-- ── Temporizador en marcha ─────────────────────────────────────────── -->
-    <div v-else class="text-center" aria-live="polite">
-      <template v-if="timer.phase === 'counting'">
-        <p class="font-mono text-5xl font-bold tabular-nums tracking-tight text-white">{{ formatoCuenta(restanteMs) }}</p>
-        <p class="mt-2 text-xs text-slate-400">
-          Hacia las <span class="font-semibold text-white">{{ horaDeReloj(timer.endAt) }}</span>,
-          al acabar la canción
-        </p>
-      </template>
-      <template v-else>
-        <p class="flex items-center justify-center gap-2 text-base font-bold text-white">
-          <span class="h-2 w-2 animate-pulse rounded-full bg-brand-400" aria-hidden="true" />
-          {{ timer.phase === 'waiting' ? 'Esperando a que acabe la canción' : 'Terminando…' }}
-        </p>
-        <p class="mt-2 text-xs text-slate-400">
-          {{ timer.phase === 'waiting'
-            ? 'La música se pausará justo antes de que empiece la siguiente.'
-            : 'Pausa hecha. Completando los pasos finales.' }}
-        </p>
-      </template>
-
-      <div class="mt-4 flex flex-wrap justify-center gap-2">
-        <button
-          v-if="timer.phase === 'counting'"
-          type="button"
-          class="sk-btn sk-btn-ghost sk-btn-sm"
-          @click="alargar(15)"
-        >+15 min</button>
-        <button
-          v-if="timer.phase !== 'finishing'"
-          type="button"
-          class="sk-btn sk-btn-danger sk-btn-sm"
-          @click="cancelar"
-        >Cancelar</button>
-      </div>
+    <div v-else>
+      <p class="sk-eyebrow">Temporizador en marcha</p>
+      <SleepTimerEstado class="mt-3" />
     </div>
 
     <!-- ── Qué pasa al terminar ──────────────────────────────────────────── -->
@@ -106,7 +83,7 @@
           plana
           tono="sky"
           titulo="Pausar al acabar la canción"
-          detalle="No corta a mitad: deja terminar la que suena cuando se agota el tiempo."
+          detalle="No corta a mitad: deja acabar la canción que suena."
         >
           <template #icono><AjusteIcon name="pausa" class="h-8 w-8 text-sky-200" /></template>
         </OpcionFila>
@@ -116,7 +93,7 @@
           tono="brand"
           :activo="timer.sound"
           titulo="Sonido de aviso"
-          detalle="Dos notas suaves justo después de la pausa."
+          detalle="Dos notas suaves tras la pausa."
         >
           <template #icono><AjusteIcon name="campana" class="h-8 w-8" /></template>
           <template #fin>
@@ -132,7 +109,11 @@
             </button>
           </template>
         </OpcionFila>
-        <button type="button" class="justify-self-end px-1 text-[11px] font-semibold text-brand-300 hover:text-brand-200" @click="probarSonido">Escuchar el aviso</button>
+
+        <button type="button" class="sk-btn sk-btn-ghost sk-btn-sm justify-self-start" @click="probarSonido">
+          <AjusteIcon name="play" class="h-4 w-4" />
+          Escuchar el aviso
+        </button>
       </div>
     </div>
   </div>
@@ -142,32 +123,31 @@
 /**
  * Contenido del panel «Temporizador» de Funciones.
  *
- * La duración se elige con un preset o escribiéndola en hh:mm; mientras corre
- * se ve la cuenta atrás y la hora aproximada de parada. El sonido de aviso se
- * puede activar o quitar en cualquier momento, también con el temporizador
- * en marcha.
+ * Todo el panel habla el mismo idioma que el resto de la pestaña: opciones
+ * elegibles (presets), tarjetas de opción para la hora prevista y el estado,
+ * y los botones de la app. La duración se elige con un preset o escribiéndola
+ * en hh:mm; mientras corre se ve la cuenta atrás y la hora aproximada de
+ * parada. El sonido de aviso se puede activar o quitar en cualquier momento,
+ * también con el temporizador en marcha.
  */
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import AjusteIcon from '@/components/AjusteIcon.vue'
 import OpcionFila from '@/components/OpcionFila.vue'
+import SleepTimerEstado from '@/components/SleepTimerEstado.vue'
 import {
   useSleepTimer,
   PRESETS_MINUTOS,
   duracionMs,
-  formatoCuenta,
   formatoDuracion,
   horaDeReloj
 } from '@/composables/useSleepTimer'
 
 const {
   state: timer,
-  restanteMs,
   activo,
   init,
   refrescar,
   iniciar,
-  alargar,
-  cancelar,
   setOpciones,
   probarSonido
 } = useSleepTimer()
@@ -219,4 +199,3 @@ onMounted(() => {
 
 onBeforeUnmount(() => clearInterval(reloj))
 </script>
-
