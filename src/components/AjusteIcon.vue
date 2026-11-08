@@ -142,6 +142,16 @@
       <path d="M5.2 19.6C5.4 15.8 8.2 14 12 14C15.8 14 18.6 15.8 18.8 19.6" />
     </template>
 
+    <!-- Sin vincular: enchufe y toma separados. -->
+    <template v-else-if="name === 'desconexion'">
+      <path d="M2.8 12H6.6" />
+      <path d="M6.6 8.8H10.2V15.2H6.6Z" />
+      <path d="M10.2 10.4H12.4" /><path d="M10.2 13.6H12.4" />
+      <path d="M21.2 12H18.8" />
+      <path d="M15.8 8.8H18.8V15.2H15.8Z" />
+      <path d="M14.1 5.2V6.8" stroke-width="1.8" /><path d="M12.3 6.1 11.4 7.4" stroke-width="1.8" /><path d="M15.9 6.1 16.8 7.4" stroke-width="1.8" />
+    </template>
+
     <!-- Vista previa: ojo. -->
     <template v-else-if="name === 'ojo'">
       <path d="M3.4 12C5.2 8.4 8.4 6.4 12 6.4C15.6 6.4 18.8 8.4 20.6 12C18.8 15.6 15.6 17.6 12 17.6C8.4 17.6 5.2 15.6 3.4 12Z" />
@@ -167,7 +177,7 @@ defineProps({
   /**
    * 'brujula' | 'casual' | 'ajustes' | 'calibrar' | 'etiqueta' | 'pausa' |
    * 'campana' | 'globo' | 'bateria' | 'escudo' | 'copia' | 'registro' |
-   * 'umbral' | 'ojo' | 'play' | 'ayuda' | 'tour' | 'version' | 'antena' | 'cuenta' | 'reloj'
+   * 'umbral' | 'ojo' | 'play' | 'ayuda' | 'tour' | 'version' | 'antena' | 'cuenta' | 'reloj' | 'desconexion'
    */
   name: { type: String, required: true }
 })

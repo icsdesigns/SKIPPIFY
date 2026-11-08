@@ -8,6 +8,7 @@
     </div>
 
     <KpiCards />
+    <TopSemanaCards />
     <DuplicateKpiCards />
     <PlaysChart />
     <SessionKpiCards />
@@ -19,6 +20,7 @@
 import NowPlaying from '@/components/NowPlaying.vue'
 import SpotifyCuentaPanel from '@/components/SpotifyCuentaPanel.vue'
 import KpiCards from '@/components/KpiCards.vue'
+import TopSemanaCards from '@/components/TopSemanaCards.vue'
 import DuplicateKpiCards from '@/components/DuplicateKpiCards.vue'
 import SessionKpiCards from '@/components/SessionKpiCards.vue'
 import PlaysChart from '@/components/PlaysChart.vue'

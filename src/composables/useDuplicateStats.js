@@ -133,6 +133,11 @@ export function useDuplicateStats () {
   const week = computed(() => sumar(7, -1))
   const previousWeek = computed(() => sumar(14, 7))
 
+  /** Últimos 30 días (ventana móvil), con el día en curso incluido. */
+  const month = computed(() => sumar(30, -1))
+  const monthDuplicates = computed(() => month.value.duplicates)
+  const monthSkipped = computed(() => month.value.skipped)
+
   const weekDuplicates = computed(() => week.value.duplicates)
   const weekSkipped = computed(() => week.value.skipped)
 
@@ -144,6 +149,9 @@ export function useDuplicateStats () {
     refresh,
     week,
     previousWeek,
+    month,
+    monthDuplicates,
+    monthSkipped,
     weekDuplicates,
     weekSkipped,
     hasData

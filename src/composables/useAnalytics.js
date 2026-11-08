@@ -72,6 +72,12 @@ export function useAnalytics () {
     return events.value.filter(e => new Date(e.played_at) >= sevenAgo)
   })
 
+  /** Últimos 30 días (ventana móvil, no el mes natural): base de la variedad mensual. */
+  const last30Events = computed(() => {
+    const desde = nowTick.value - 30 * 86400000
+    return events.value.filter(e => new Date(e.played_at).getTime() >= desde)
+  })
+
   /** Los siete días ANTERIORES a la semana en curso: la base de comparación. */
   const previousWeekEvents = computed(() => {
     const desde = nowTick.value - 14 * 86400000
@@ -309,6 +315,7 @@ export function useAnalytics () {
     chartData,
     todayEvents,
     weekEvents,
+    last30Events,
     monthEvents
   }
 }

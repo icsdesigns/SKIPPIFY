@@ -133,6 +133,44 @@ async function main () {
   check('lo de hace 40 días queda fuera', dup.week.value.duplicates + dup.previousWeek.value.duplicates, 116)
   check('hay dato, así que se pinta cifra y no «—»', dup.hasData.value, true)
 
+  // ── Carteles de la semana (canción y artista) ─────────────────────────────
+  console.log('\nCanción y artista de la semana')
+  const { cancionTop, artistaTop, calcularVariedad, calcularExclusividad } = await import('../src/lib/inicioStats.js')
+  store.setEvents([
+    escucha(0, 'Canción X', 'Ana', 0), escucha(1, 'canción x ', 'ANA', 1), escucha(2, 'Canción X', 'Ana', 2),
+    escucha(1, 'Y', 'Ana', 3), escucha(1, 'Z', 'Beto', 4), escucha(1, 'Z', 'Beto', 5),
+    // Fuera de la semana: no cuenta
+    escucha(9, 'Z', 'Beto', 6), escucha(9, 'Z', 'Beto', 7), escucha(9, 'Z', 'Beto', 8), escucha(9, 'Z', 'Beto', 9)
+  ])
+  const ct = cancionTop(analytics.weekEvents.value)
+  check('canción de la semana (normalizada, sin lo de hace 9 días)', ct && ct.track, 'Canción X')
+  check('recuento de la canción', ct && ct.count, 3)
+  const at = artistaTop(analytics.weekEvents.value)
+  check('artista de la semana por nombre normalizado', at && at.artist.toLowerCase(), 'ana')
+  check('recuento del artista (3+1)', at && at.count, 4)
+  check('sin escuchas no hay canción (sin NaN)', cancionTop([]), null)
+  check('sin escuchas no hay artista', artistaTop([]), null)
+  check('en empate gana la más reciente', cancionTop([
+    { track: 'A', artist: 'a', played_at: '2026-01-01T10:00:00Z' },
+    { track: 'B', artist: 'b', played_at: '2026-01-02T10:00:00Z' }
+  ]).track, 'B')
+
+  // ── Variedad y exclusividad (mensual) ─────────────────────────────────────
+  console.log('\nVariedad y exclusividad')
+  // 20 registradas + 5 saltadas = 25 iniciadas; 10 duplicadas → (25-10)/25 = 60 %
+  check('variedad: (20+5-10)/(20+5)', calcularVariedad(20, 10, 5), 60)
+  check('variedad sin duplicadas es 100 %', calcularVariedad(20, 0, 0), 100)
+  check('variedad sin escuchas es null (no NaN)', calcularVariedad(0, 0, 0), null)
+  check('variedad nunca baja de 0 %', calcularVariedad(1, 50, 0), 0)
+  check('exclusividad: 5 de 10 = 50 %', calcularExclusividad(10, 5), 50)
+  check('exclusividad sin duplicadas es null', calcularExclusividad(0, 0), null)
+  check('exclusividad tope 100 %', calcularExclusividad(2, 9), 100)
+  // Con el histórico del motor: hace 8 días (semana anterior) entra en el mes; hace 40 no
+  check('el mes suma 5+7+1+100+3 duplicadas (sin lo de hace 40 días)', dup.monthDuplicates.value, 116)
+  check('el mes suma 4+2+1+50+3 saltadas', dup.monthSkipped.value, 60)
+  store.setEvents([escucha(0, 'A', 'Ana'), escucha(29, 'B', 'Ana'), escucha(31, 'C', 'Ana')])
+  check('últimos 30 días: la de hace 31 queda fuera', analytics.last30Events.value.length, 2)
+
   console.log(fallos ? `\nFallos: ${fallos}` : '\nInicio: todo correcto.')
   process.exit(fallos ? 1 : 0)
 }
