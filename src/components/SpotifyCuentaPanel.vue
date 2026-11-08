@@ -69,7 +69,7 @@
         <div class="space-y-2 border-t border-white/[0.07] p-4">
           <!-- Sin vincular: todas las instrucciones, una tarjeta por paso. -->
           <template v-if="!conectada">
-            <OpcionFila plana compacta color-tesela tono="brand" titulo="1 · Para qué sirve" detalle="Anota lo que escuchas en cualquier dispositivo (otro móvil, el ordenador, un altavoz), sin depender de las notificaciones.">
+            <OpcionFila plana compacta color-tesela tono="brand" titulo="1 · Para qué sirve" detalle="Anota lo que escuchas en cualquier dispositivo, sin depender de las notificaciones.">
               <template #icono><AjusteIcon name="antena" class="h-6 w-6" /></template>
             </OpcionFila>
 
@@ -155,18 +155,19 @@
             <p v-if="avisoError" class="rounded-card bg-amber-400/[0.14] px-3 py-2.5 text-xs text-amber-100">{{ avisoError }}</p>
 
             <OpcionFila
+              v-if="!ocultarInvitacionMacros"
               as="button"
               compacta
               color-tesela
               tono="violet"
               class="w-full"
-              titulo="Crea macros en tu cuenta"
-              detalle="Con la cuenta vinculada tus macros pueden actuar de verdad sobre Spotify. Pulsa para crear una en Macros."
+              titulo="Crea macros"
+              detalle="Con tu cuenta vinculada, tus macros funcionan en Spotify. Pulsa para crear una."
               data-cuenta-macros
               @click="irAMacros"
             >
               <template #icono><MacroIcon name="nueva" class="h-6 w-6" /></template>
-              <template #fin><MacroIcon name="siguiente" class="h-4 w-4 shrink-0 text-slate-500" /></template>
+              <template #fin><MacroIcon name="siguiente" class="hidden h-4 w-4 shrink-0 text-slate-500 sm:block" /></template>
             </OpcionFila>
           </template>
         </div>
@@ -189,12 +190,21 @@
  * Al iniciar sesión desde aquí la lectura se activa sola: es para lo que se
  * conecta la cuenta en este panel, y el interruptor sigue a mano.
  */
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useSpotify } from '@/composables/useSpotify'
 import AjusteIcon from '@/components/AjusteIcon.vue'
 import MacroIcon from '@/components/MacroIcon.vue'
 import OpcionFila from '@/components/OpcionFila.vue'
 import { useRouter } from 'vue-router'
+
+/**
+ * `ocultarInvitacionMacros`: quita la tarjeta «Crea macros» (que lleva a
+ * /macros) del cuerpo con sesión. Para alojar el panel en la propia pestaña
+ * Macros, donde esa invitación no tiene sentido.
+ */
+defineProps({
+  ocultarInvitacionMacros: { type: Boolean, default: false }
+})
 
 const spotify = useSpotify()
 const { state, connected, clientId, setClientId, redirectUri, connect, disconnect, consumeRedirect, cancelConnecting, loadProfile } = spotify
@@ -207,6 +217,8 @@ const confirmando = ref(false)
 const router = useRouter()
 let redirectHandle = null
 let copiadaTimer = null
+let refrescoTimer = null
+let cargandoPerfil = false
 
 function plugin () {
   return window.Capacitor?.Plugins?.NotifListener || null
@@ -254,12 +266,25 @@ async function refrescar () {
   } catch { /* ignored */ }
 }
 
+/** Relee el estado a los 2,5 s; un solo temporizador, que se limpia al desmontar. */
+function refrescarLuego () {
+  clearTimeout(refrescoTimer)
+  refrescoTimer = setTimeout(refrescar, 2500)
+}
+
+/** Carga el perfil si falta (p. ej. falló sin red): se reintenta al desplegar o volver a primer plano. */
+async function asegurarPerfil () {
+  if (cargandoPerfil || !connected.value || state.profile) return
+  cargandoPerfil = true
+  try { await loadProfile() } catch { /* se reintentará */ } finally { cargandoPerfil = false }
+}
+
 async function alternar () {
   const NL = plugin()
   if (!NL?.setApiListening) return
   try {
     estado.value = (await NL.setApiListening({ enabled: !activo.value })) || {}
-    setTimeout(refrescar, 2500)
+    refrescarLuego()
   } catch { /* ignored */ }
 }
 
@@ -316,7 +341,7 @@ async function alVolver (url) {
       if (NL?.setApiListening) estado.value = (await NL.setApiListening({ enabled: true })) || {}
     } catch { /* ignored */ }
     abierto.value = false
-    setTimeout(refrescar, 2500)
+    refrescarLuego()
   }
   await refrescar()
   return ok
@@ -336,6 +361,7 @@ async function alCambiarVisibilidad () {
   const tratada = await mirarRedireccionPendiente()
   if (!tratada && !connected.value) cancelConnecting()
   refrescar()
+  asegurarPerfil()
 }
 
 onMounted(async () => {
@@ -350,13 +376,16 @@ onMounted(async () => {
   await refrescar()
   if (connected.value) {
     abierto.value = false
-    if (!state.profile) { try { await loadProfile() } catch { /* ignored */ } }
+    await asegurarPerfil()
   }
 })
+
+watch(abierto, v => { if (v) asegurarPerfil() })
 
 onUnmounted(() => {
   document.removeEventListener('visibilitychange', alCambiarVisibilidad)
   clearTimeout(copiadaTimer)
+  clearTimeout(refrescoTimer)
   try { redirectHandle?.remove?.() } catch { /* ignored */ }
 })
 </script>
