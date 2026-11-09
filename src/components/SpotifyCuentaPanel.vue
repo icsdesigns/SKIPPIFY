@@ -228,8 +228,9 @@ const activo = computed(() => !!estado.value.enabled)
 const conectada = computed(() => connected.value || !!estado.value.connected)
 const puedeActivar = computed(() => isNative && conectada.value && estado.value.hasScope !== false)
 
-// Abierto de entrada sólo si falta conectar: es lo que hay que hacer aquí.
-const abierto = ref(!connected.value)
+// Plegado por defecto, con o sin cuenta: la cabecera ya dice qué hay que hacer
+// («Vincula tu Spotify») y el panel se despliega al pulsarla.
+const abierto = ref(false)
 
 const fotoPerfil = computed(() => state.profile?.images?.[0]?.url || '')
 const titulo = computed(() => conectada.value
@@ -319,7 +320,6 @@ async function desconectar () {
   } catch { /* ignored */ }
   await disconnect()
   await refrescar()
-  abierto.value = true
 }
 
 async function copiarRedirect () {
