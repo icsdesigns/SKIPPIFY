@@ -1,16 +1,18 @@
 /**
- * Guía animada de la pestaña Macros, en tres pasos: conectar la cuenta, montar
- * una macro de ejemplo (novedades de una playlist → copiar → Tus me gusta) y
- * vincularla al botón de función de los auriculares. Las escenas animadas
- * están en `components/guias/EscenaMacros.vue`.
+ * Guía animada de la pestaña Macros, en cuatro pasos que montan una misma macro
+ * de ejemplo: ejecución manual → copiar → Tus me gusta, y después la aplican al
+ * botón de función de los auriculares. Las escenas animadas están en
+ * `components/guias/EscenaMacros.vue`.
  *
- * La clave de localStorage es la de siempre: quien ya la completó no la ve de
- * nuevo.
+ * Clave de localStorage: `.v2`. El contenido cambió por completo (la v1 enseñaba
+ * a conectar la cuenta y a montar «novedades de una playlist»), así que quien ya
+ * vio la guía antigua la ve una vez más, ahora con el ejemplo nuevo. La cuenta
+ * ya no necesita guía: el panel «Vincula tu Spotify» lleva sus propios pasos.
  */
 import { crearGuia } from '@/composables/crearGuia'
 import EscenaMacros from '@/components/guias/EscenaMacros.vue'
 
-export const MACROS_GUIDE_KEY = 'skippify.macros-guide.v1'
+export const MACROS_GUIDE_KEY = 'skippify.macros-guide.v2'
 
 export const guiaMacros = crearGuia({
   id: 'macros',
@@ -21,36 +23,47 @@ export const guiaMacros = crearGuia({
   botonLabel: 'Ver la guía de Macros',
   pasos: [
     {
-      id: 'conectar',
-      titulo: 'Conecta tu cuenta de Spotify',
+      id: 'manual',
+      titulo: 'Origen: ejecución manual',
       escena: EscenaMacros,
-      escenaProps: { paso: 'conectar' },
+      escenaProps: { paso: 'manual' },
       puntos: [
-        { icono: 'ajuste:cuenta', titulo: 'Crea una aplicación', detalle: 'En developer.spotify.com, y copia su Client ID.' },
-        { icono: 'ajuste:antena', titulo: 'Pégalo y conecta', detalle: 'Pégalo en la pestaña y pulsa Conectar: el acceso lo concedes tú y puedes revocarlo.' },
-        { icono: 'ajuste:escudo', titulo: 'Sin cuenta no hay macros', detalle: 'Sin la cuenta conectada no se puede montar ninguna macro.', tono: 'amber' }
+        { icono: 'macro:manual', titulo: 'Tú decides cuándo', detalle: 'Actúa sobre la canción que suena, sólo cuando tú lo pides.' },
+        { icono: 'ajuste:play', titulo: 'Nunca se lanza sola', detalle: 'Se ejecuta con «Ejecutar» o con el botón de los auriculares.' },
+        { icono: 'ajuste:ojo', titulo: 'Pruébala antes', detalle: 'La vista previa te dice qué haría, sin tocar nada.', tono: 'sky' }
       ]
     },
     {
-      id: 'macro',
-      titulo: 'Monta una macro de ejemplo',
+      id: 'copiar',
+      titulo: 'Acción: copiar',
       escena: EscenaMacros,
-      escenaProps: { paso: 'macro' },
+      escenaProps: { paso: 'copiar' },
       puntos: [
-        { icono: 'macro:novedades', titulo: 'Origen', detalle: 'Las novedades de una playlist, lo añadido desde la última vez.' },
-        { icono: 'macro:copiar', titulo: 'Acción y destino', detalle: 'Acción: copiar. Destino: Tus me gusta.' },
-        { icono: 'macro:megusta', titulo: 'El resultado', detalle: 'Cada canción nueva acaba en tus favoritas, sin tocar la playlist original.' }
+        { icono: 'macro:copiar', titulo: 'Copiar', detalle: 'Añade la canción al destino sin quitarla de donde esté.' },
+        { icono: 'macro:mover', titulo: 'Sin riesgo', detalle: 'La música sigue sonando: copiar no borra nada de nada.', tono: 'sky' }
+      ]
+    },
+    {
+      id: 'megusta',
+      titulo: 'Destino: Tus me gusta',
+      escena: EscenaMacros,
+      escenaProps: { paso: 'megusta' },
+      puntos: [
+        { icono: 'macro:megusta', titulo: 'Tus me gusta', detalle: 'La canción acaba en tu biblioteca de canciones guardadas.' },
+        { icono: 'macro:nueva', titulo: 'O una playlist', detalle: 'También puede ser una playlist tuya o una nueva.', tono: 'sky' },
+        { icono: 'macro:guardar', titulo: 'Guárdala', detalle: 'Ponle nombre en el último paso y queda en «Tus macros».' }
       ]
     },
     {
       id: 'boton',
-      titulo: 'Vincúlala al botón de los auriculares',
+      titulo: 'Aplícala al botón de los auriculares',
       escena: EscenaMacros,
       escenaProps: { paso: 'boton' },
       puntos: [
-        { icono: 'feature:auriculares', titulo: 'Elige la macro', detalle: 'En la sección Botón de los auriculares, elige la macro.', tono: 'sky' },
-        { icono: 'macro:manual', titulo: 'Mantén pulsado', detalle: 'Mantén pulsado el botón de función y se ejecuta en ese momento, con la app cerrada.', tono: 'sky' },
-        { icono: 'ajuste:ayuda', titulo: 'La primera vez', detalle: 'Android te pregunta con qué app abrirlo: Skippify · macro y Siempre.', tono: 'amber' }
+        { icono: 'feature:auriculares', titulo: 'Elige la macro', detalle: 'En «Botón de los auriculares», marca tu macro.', tono: 'sky' },
+        { icono: 'macro:manual', titulo: 'Mantén pulsado', detalle: 'El botón de función la ejecuta, con la app cerrada.', tono: 'sky' },
+        { icono: 'ajuste:campana', titulo: 'Aviso sonoro', detalle: 'Actívalo y sonará un tono al ejecutarse: tu seña de que ha ido bien.', tono: 'sky' },
+        { icono: 'ajuste:ayuda', titulo: 'La primera vez', detalle: 'Android pregunta con qué app abrirlo: Skippify · macro y Siempre.', tono: 'amber' }
       ]
     }
   ]

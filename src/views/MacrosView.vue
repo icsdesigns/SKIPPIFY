@@ -7,79 +7,17 @@
 
     <!-- Todos los paneles de la pestaña son plegables y nacen plegados. -->
 
-    <!-- ══ Conexión con Spotify ══════════════════════════════════════════════
-         Sin cuenta vinculada no hay nada que hacer aquí, así que la pantalla se
-         reduce a los tres pasos de la conexión y a una demostración de para qué
-         sirve todo esto una vez conectada. -->
+    <!-- ══ Cuenta de Spotify ═══════════════════════════════════════════════════
+         El mismo panel que en Inicio («Vincula tu Spotify» y, ya vinculada, la
+         foto, el nombre y el icono de desvincular). Sin invitación a crear
+         macros: aquí ya se está en la pestaña. Es él quien gestiona la vuelta
+         de Spotify (redirección OAuth) en la app. -->
+    <SpotifyCuentaPanel ocultar-invitacion-macros />
+    <p v-if="connected && libraryError" class="rounded-md bg-rose-500/[0.16] px-3 py-2 text-[11px] text-rose-200">{{ libraryError }}</p>
+
+    <!-- Sin cuenta vinculada no hay nada que montar: sólo una muestra de para
+         qué sirve todo esto una vez conectada. -->
     <template v-if="!connected">
-      <FeaturePanel
-        title="Conecta tu cuenta de Spotify"
-        subtitle="Tres pasos. El acceso lo concedes tú y puedes revocarlo cuando quieras."
-        icon-class="bg-brand-400/[0.18] text-brand-300"
-      >
-        <template #icono><MacroIcon name="actual" class="h-5 w-5" /></template>
-
-        <div class="space-y-5">
-          <!-- Paso 1 · crear la aplicación en el panel de Spotify -->
-          <div class="flex items-start gap-3">
-            <span class="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-400 text-[11px] font-bold text-black">1</span>
-            <div class="min-w-0 flex-1">
-              <p class="text-sm font-bold text-white">Crea una aplicación en Spotify</p>
-              <p class="mt-1 text-[11px] leading-relaxed text-slate-400">
-                Entra en <span class="text-slate-300">developer.spotify.com/dashboard</span>,
-                pulsa <span class="text-slate-300">Create app</span> y ponle el nombre que quieras.
-              </p>
-            </div>
-          </div>
-
-          <!-- Paso 2 · pegar la URI de redirección -->
-          <div class="flex items-start gap-3">
-            <span class="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-400 text-[11px] font-bold text-black">2</span>
-            <div class="min-w-0 flex-1">
-              <p class="text-sm font-bold text-white">Copia esta URI de redirección en la app</p>
-              <p class="mt-1 text-[11px] leading-relaxed text-slate-400">
-                Va en el campo <span class="text-slate-300">Redirect URIs</span>. Tiene que ser exactamente ésta:
-              </p>
-              <div class="mt-2 flex flex-wrap items-center gap-2">
-                <code class="min-w-0 flex-1 break-all rounded-lg bg-black/30 px-2.5 py-2 font-mono text-[11px] text-brand-400">{{ redirectUri() }}</code>
-                <button type="button" class="sk-btn sk-btn-ghost sk-btn-sm shrink-0" @click="copiarRedirect">
-                  {{ redirectCopiada ? '¡Copiada!' : 'Copiar' }}
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <!-- Paso 3 · pegar el Client ID y conectar -->
-          <div class="flex items-start gap-3">
-            <span class="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-400 text-[11px] font-bold text-black">3</span>
-            <div class="min-w-0 flex-1">
-              <p class="text-sm font-bold text-white">Pega el Client ID y conecta</p>
-              <p class="mt-1 text-[11px] leading-relaxed text-slate-400">
-                Lo encuentras en <span class="text-slate-300">Settings</span> de la aplicación que acabas de crear.
-              </p>
-              <input
-                v-model="clientIdInput"
-                type="text"
-                placeholder="32 caracteres del panel de desarrollador"
-                class="mt-2.5 w-full sk-input px-3 py-2.5 font-mono text-xs text-slate-200 placeholder:text-slate-600"
-              >
-              <button
-                type="button"
-                class="mt-2.5 w-full sk-btn sk-btn-primary disabled:opacity-50"
-                :disabled="!clientIdInput.trim() || state.connecting"
-                @click="onConnect"
-              >
-                {{ state.connecting ? 'Esperando a Spotify…' : 'Conectar con Spotify' }}
-              </button>
-
-              <p v-if="state.error" class="mt-2.5 rounded-md bg-rose-500/[0.16] px-3 py-2 text-[11px] text-rose-200">
-                {{ state.error }}
-              </p>
-            </div>
-          </div>
-        </div>
-      </FeaturePanel>
-
       <!-- ── Demostración: qué se puede hacer una vez conectada ─────────────── -->
       <FeaturePanel
         title="Un ejemplo de macro"
@@ -113,63 +51,6 @@
     </template>
 
     <template v-else>
-      <!-- ══ 1 · Cuenta ═════════════════════════════════════════════════════
-           Panel mínimo: quién eres y cuánto hay en la cuenta. La cabecera ya
-           lleva nombre, correo y cifras; dentro sólo quedan los dos botones. -->
-      <FeaturePanel
-        :title="state.profile?.display_name || 'Cuenta conectada'"
-        :subtitle="state.profile?.email || state.profile?.id || ''"
-        icon-class="bg-sky-400/[0.18] text-sky-200"
-      >
-        <template #icono>
-          <img
-            v-if="state.profile?.images?.[0]?.url"
-            :src="state.profile.images[0].url"
-            alt=""
-            class="h-9 w-9 rounded-full object-cover"
-          >
-          <MacroIcon v-else name="actual" class="h-5 w-5" />
-        </template>
-
-        <template #estado>
-          <span class="inline-flex items-center gap-2.5 font-mono text-[11px] font-bold text-slate-300">
-            <span class="inline-flex items-center gap-1" title="Playlists">
-              <MacroIcon name="playlist" class="h-3.5 w-3.5 text-slate-400" />{{ playlists.length || '·' }}
-            </span>
-            <span class="inline-flex items-center gap-1" title="Me gusta">
-              <MacroIcon name="megusta" class="h-3.5 w-3.5 text-slate-400" />{{ library.liked ?? '·' }}
-            </span>
-          </span>
-        </template>
-
-        <div class="flex items-center justify-end gap-2">
-          <button
-            type="button"
-            class="sk-btn sk-btn-ghost sk-btn-sm flex h-9 w-9 items-center justify-center !p-0"
-            :class="loadingLibrary ? 'animate-pulse' : ''"
-            :disabled="loadingLibrary"
-            aria-label="Actualizar datos de la cuenta"
-            title="Actualizar"
-            @click="loadLibrary"
-          >
-            <MacroIcon name="actualizar" class="h-5 w-5" />
-          </button>
-          <button
-            type="button"
-            class="sk-btn sk-btn-ghost sk-btn-sm flex h-9 w-9 items-center justify-center !p-0"
-            aria-label="Desconectar la cuenta"
-            title="Desconectar"
-            @click="disconnect"
-          >
-            <MacroIcon name="desconectar" class="h-5 w-5" />
-          </button>
-        </div>
-
-        <p v-if="libraryError" class="mt-3 rounded-md bg-rose-500/[0.16] px-3 py-2 text-[11px] text-rose-200">
-          {{ libraryError }}
-        </p>
-      </FeaturePanel>
-
       <!-- ══ 2 · Crear una macro ═════════════════════════════════════════════
            Un paso visible cada vez. Al cambiar de paso la vista se alinea con la
            parte superior de este panel. -->
@@ -226,6 +107,66 @@
                     <span class="mt-1 block text-[11px] leading-relaxed text-slate-500">{{ source.detail }}</span>
                   </span>
                 </button>
+              </div>
+
+              <!-- «Tras N escuchas»: cuántas y en cuánto tiempo, en tarjetas compactas. -->
+              <div v-if="selectedSource?.afterPlays" class="mt-3 space-y-2" data-tras-ajustes>
+                <p class="sk-eyebrow">¿Cuántas escuchas?</p>
+                <OpcionFila
+                  plana
+                  compacta
+                  color-tesela
+                  tono="violet"
+                  titulo="Escuchas"
+                  :detalle="`Se actúa en la escucha ${draft.source.plays} de la misma canción.`"
+                >
+                  <template #icono><MacroIcon name="escuchas" class="h-6 w-6" /></template>
+                  <template #fin>
+                    <span class="flex shrink-0 items-center gap-1.5">
+                      <button
+                        type="button"
+                        class="flex h-8 w-8 items-center justify-center rounded-full bg-white/[0.08] text-slate-200 transition-colors hover:bg-white/[0.16] disabled:opacity-30"
+                        :disabled="draft.source.plays <= PLAYS_MIN"
+                        aria-label="Una escucha menos"
+                        data-tras-menos
+                        @click="ajustarPlays(-1)"
+                      >
+                        <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 12h12" /></svg>
+                      </button>
+                      <span class="w-6 text-center font-mono text-sm font-bold text-white" aria-live="polite" data-tras-n>{{ draft.source.plays }}</span>
+                      <button
+                        type="button"
+                        class="flex h-8 w-8 items-center justify-center rounded-full bg-white/[0.08] text-slate-200 transition-colors hover:bg-white/[0.16] disabled:opacity-30"
+                        :disabled="draft.source.plays >= PLAYS_MAX"
+                        aria-label="Una escucha más"
+                        data-tras-mas
+                        @click="ajustarPlays(1)"
+                      >
+                        <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 6v12M6 12h12" /></svg>
+                      </button>
+                    </span>
+                  </template>
+                </OpcionFila>
+
+                <p class="sk-eyebrow pt-1">¿En cuánto tiempo?</p>
+                <div class="grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label="Ventana de tiempo">
+                  <OpcionFila
+                    v-for="dias in VENTANAS_DIAS"
+                    :key="dias"
+                    as="button"
+                    role="radio"
+                    compacta
+                    tono="violet"
+                    :aria-checked="draft.source.windowDays === dias"
+                    :activo="draft.source.windowDays === dias"
+                    :titulo="`${dias} días`"
+                    :detalle="dias === 7 ? 'Una semana. Es lo habitual.' : 'Un mes entero de escuchas.'"
+                    :data-tras-ventana="dias"
+                    @click="draft.source.windowDays = dias"
+                  >
+                    <template #icono><AjusteIcon name="reloj" class="h-6 w-6" /></template>
+                  </OpcionFila>
+                </div>
               </div>
 
               <input
@@ -476,7 +417,7 @@
           >
             Las macros marcadas «en segundo plano» las ejecuta el servicio con la app cerrada:
             las de la canción actual en cuanto cambia la canción, y las de lista en un repaso
-            cada 15 minutos. Las de «Ejecución manual» sólo actúan cuando pulsas «Ejecutar» o el
+            cada 15 minutos; las de «tras N escuchas» se evalúan con cada cambio de canción. Las de «Ejecución manual» sólo actúan cuando pulsas «Ejecutar» o el
             botón de los auriculares. Todas recuerdan por dónde iban, así que nada se procesa dos
             veces aunque pasen días entre ejecuciones.
           </p>
@@ -513,7 +454,7 @@
 
                 <span class="min-w-0 flex-1">
                   <span class="block truncate text-sm font-bold text-white">{{ macro.name }}</span>
-                  <span class="mt-1 line-clamp-2 block text-[11px] leading-relaxed text-slate-500 [overflow-wrap:anywhere]">{{ describeMacro(macro) }}</span>
+                  <span class="mt-1 line-clamp-2 text-[11px] leading-relaxed text-slate-500 [overflow-wrap:anywhere]">{{ describeMacro(macro) }}</span>
                   <span class="mt-1.5 flex flex-wrap items-center gap-1.5">
                     <span
                       v-if="correEnSegundoPlano(macro)"
@@ -684,7 +625,37 @@
         <template #icono><FeatureIcon name="auriculares" class="h-5 w-5" /></template>
 
         <div class="space-y-3">
-          <p class="sk-eyebrow">Macro vinculada</p>
+          <!-- La nota larga del botón vive tras el icono de información. -->
+          <div class="flex items-center justify-between gap-2">
+            <p class="sk-eyebrow">Macro vinculada</p>
+            <button
+              type="button"
+              class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors"
+              :class="verAyudaBoton ? 'bg-sky-400 text-black' : 'bg-white/[0.08] text-slate-300 hover:bg-white/[0.16]'"
+              :aria-expanded="verAyudaBoton"
+              aria-controls="ayuda-boton"
+              aria-label="Más información sobre el botón de los auriculares"
+              title="Más información"
+              data-info-boton
+              @click="verAyudaBoton = !verAyudaBoton"
+            >
+              <GrupoIcono name="info" class="h-4 w-4" />
+            </button>
+          </div>
+
+          <Transition name="desplegar">
+            <p
+              v-if="verAyudaBoton"
+              id="ayuda-boton"
+              class="rounded-xl bg-black/30 px-3.5 py-3 text-[11px] leading-relaxed text-slate-400"
+            >
+              El botón la ejecuta aunque esté pausada. Así puedes tener, por ejemplo,
+              «la canción que suena → copiar a una playlist» sólo cuando tú lo pidas,
+              sin que se aplique a cada canción. Las pulsaciones cortas (pausa, siguiente)
+              siguen yendo a Spotify. Si tus auriculares usan la pulsación larga para su
+              propia app (algunos Galaxy Buds o Pixel Buds), cámbiala allí a «asistente de voz».
+            </p>
+          </Transition>
 
           <div class="grid gap-2" role="radiogroup" aria-label="Macro vinculada al botón">
             <OpcionFila
@@ -730,12 +701,39 @@
           </OpcionFila>
 
           <template v-if="nativeState.boton.macroId">
+            <!-- Aviso sonoro: seña de que el botón ha ejecutado la macro. -->
+            <OpcionFila
+              plana
+              compacta
+              tono="sky"
+              :activo="nativeState.boton.sonido"
+              titulo="Aviso sonoro"
+              detalle="Un tono corto al ejecutarse la macro, como seña de que se ha hecho."
+              data-aviso-sonoro
+            >
+              <template #icono><AjusteIcon name="campana" class="h-6 w-6" /></template>
+              <template #fin>
+                <button
+                  type="button"
+                  role="switch"
+                  :aria-checked="nativeState.boton.sonido"
+                  aria-label="Aviso sonoro al ejecutar la macro del botón"
+                  class="sk-switch shrink-0 disabled:opacity-40"
+                  :class="nativeState.boton.sonido ? 'border-transparent bg-brand-400' : 'border-transparent bg-white/[0.18]'"
+                  :disabled="botonOcupado"
+                  @click="onAlternarSonido"
+                >
+                  <span class="sk-switch-knob" :class="nativeState.boton.sonido ? 'translate-x-6' : 'translate-x-1'" />
+                </button>
+              </template>
+            </OpcionFila>
+
             <p class="sk-eyebrow pt-1">Cómo se usa</p>
             <div class="grid gap-2">
               <OpcionFila
                 plana
                 titulo="Mantén pulsado el botón"
-                detalle="El de función de los auriculares, el que suele abrir el asistente de voz."
+                detalle="El de función, el que suele abrir el asistente de voz."
               >
                 <template #icono><MacroIcon name="manual" class="h-8 w-8" /></template>
               </OpcionFila>
@@ -754,14 +752,6 @@
                 <template #icono><AjusteIcon name="registro" class="h-8 w-8" /></template>
               </OpcionFila>
             </div>
-
-            <p class="rounded-xl bg-black/30 px-3.5 py-3 text-[11px] leading-relaxed text-slate-500">
-              El botón la ejecuta aunque esté pausada. Así puedes tener, por ejemplo,
-              «la canción que suena → copiar a una playlist» sólo cuando tú lo pidas,
-              sin que se aplique a cada canción. Las pulsaciones cortas (pausa, siguiente)
-              siguen yendo a Spotify. Si tus auriculares usan la pulsación larga para su
-              propia app (algunos Galaxy Buds o Pixel Buds), cámbiala allí a «asistente de voz».
-            </p>
 
             <div class="flex justify-end">
               <button
@@ -809,6 +799,8 @@ import AjusteIcon from '@/components/AjusteIcon.vue'
 import OpcionFila from '@/components/OpcionFila.vue'
 import FeaturePanel from '@/components/FeaturePanel.vue'
 import MacroIcon from '@/components/MacroIcon.vue'
+import GrupoIcono from '@/components/grupos/GrupoIcono.js'
+import SpotifyCuentaPanel from '@/components/SpotifyCuentaPanel.vue'
 import GuiaInteractiva from '@/components/GuiaInteractiva.vue'
 import { guiaMacros } from '@/guias'
 import { useTour } from '@/composables/useTour'
@@ -821,16 +813,20 @@ import {
   targetMeta,
   MACRO_SOURCES,
   MACRO_ACTIONS,
-  MACRO_TARGETS
+  MACRO_TARGETS,
+  PLAYS_MIN,
+  PLAYS_MAX,
+  PLAYS_DEFECTO,
+  VENTANAS_DIAS
 } from '@/composables/useMacros'
 
 const spotify = useSpotify()
-const { state, connected, clientId, setClientId, redirectUri, connect, disconnect, consumeRedirect, cancelConnecting, loadProfile, missingScopes, api, apiPaged } = spotify
+const { state, connected, consumeRedirect, loadProfile, missingScopes, api, apiPaged } = spotify
 const {
   macros, createMacro, deleteMacro, toggleMacro, runMacro, runAllEnabled,
   sincronizarConNativo, refrescarEstadoNativo, correEnSegundoPlano, motivoSinSegundoPlano,
   estadisticasNativas, historialPorDia,
-  nativeState, vincularBoton, probarBoton, vinculadaAlBoton
+  nativeState, vincularBoton, fijarSonidoBoton, probarBoton, vinculadaAlBoton
 } = useMacros()
 
 // ── Botón de los auriculares ────────────────────────────────────────────────
@@ -846,6 +842,12 @@ async function onVincularBoton (id) {
   botonOcupado.value = true
   botonResultado.value = null
   await vincularBoton(id)
+  botonOcupado.value = false
+}
+
+async function onAlternarSonido () {
+  botonOcupado.value = true
+  await fijarSonidoBoton(!nativeState.boton.sonido)
   botonOcupado.value = false
 }
 
@@ -868,8 +870,8 @@ const abierta = reactive({})
 const verHistorial = reactive({})
 /** La descripción larga de «Tus macros» se pide con el icono de información. */
 const verAyudaMacros = ref(false)
-const redirectCopiada = ref(false)
-let redirectCopiadaTimer = null
+/** La nota larga del botón de los auriculares, tras su icono de información. */
+const verAyudaBoton = ref(false)
 
 /** Muestra de macro para quien todavía no ha vinculado la cuenta. */
 const demoMacro = [
@@ -918,9 +920,7 @@ function etiquetaDia (iso) {
 
 const sources = MACRO_SOURCES
 
-const clientIdInput = ref(clientId.value)
 const playlists = ref([])
-const library = reactive({ liked: null, recent: null, top: null, following: null })
 const loadingLibrary = ref(false)
 const loadingPlaylists = ref(false)
 const libraryError = ref('')
@@ -929,7 +929,7 @@ const results = reactive({})
 
 const draft = reactive({
   name: '',
-  source: { type: '', playlistId: '', playlistName: '', playlistWritable: null },
+  source: { type: '', playlistId: '', playlistName: '', playlistWritable: null, plays: PLAYS_DEFECTO, windowDays: VENTANAS_DIAS[0] },
   action: { type: '' },
   target: { type: '', playlistId: '', playlistName: '', newPlaylistName: '', playlistWritable: null }
 })
@@ -1042,7 +1042,7 @@ function retroceder () {
 
 function reiniciarBorrador () {
   draft.name = ''
-  draft.source = { type: '', playlistId: '', playlistName: '', playlistWritable: null }
+  draft.source = { type: '', playlistId: '', playlistName: '', playlistWritable: null, plays: PLAYS_DEFECTO, windowDays: VENTANAS_DIAS[0] }
   draft.action = { type: '' }
   draft.target = { type: '', playlistId: '', playlistName: '', newPlaylistName: '', playlistWritable: null }
   pasoIdx.value = 0
@@ -1097,6 +1097,11 @@ function ultimaAutomatica (macro) {
   return st.lastResult ? `${cuando} · ${st.lastResult}` : cuando
 }
 
+/** «Tras N escuchas»: una escucha más o menos, dentro de los límites. */
+function ajustarPlays (delta) {
+  draft.source.plays = Math.min(PLAYS_MAX, Math.max(PLAYS_MIN, (Number(draft.source.plays) || PLAYS_DEFECTO) + delta))
+}
+
 function pickSource (source) {
   draft.source.type = source.type
   if (!source.needsPlaylist) {
@@ -1111,7 +1116,8 @@ function pickSource (source) {
     draft.target.type = ''
   }
   // Sin playlist que elegir el paso ya está resuelto: se pasa solo al siguiente.
-  if (!source.needsPlaylist) avanzar()
+  // «Tras N escuchas» se queda: hay que ajustar cuántas y en cuánto tiempo.
+  if (!source.needsPlaylist && !source.afterPlays) avanzar()
 }
 
 function pickAction (action) {
@@ -1160,20 +1166,6 @@ function syncTargetPlaylistName () {
   draft.target.playlistWritable = found ? found.writable : null
 }
 
-async function onConnect () {
-  setClientId(clientIdInput.value)
-  await connect()
-}
-
-async function copiarRedirect () {
-  try {
-    await navigator.clipboard.writeText(redirectUri())
-    redirectCopiada.value = true
-    if (redirectCopiadaTimer) clearTimeout(redirectCopiadaTimer)
-    redirectCopiadaTimer = setTimeout(() => { redirectCopiada.value = false }, 2000)
-  } catch { /* la Clipboard API no existe fuera de contextos seguros */ }
-}
-
 function onCreate () {
   if (draftError.value) return
   createMacro({
@@ -1196,7 +1188,7 @@ async function onPreview (macro) {
       : result.matched
         ? `Se procesarían ${result.matched} canción(es)${result.limited ? ' (por tandas, para no agotar el cupo de Spotify)' : ''}: `
           + `${result.tracks.map(t => t.name).slice(0, 5).join(', ')}${result.matched > 5 ? '…' : ''}`
-        : 'No hay canciones pendientes ahora mismo.'
+        : result.nota || 'No hay canciones pendientes ahora mismo.'
   }
   running.value = false
 }
@@ -1208,7 +1200,7 @@ async function onRun (macro) {
     error: !!result.error,
     message: result.error || (result.applied
       ? `Listo: ${result.applied} canción(es) procesadas.`
-      : macro.stats.lastResult || 'Sin cambios.')
+      : result.nota || macro.stats.lastResult || 'Sin cambios.')
   }
   running.value = false
   await loadLibrary()
@@ -1255,64 +1247,29 @@ async function loadPlaylists () {
   }
 }
 
+/**
+ * Recarga lo que la pestaña necesita de la cuenta: las playlists del desplegable.
+ * (Las cifras de la cuenta —playlists, me gusta— las enseñaba el panel propio
+ * de esta pestaña; ahora la cabecera es la del panel de Inicio y no las lleva.)
+ */
 async function loadLibrary () {
   if (!connected.value) return
   loadingLibrary.value = true
   libraryError.value = ''
-
   try {
     await loadPlaylists()
-
-    // Sólo interesa el total de cada colección: se pide una página mínima y se
-    // lee el campo `total`, en lugar de descargar miles de canciones.
-    const [liked, recent, top, following] = await Promise.all([
-      api('/me/tracks?limit=1').catch(() => null),
-      api('/me/player/recently-played?limit=1').catch(() => null),
-      api('/me/top/tracks?limit=1').catch(() => null),
-      api('/me/following?type=artist&limit=1').catch(() => null)
-    ])
-
-    library.liked = liked?.total ?? null
-    library.recent = recent?.items?.length != null ? (recent.total ?? 50) : null
-    library.top = top?.total ?? null
-    library.following = following?.artists?.total ?? null
-  } catch (error) {
-    libraryError.value = error?.message || 'No se pudieron cargar tus datos.'
   } finally {
     loadingLibrary.value = false
   }
 }
 
-let redirectHandle = null
-
-async function handleRedirect (url) {
-  const ok = await consumeRedirect(url)
-  if (ok) await loadLibrary()
-  return ok
-}
-
 /**
- * Comprueba si hay una redirección OAuth esperando en el lado nativo.
- *
- * No basta con el evento spotifyAuthRedirect: si la vista ya estaba montada
- * cuando el usuario volvió del navegador, o el evento se pierde por cualquier
- * motivo, la pantalla se quedaría esperando indefinidamente. Preguntar al
- * volver a primer plano es la red de seguridad.
+ * Vuelta de Spotify. En la app la gestiona el panel de cuenta (evento nativo y
+ * redirección pendiente): es la ÚNICA ruta, para no consumir dos veces el mismo
+ * código. Aquí queda sólo la del navegador, que llega en la barra de direcciones.
  */
-async function pollPendingRedirect () {
-  const NL = window.Capacitor?.Plugins?.NotifListener
-  if (!NL?.consumeAuthRedirect) return false
-  const pending = await NL.consumeAuthRedirect().catch(() => null)
-  if (!pending?.url) return false
-  return handleRedirect(pending.url)
-}
-
 async function onVisibilityChange () {
   if (document.visibilityState !== 'visible') return
-  const handled = await pollPendingRedirect()
-  // Se ha vuelto a la app sin traer ningún código: el usuario canceló o cerró
-  // el navegador. Liberar el botón en vez de dejarlo girando para siempre.
-  if (!handled && !connected.value) cancelConnecting()
   // Vuelta desde Spotify: puede haber playlists nuevas.
   if (connected.value && !loadingPlaylists.value) await loadPlaylists()
 }
@@ -1324,23 +1281,14 @@ onMounted(async () => {
   // tour de la app está a la vista, espera: dos paneles a la vez no se leen.
   if (!tour.state.open) guiaMacros.autoStart()
 
-  // Vuelta del navegador: en la app llega por evento nativo; en el navegador,
-  // en la propia barra de direcciones.
-  const NL = window.Capacitor?.Plugins?.NotifListener
-  if (NL?.addListener) {
-    redirectHandle = await NL.addListener('spotifyAuthRedirect', payload => handleRedirect(payload?.url))
-  }
-  await pollPendingRedirect()
   document.addEventListener('visibilitychange', onVisibilityChange)
 
   if (window.location.search.includes('code=') || window.location.search.includes('error=')) {
-    await handleRedirect(window.location.href)
+    const ok = await consumeRedirect(window.location.href)
     // Limpiar la barra evita reprocesar el mismo `code` al recargar.
     window.history.replaceState({}, '', window.location.pathname + window.location.hash)
+    if (ok && !state.profile) await loadProfile()
   }
-
-  // El servicio pudo refrescar el token con la app cerrada: el bueno es el suyo.
-  await spotify.adoptarSesionNativa?.()
 
   if (connected.value) {
     if (!state.profile) await loadProfile()
@@ -1353,25 +1301,22 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
-  if (redirectHandle?.remove) redirectHandle.remove()
-  if (redirectCopiadaTimer) clearTimeout(redirectCopiadaTimer)
   document.removeEventListener('visibilitychange', onVisibilityChange)
 })
 
+// Al vincular la cuenta (desde el panel, en la app, o al volver el navegador)
+// se cargan el perfil y las playlists.
 watch(connected, async (value) => {
   if (!value) return
   if (!state.profile) await loadProfile()
   await loadLibrary()
-})
-
-watch(clientId, (value) => { clientIdInput.value = value })
-</script>
+})</script>
 
 <style scoped>
 .desplegar-enter-active, .desplegar-leave-active {
   transition: opacity 0.2s ease, max-height 0.25s ease;
   overflow: hidden;
-  max-height: 220px;
+  max-height: 320px;
 }
 .desplegar-enter-from, .desplegar-leave-to {
   opacity: 0;

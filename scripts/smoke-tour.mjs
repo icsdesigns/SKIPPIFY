@@ -272,19 +272,26 @@ async function main () {
   }))
   const htmlG = await pintarG()
   check('el panel se pinta', htmlG.includes('Cómo funciona la pestaña Macros'))
-  check('son tres pasos', htmlG.includes('1 / 3') && (htmlG.match(/class="[^"]*gi-dot[ "]/g) || []).length === MACROS_GUIDE_STEPS)
-  check('los puntos son tarjetas de opción compactas', htmlG.includes('h-10 w-10 rounded-xl') && htmlG.includes('Crea una aplicación'))
-  check('el primero es conectar la cuenta', htmlG.includes('Conecta tu cuenta de Spotify') && htmlG.includes('mg-typed'))
+  check('son cuatro pasos', htmlG.includes('1 / 4') && MACROS_GUIDE_STEPS === 4 && (htmlG.match(/class="[^"]*gi-dot[ "]/g) || []).length === MACROS_GUIDE_STEPS)
+  check('la clave es la v2 (el contenido cambió: se vuelve a ver)', MACROS_GUIDE_KEY === 'skippify.macros-guide.v2')
+  check('los puntos son tarjetas de opción compactas', htmlG.includes('h-10 w-10 rounded-xl') && htmlG.includes('Tú decides cuándo'))
+  check('el primero es la ejecución manual', htmlG.includes('Origen: ejecución manual') && htmlG.includes('mg-tap'))
 
   g.next()
-  const htmlMacro = await pintarG()
-  check('el segundo monta novedades → copiar → Tus me gusta',
-    htmlMacro.includes('Novedades de una playlist') && htmlMacro.includes('Copiar') && htmlMacro.includes('Tus me gusta'))
+  const htmlCopiar = await pintarG()
+  check('el segundo es copiar, con las notas viajando',
+    htmlCopiar.includes('Acción: copiar') && htmlCopiar.includes('mg-note'))
+
+  g.next()
+  const htmlMeGusta = await pintarG()
+  check('el tercero es Tus me gusta, con la misma macro de ejemplo',
+    htmlMeGusta.includes('Destino: Tus me gusta') && htmlMeGusta.includes('Ejecución manual') && htmlMeGusta.includes('mg-heart'))
 
   g.next()
   const htmlBoton = await pintarG()
-  check('el tercero vincula la macro al botón de los auriculares',
-    htmlBoton.includes('botón de los auriculares') && htmlBoton.includes('mg-toast'))
+  check('el cuarto aplica la macro al botón de los auriculares',
+    htmlBoton.includes('botón de los auriculares') && htmlBoton.includes('Guardar lo que suena') && htmlBoton.includes('Aviso sonoro'))
+  check('sin aviso flotante que se solape con las tarjetas (ya no hay mg-toast)', !htmlBoton.includes('mg-toast'))
   check('y en el último «Siguiente» pasa a «Entendido»', htmlBoton.includes('Entendido'))
   g.next()
   check('no se pasa del último paso', g.state.step === MACROS_GUIDE_STEPS - 1)

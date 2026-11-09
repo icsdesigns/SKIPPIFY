@@ -367,7 +367,12 @@ watch(
 /** Copia del origen con los ajustes de «tras N escuchas» ya validados. */
 function sourceParaGuardar (source) {
   const copia = { ...source }
-  if (copia.type === 'after_plays') Object.assign(copia, normalizeAfterPlays(copia))
+  if (copia.type === 'after_plays') {
+    Object.assign(copia, normalizeAfterPlays(copia))
+  } else {
+    delete copia.plays
+    delete copia.windowDays
+  }
   return copia
 }
 
@@ -408,7 +413,7 @@ export function describeMacro (macro) {
     : source?.label || '—'
   if (source?.afterPlays) {
     const { plays, windowDays } = normalizeAfterPlays(macro.source)
-    sourceText = `Canción tras ${plays} escuchas en ${windowDays} días`
+    sourceText = `Tras ${plays} escuchas en ${windowDays} días`
   }
 
   let targetText = ''

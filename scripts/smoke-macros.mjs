@@ -399,7 +399,7 @@ console.log('\nSesión: el nativo es el dueño del refresco')
 
   check('describe el origen con N y ventana',
     describeMacro({ source: { type: 'after_plays', plays: 4, windowDays: 30 }, action: { type: 'copy' }, target: { type: 'liked' } }),
-    /Canción tras 4 escuchas en 30 días → copiar → Tus me gusta/)
+    /Tras 4 escuchas en 30 días → copiar → Tus me gusta/)
   const base = { action: { type: 'copy' }, target: { type: 'liked' } }
   check('valida N en rango', validateDraft({ ...base, source: { type: 'after_plays', plays: 3, windowDays: 7 } }), '')
   check('rechaza N=1', validateDraft({ ...base, source: { type: 'after_plays', plays: 1, windowDays: 7 } }), /entre 2 y 10/)
