@@ -272,6 +272,29 @@ final class PlayLogStore {
         }
     }
 
+    /**
+     * Escuchas «de verdad» (cerradas y contadas, no saltadas al vuelo) de una
+     * canción desde una marca de tiempo. La clave es la canónica del motor
+     * ({@link DuplicateSkipEngine#keyOf}). Para las macros «tras N escuchas».
+     */
+    static int countCommitted(@Nullable Context ctx, @Nullable String key, long sinceMs) {
+        if (key == null || key.isEmpty()) return 0;
+        Helper h = helper(ctx);
+        if (h == null) return 0;
+        Cursor c = null;
+        try {
+            c = h.getReadableDatabase().rawQuery(
+                    "SELECT COUNT(*) FROM " + TABLE
+                            + " WHERE track_key = ? AND committed = 1 AND started_at >= ?",
+                    new String[] { key, String.valueOf(sinceMs) });
+            return c != null && c.moveToFirst() ? c.getInt(0) : 0;
+        } catch (Throwable t) {
+            return 0;
+        } finally {
+            if (c != null) c.close();
+        }
+    }
+
     static int count(@Nullable Context ctx) {
         Helper h = helper(ctx);
         if (h == null) return 0;

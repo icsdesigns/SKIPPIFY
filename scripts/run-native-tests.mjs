@@ -42,7 +42,10 @@ const FUENTES = [
   join(raiz, 'scripts', 'native-tests', 'PruebasFundido.java'),
   // Los disparadores de los grupos en segundo plano y el aviso de los domingos.
   join(raiz, 'android-src', 'RitmoGrupos.java'),
-  join(raiz, 'scripts', 'native-tests', 'PruebasGrupos.java')
+  join(raiz, 'scripts', 'native-tests', 'PruebasGrupos.java'),
+  // El aviso sonoro del botón de los auriculares: qué toca y las muestras del tono.
+  join(raiz, 'android-src', 'AvisoSonoro.java'),
+  join(raiz, 'scripts', 'native-tests', 'PruebasAvisoSonoro.java')
 ]
 
 for (const f of FUENTES) {
@@ -80,6 +83,7 @@ try {
   execFileSync('java', ['-Dfile.encoding=UTF-8', '-cp', salida, 'com.skippify.app.PruebasEscuchasApi'], { stdio: 'inherit' })
   execFileSync('java', ['-Dfile.encoding=UTF-8', '-cp', salida, 'com.skippify.app.PruebasFundido'], { stdio: 'inherit' })
   execFileSync('java', ['-Dfile.encoding=UTF-8', '-cp', salida, 'com.skippify.app.PruebasGrupos'], { stdio: 'inherit' })
+  execFileSync('java', ['-Dfile.encoding=UTF-8', '-cp', salida, 'com.skippify.app.PruebasAvisoSonoro'], { stdio: 'inherit' })
 } finally {
   rmSync(salida, { recursive: true, force: true })
 }

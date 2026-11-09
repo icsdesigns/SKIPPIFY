@@ -48,6 +48,7 @@ public final class PruebasMacros {
         historialDeSieteDias();
         noCortarLaReproduccion();
         botonDeAuriculares();
+        trasNEscuchas();
 
         System.out.println();
         if (fallos > 0) {
@@ -896,6 +897,147 @@ public final class PruebasMacros {
         List<MacroRunner.Outcome> rl = MacroRunner.runListas(lista(MacroRunner.paraBoton(deTop)),
                 http, new Memoria(), new Reloj(), true, null);
         check("una de lista pausada también corre con el botón", rl.size(), 1);
+    }
+
+    // ── «Tras N escuchas» ────────────────────────────────────────────────────
+
+    /** Historial de mentira: cuenta con la misma normalización que usa el runner. */
+    static final class HistorialFalso implements MacroRunner.Escuchas {
+        final List<String[]> filas = new ArrayList<String[]>(); // título, artista, ms
+        void anotar(String titulo, String artista, long ms) {
+            filas.add(new String[] { titulo, artista, Long.toString(ms) });
+        }
+        public int contar(String titulo, String artistas, long desdeMs) {
+            String clave = MacroRunner.claveCancion(titulo, artistas);
+            int n = 0;
+            for (String[] f : filas) {
+                if (Long.parseLong(f[2]) >= desdeMs && clave.equals(MacroRunner.claveCancion(f[0], f[1]))) n++;
+            }
+            return n;
+        }
+    }
+
+    static MacroRunner.Macro trasN(String id, int n, int dias) {
+        return new MacroRunner.Macro(id, id, true, MacroRunner.SOURCE_AFTER_PLAYS,
+                "copy", "playlist", "FAVS", null, n, dias);
+    }
+
+    static void trasNEscuchas() {
+        titulo("Disparador «tras N escuchas»");
+        long DIA = 24L * 60L * 60L * 1000L;
+
+        // Decisión pura
+        check("sin llegar a N faltan escuchas",
+                MacroRunner.decidirTrasEscuchas(2, 3, 0, 1000, 7 * DIA), MacroRunner.TRAS_FALTAN);
+        check("al alcanzar N toca",
+                MacroRunner.decidirTrasEscuchas(3, 3, 0, 1000, 7 * DIA), MacroRunner.TRAS_TOCA);
+        check("pasarse de N también toca",
+                MacroRunner.decidirTrasEscuchas(5, 3, 0, 1000, 7 * DIA), MacroRunner.TRAS_TOCA);
+        check("ya ejecutada dentro de la ventana no se repite aunque haya más escuchas",
+                MacroRunner.decidirTrasEscuchas(9, 3, 1000, 1000 + 6 * DIA, 7 * DIA), MacroRunner.TRAS_YA_HECHA);
+        check("con la ventana vencida y N escuchas nuevas vuelve a tocar",
+                MacroRunner.decidirTrasEscuchas(3, 3, 1000, 1000 + 7 * DIA, 7 * DIA), MacroRunner.TRAS_TOCA);
+        check("con la ventana vencida pero pocas escuchas no toca",
+                MacroRunner.decidirTrasEscuchas(1, 3, 1000, 1000 + 8 * DIA, 7 * DIA), MacroRunner.TRAS_FALTAN);
+
+        // Límites de los ajustes
+        check("N por debajo de 2 vale 3", MacroRunner.escuchasNecesarias(1), 3);
+        check("N por encima de 10 vale 3", MacroRunner.escuchasNecesarias(11), 3);
+        check("N sin indicar vale 3", MacroRunner.escuchasNecesarias(0), 3);
+        check("N=2 y N=10 son válidos",
+                MacroRunner.escuchasNecesarias(2) + MacroRunner.escuchasNecesarias(10), 12);
+        check("la ventana sólo admite 7 o 30", MacroRunner.ventanaDias(30) + MacroRunner.ventanaDias(14), 37);
+
+        // Claves: mayúsculas, tildes y artistas
+        check("mayúsculas y tildes dan la misma clave",
+                MacroRunner.claveCancion("Canción de CUNA", "Ñengo Flow"),
+                MacroRunner.claveCancion("cancion de cuna", "nengo flow"));
+        check("sólo cuenta el primer artista",
+                MacroRunner.claveCancion("Tema", "Ana, Luis & Eva"), MacroRunner.claveCancion("Tema", "ana"));
+        check("sin título no hay clave", MacroRunner.claveCancion("  ", "x"), "");
+
+        // Recorrido completo
+        MacroRunner.Track cancion = new MacroRunner.Track("spotify:track:abc123", "Canción de Cuna", "Ñengo Flow");
+        Reloj reloj = new Reloj();
+        Memoria store = new Memoria();
+        HttpFalso h = new HttpFalso();
+        HistorialFalso hist = new HistorialFalso();
+        List<MacroRunner.Macro> ms = lista(trasN("t", 3, 7));
+
+        check("la macro la gobierna el servicio", MacroRunner.esDeSegundoPlano(ms.get(0)), true);
+        check("no es de las que dispara el repaso de listas", MacroRunner.deLista(ms).size(), 0);
+        check("ni se vincula al botón", MacroRunner.motivoExclusionBoton(ms.get(0)) != null, true);
+
+        // Primera escucha: la actual cuenta como 1.
+        List<MacroRunner.Outcome> r = MacroRunner.runEscuchas(cancion, ms, h, store, reloj, hist, null);
+        check("1 de 3: no toca", r.size() == 1 && r.get(0).status == MacroRunner.OMITIDA, true);
+        contiene("y lo explica", r.get(0).message, "1 de 3");
+        check("sin tocar Spotify", h.llamadas.size(), 0);
+        check("ni llenar el historial de pasadas en vacío", MacroRunner.runs(ms.get(0), store), 0L);
+
+        // Dos escuchas previas (con otra grafía) → la tercera dispara.
+        hist.anotar("CANCION DE CUNA", "nengo flow", reloj.now() - 2 * DIA);
+        hist.anotar("canción de cuna", "Ñengo Flow", reloj.now() - 1 * DIA);
+        r = MacroRunner.runEscuchas(cancion, ms, h, store, reloj, hist, null);
+        check("3 de 3: se aplica", r.size() == 1 && r.get(0).status == MacroRunner.APLICADA, true);
+        check("una sola petición, a la playlist", h.llamadas.size(), 1);
+        contiene("a la playlist de destino", h.llamadas.get(0), "/playlists/FAVS/items");
+        check("queda anotada en el historial", MacroRunner.runs(ms.get(0), store), 1L);
+
+        // Misma canción otra vez, con más escuchas: no se repite.
+        hist.anotar("Canción de Cuna", "Ñengo Flow", reloj.now() - 1000L);
+        r = MacroRunner.runEscuchas(cancion, ms, h, store, reloj, hist, null);
+        check("ya ejecutada: se omite", r.get(0).status, MacroRunner.OMITIDA);
+        contiene("y dice por qué", r.get(0).message, "Ya se ejecutó");
+        check("sin peticiones nuevas", h.llamadas.size(), 1);
+
+        // Otra canción cuenta aparte.
+        MacroRunner.Track otra = new MacroRunner.Track("spotify:track:zzz", "Otra", "Alguien");
+        r = MacroRunner.runEscuchas(otra, ms, h, store, reloj, hist, null);
+        check("otra canción no hereda el recuento", r.get(0).status, MacroRunner.OMITIDA);
+        check("ni dispara nada", h.llamadas.size(), 1);
+
+        // Ventana vencida: las escuchas viejas ya no cuentan y no se repite
+        // hasta reunir N nuevas.
+        reloj.avanzar(8 * DIA);
+        r = MacroRunner.runEscuchas(cancion, ms, h, store, reloj, hist, null);
+        check("pasada la ventana, las escuchas viejas no cuentan", r.get(0).status, MacroRunner.OMITIDA);
+        contiene("sólo cuenta la actual", r.get(0).message, "1 de 3");
+        hist.anotar("Canción de Cuna", "Ñengo Flow", reloj.now() - 2 * DIA);
+        hist.anotar("Canción de Cuna", "Ñengo Flow", reloj.now() - 1 * DIA);
+        r = MacroRunner.runEscuchas(cancion, ms, h, store, reloj, hist, null);
+        check("con N escuchas nuevas vuelve a aplicarse", r.get(0).status, MacroRunner.APLICADA);
+        check("segunda petición", h.llamadas.size(), 2);
+
+        // Un fallo no marca la canción como hecha: se reintenta.
+        MacroRunner.Macro otraMacro = trasN("t2", 2, 30);
+        HttpFalso roto = new HttpFalso();
+        roto.status = 500;
+        HistorialFalso h2 = new HistorialFalso();
+        h2.anotar("Canción de Cuna", "Ñengo Flow", reloj.now() - DIA);
+        Memoria st2 = new Memoria();
+        r = MacroRunner.runEscuchas(cancion, lista(otraMacro), roto, st2, reloj, h2, null);
+        check("con Spotify caído es un error", r.get(0).status, MacroRunner.ERROR);
+        HttpFalso sano = new HttpFalso();
+        r = MacroRunner.runEscuchas(cancion, lista(otraMacro), sano, st2, reloj, h2, null);
+        check("y al recuperarse se aplica", r.get(0).status, MacroRunner.APLICADA);
+
+        // Sin historial o sin canción no hace nada.
+        check("sin historial no actúa",
+                MacroRunner.runEscuchas(cancion, ms, h, store, reloj, null, null).size(), 0);
+        check("sin canción no actúa",
+                MacroRunner.runEscuchas(null, ms, h, store, reloj, hist, null).size(), 0);
+
+        // El borrado de la playlist viva se aplaza como en las demás.
+        MacroRunner.Macro quita = new MacroRunner.Macro("q", "q", true, MacroRunner.SOURCE_AFTER_PLAYS,
+                "remove", "playlist", "SONANDO", null, 2, 7);
+        HistorialFalso h3 = new HistorialFalso();
+        h3.anotar("Canción de Cuna", "Ñengo Flow", reloj.now() - DIA);
+        HttpFalso h4 = new HttpFalso();
+        r = MacroRunner.runEscuchas(cancion, lista(quita), h4, new Memoria(), reloj, h3,
+                new MacroRunner.EnReproduccion(cancion, "SONANDO"));
+        check("borrar de la playlist que suena se aplaza", r.get(0).status, MacroRunner.OMITIDA);
+        check("sin tocar Spotify", h4.llamadas.size(), 0);
     }
 
     static void unaSolaMacro() {

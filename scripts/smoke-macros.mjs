@@ -11,12 +11,17 @@ function installBrowserGlobals () {
     removeItem: (k) => store.delete(k),
     clear: () => store.clear()
   }
-  globalThis.window = { localStorage: globalThis.localStorage, location: { origin: 'http://localhost' } }
+  globalThis.window = { localStorage: globalThis.localStorage, location: { origin: 'http://localhost' }, addEventListener () {} }
+  // El almacén de eventos (historial de escuchas) registra un listener al importarse.
+  globalThis.document = { visibilityState: 'visible', addEventListener () {}, removeEventListener () {}, createElement: () => ({ content: {} }) }
 }
 installBrowserGlobals()
 
 async function main () {
-const { preflightMacro, explainSpotifyError, runMacro, validateDraft, useMacros, createMacro, deleteMacro, historialDe, historialPorDia } = await import('../src/composables/useMacros.js')
+const {
+  preflightMacro, explainSpotifyError, runMacro, validateDraft, useMacros, createMacro, deleteMacro, historialDe, historialPorDia,
+  describeMacro, normalizeAfterPlays, decidirTrasEscuchas, claveCancion, contarEscuchas
+} = await import('../src/composables/useMacros.js')
 const { nextTick } = await import('vue')
 
 let failures = 0
@@ -357,6 +362,86 @@ console.log('\nSesión: el nativo es el dueño del refresco')
 
   delete globalThis.window.Capacitor
   deleteMacro(m.id)
+}
+
+// ── Disparador «tras N escuchas» ─────────────────────────────────────────────
+{
+  console.log('\nDisparador «tras N escuchas»')
+  const DIA = 24 * 3600 * 1000
+  const ahora = Date.now()
+
+  check('N por defecto 3 y ventana 7', JSON.stringify(normalizeAfterPlays({})), '{"plays":3,"windowDays":7}')
+  check('N fuera de rango vuelve a 3', normalizeAfterPlays({ plays: 11 }).plays, 3)
+  check('N=2 y N=10 valen', normalizeAfterPlays({ plays: 2 }).plays + normalizeAfterPlays({ plays: 10 }).plays, 12)
+  check('la ventana de 30 días vale', normalizeAfterPlays({ windowDays: 30 }).windowDays, 30)
+  check('otra ventana vuelve a 7', normalizeAfterPlays({ windowDays: 14 }).windowDays, 7)
+
+  check('sin llegar a N faltan', decidirTrasEscuchas(2, 3, 0, ahora, 7 * DIA), 'faltan')
+  check('al alcanzar N toca', decidirTrasEscuchas(3, 3, 0, ahora, 7 * DIA), 'toca')
+  check('ya ejecutada no se repite', decidirTrasEscuchas(8, 3, ahora - DIA, ahora, 7 * DIA), 'ya_hecha')
+  check('ventana vencida con N nuevas vuelve a tocar', decidirTrasEscuchas(3, 3, ahora - 8 * DIA, ahora, 7 * DIA), 'toca')
+  check('ventana vencida con pocas no toca', decidirTrasEscuchas(1, 3, ahora - 8 * DIA, ahora, 7 * DIA), 'faltan')
+
+  check('mayúsculas y tildes dan la misma clave',
+    claveCancion('Canción de CUNA', 'Ñengo Flow'), claveCancion('cancion de cuna', 'nengo flow'))
+  check('sólo el primer artista', claveCancion('Tema', 'Ana, Luis & Eva'), claveCancion('Tema', 'ana'))
+  check('sin título no hay clave', claveCancion(' ', 'x'), '')
+
+  const eventos = [
+    { played_at: new Date(ahora - 2 * DIA).toISOString(), track: 'CANCION DE CUNA', artist: 'nengo flow' },
+    { played_at: new Date(ahora - 1 * DIA).toISOString(), track: 'canción de cuna', artist: 'Ñengo Flow' },
+    { played_at: new Date(ahora - 9 * DIA).toISOString(), track: 'Canción de Cuna', artist: 'Ñengo Flow' },
+    { played_at: new Date(ahora - DIA).toISOString(), track: 'Otra', artist: 'Alguien' }
+  ]
+  check('cuenta con tildes y mayúsculas, dentro de la ventana',
+    contarEscuchas(eventos, 'Canción de Cuna', 'Ñengo Flow', ahora - 7 * DIA), 2)
+  check('con 30 días entra la de hace 9', contarEscuchas(eventos, 'Canción de Cuna', 'Ñengo Flow', ahora - 30 * DIA), 3)
+
+  check('describe el origen con N y ventana',
+    describeMacro({ source: { type: 'after_plays', plays: 4, windowDays: 30 }, action: { type: 'copy' }, target: { type: 'liked' } }),
+    /Canción tras 4 escuchas en 30 días → copiar → Tus me gusta/)
+  const base = { action: { type: 'copy' }, target: { type: 'liked' } }
+  check('valida N en rango', validateDraft({ ...base, source: { type: 'after_plays', plays: 3, windowDays: 7 } }), '')
+  check('rechaza N=1', validateDraft({ ...base, source: { type: 'after_plays', plays: 1, windowDays: 7 } }), /entre 2 y 10/)
+  check('rechaza ventana rara', validateDraft({ ...base, source: { type: 'after_plays', plays: 3, windowDays: 5 } }), /7 o 30/)
+  check('mover no vale con este origen',
+    validateDraft({ source: { type: 'after_plays', plays: 3, windowDays: 7 }, action: { type: 'move' }, target: { type: 'liked' } }), /Mover solo/)
+
+  const guardada = createMacro({ name: 't', source: { type: 'after_plays', plays: 99, windowDays: 3 }, action: { type: 'copy' }, target: { type: 'liked' } })
+  check('al guardar se sanean los ajustes', JSON.stringify([guardada.source.plays, guardada.source.windowDays]), '[3,7]')
+
+  // Ejecución con Spotify falso: la canción suena y tiene ya 2 escuchas previas.
+  const sp = fakeSpotify({})
+  const original = sp.api
+  sp.api = async (path, options) => (path.startsWith('/me/player/currently-playing')
+    ? { item: { id: 'c1', uri: 'spotify:track:c1', name: 'Canción de Cuna', type: 'track', artists: [{ name: 'Ñengo Flow' }] } }
+    : original(path, options))
+  const m = createMacro({ name: 'tras', source: { type: 'after_plays', plays: 3, windowDays: 7 }, action: { type: 'copy' }, target: { type: 'liked' } })
+
+  let r = await runMacro(m, sp, { events: eventos.slice(0, 1) })
+  check('con 2 de 3 no actúa', r.applied, 0)
+  check('y lo explica', r.nota, /2 de 3/)
+  check('sin escrituras', sp.writes.length, 0)
+
+  r = await runMacro(m, sp, { dryRun: true, events: eventos })
+  check('la vista previa dice que se procesaría', r.matched, 1)
+  check('sin escribir', sp.writes.length, 0)
+
+  r = await runMacro(m, sp, { events: eventos })
+  check('con 3 de 3 actúa', r.applied, 1)
+  check('una sola escritura, en Tus me gusta', sp.writes.length === 1 && /\/me\/library/.test(sp.writes[0]), true)
+  check('queda anotada la canción', Object.keys(m.cursor.tras).length, 1)
+
+  r = await runMacro(m, sp, { events: eventos })
+  check('la segunda vez no se repite', r.applied, 0)
+  check('y lo dice', r.nota, /Ya se ejecutó/)
+  check('sigue habiendo una sola escritura', sp.writes.length, 1)
+
+  const nada = fakeSpotify({})
+  r = await runMacro(m, nada, { events: eventos })
+  check('sin canción sonando no hace nada', r.applied, 0)
+  deleteMacro(m.id)
+  deleteMacro(guardada.id)
 }
 
 console.log('\nvalidateDraft corta al crear la macro')

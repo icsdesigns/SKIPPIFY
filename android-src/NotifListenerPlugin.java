@@ -643,13 +643,23 @@ public class NotifListenerPlugin extends Plugin
         call.resolve(estadoDeMacros());
     }
 
+    /**
+     * Activa o apaga el aviso sonoro que confirma la ejecución de la macro del
+     * botón de los auriculares. Devuelve el estado completo de las macros.
+     */
+    @PluginMethod
+    public void setHeadsetSound(PluginCall call) {
+        MacroBackground.fijarSonidoDelBoton(getContext(), Boolean.TRUE.equals(call.getBoolean("enabled", false)));
+        call.resolve(estadoDeMacros());
+    }
+
     /** Ejecuta la macro del botón como si se hubiera pulsado. Para «Probar». */
     @PluginMethod
     public void runHeadsetMacroNow(final PluginCall call) {
         new Thread(new Runnable() {
             public void run() {
                 try {
-                    call.resolve(aJS(MacroBackground.ejecutarBoton(getContext())));
+                    call.resolve(aJS(MacroBackground.ejecutarBotonConAviso(getContext())));
                 } catch (Throwable t) {
                     call.reject("No se pudo ejecutar: " + t.getMessage());
                 }

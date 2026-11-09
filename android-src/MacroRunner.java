@@ -90,6 +90,10 @@ public final class MacroRunner {
         public final String target;            // null cuando la acción no lo usa
         public final String targetPlaylistId;  // null salvo destinos de playlist
         public final String sourcePlaylistId;  // null salvo orígenes de playlist
+        /** «Tras N escuchas»: cuántas veces (0 = sin indicar, vale el valor por defecto). */
+        public final int plays;
+        /** «Tras N escuchas»: ventana en días (0 = sin indicar, vale 7). */
+        public final int windowDays;
 
         public Macro(String id, String name, boolean enabled, String source,
                      String action, String target, String targetPlaylistId) {
@@ -99,6 +103,13 @@ public final class MacroRunner {
         public Macro(String id, String name, boolean enabled, String source,
                      String action, String target, String targetPlaylistId,
                      String sourcePlaylistId) {
+            this(id, name, enabled, source, action, target, targetPlaylistId,
+                    sourcePlaylistId, 0, 0);
+        }
+
+        public Macro(String id, String name, boolean enabled, String source,
+                     String action, String target, String targetPlaylistId,
+                     String sourcePlaylistId, int plays, int windowDays) {
             this.id = id;
             this.name = name;
             this.enabled = enabled;
@@ -107,6 +118,8 @@ public final class MacroRunner {
             this.target = target;
             this.targetPlaylistId = targetPlaylistId;
             this.sourcePlaylistId = sourcePlaylistId;
+            this.plays = plays;
+            this.windowDays = windowDays;
         }
     }
 
@@ -176,6 +189,18 @@ public final class MacroRunner {
     public static final String SOURCE_RECENTLY_PLAYED = "recently_played";
     public static final String SOURCE_LIKED_NEW       = "liked_new";
     public static final String SOURCE_TOP_TRACKS      = "top_tracks";
+    /**
+     * «Tras N escuchas»: se dispara con el cambio de canción, igual que «la
+     * canción que suena ahora», pero sólo actúa cuando esa canción alcanza N
+     * escuchas dentro de la ventana (por defecto 3 en 7 días). Las escuchas se
+     * cuentan en el registro local del motor ({@link Escuchas}).
+     */
+    public static final String SOURCE_AFTER_PLAYS     = "after_plays";
+
+    public static final int PLAYS_MIN = 2;
+    public static final int PLAYS_MAX = 10;
+    public static final int PLAYS_DEFECTO = 3;
+    public static final int VENTANA_DEFECTO_DIAS = 7;
 
     /**
      * Spotify vuelve a publicar la misma canción muchas veces (carátula, cambio
@@ -217,7 +242,8 @@ public final class MacroRunner {
                 || SOURCE_PLAYLIST_ALL.equals(source)
                 || SOURCE_RECENTLY_PLAYED.equals(source)
                 || SOURCE_LIKED_NEW.equals(source)
-                || SOURCE_TOP_TRACKS.equals(source);
+                || SOURCE_TOP_TRACKS.equals(source)
+                || SOURCE_AFTER_PLAYS.equals(source);
     }
 
     static boolean origenDePlaylist(String source) {
@@ -311,11 +337,14 @@ public final class MacroRunner {
         if (m.enabled && !manual) return m;
         // La manual se resuelve como «la canción que suena»: es lo que pide el botón.
         return new Macro(m.id, m.name, true, manual ? SOURCE_CURRENT_TRACK : m.source,
-                m.action, m.target, m.targetPlaylistId, m.sourcePlaylistId);
+                m.action, m.target, m.targetPlaylistId, m.sourcePlaylistId, m.plays, m.windowDays);
     }
 
     /** Motivo por el que el botón no puede ejecutarla, o null si puede. */
     public static String motivoExclusionBoton(Macro m) {
+        if (m != null && SOURCE_AFTER_PLAYS.equals(m.source)) {
+            return "«Tras N escuchas» se dispara sola al escuchar la canción las veces indicadas; no se vincula al botón.";
+        }
         return motivoExclusion(paraBoton(m));
     }
 
@@ -457,7 +486,209 @@ public final class MacroRunner {
         List<Macro> out = new ArrayList<Macro>();
         List<Macro> todas = filtrar(macros);
         for (int i = 0; i < todas.size(); i++) {
-            if (!SOURCE_CURRENT_TRACK.equals(todas.get(i).source)) out.add(todas.get(i));
+            String s = todas.get(i).source;
+            if (!SOURCE_CURRENT_TRACK.equals(s) && !SOURCE_AFTER_PLAYS.equals(s)) out.add(todas.get(i));
+        }
+        return out;
+    }
+
+    /** Las que dispara el cambio de canción pero sólo actúan tras N escuchas. */
+    public static List<Macro> deEscuchas(List<Macro> macros) {
+        List<Macro> out = new ArrayList<Macro>();
+        List<Macro> todas = filtrar(macros);
+        for (int i = 0; i < todas.size(); i++) {
+            if (SOURCE_AFTER_PLAYS.equals(todas.get(i).source)) out.add(todas.get(i));
+        }
+        return out;
+    }
+
+    // ── «Tras N escuchas» ────────────────────────────────────────────────────
+
+    /**
+     * Cuenta las escuchas de una canción en el historial local. Lo implementa la
+     * capa de Android (registro de reproducciones del motor de duplicadas, que
+     * guarda cada escucha cerrada con su canción y su artista); aquí es sólo un
+     * contrato para poder probar la decisión sin móvil.
+     *
+     * @param desdeMs sólo cuentan las escuchas iniciadas desde esta marca.
+     */
+    public interface Escuchas {
+        int contar(String titulo, String artistas, long desdeMs);
+    }
+
+    public static final int TRAS_TOCA = 0;
+    public static final int TRAS_FALTAN = 1;
+    public static final int TRAS_YA_HECHA = 2;
+
+    /** N dentro de 2–10; sin indicar o fuera de rango vale 3. */
+    public static int escuchasNecesarias(int n) {
+        if (n < PLAYS_MIN || n > PLAYS_MAX) return PLAYS_DEFECTO;
+        return n;
+    }
+
+    /** Ventana de 7 o 30 días; cualquier otro valor vale 7. */
+    public static int ventanaDias(int dias) {
+        return dias == 30 ? 30 : VENTANA_DEFECTO_DIAS;
+    }
+
+    static long ventanaMs(int dias) {
+        return ventanaDias(dias) * 24L * 60L * 60L * 1000L;
+    }
+
+    /**
+     * ¿Toca ejecutar una macro «tras N escuchas»?
+     *
+     * @param escuchas  escuchas dentro de la ventana, contando la actual.
+     * @param n         escuchas necesarias.
+     * @param hechaEn   cuándo se ejecutó ya para esta canción (0 = nunca).
+     * @param ventanaMs ventana de conteo; mientras dure, no se repite. Cuando
+     *                  vence, las escuchas que dispararon la anterior ya caen
+     *                  fuera de la ventana, así que sólo se repite si la
+     *                  canción vuelve a alcanzar N escuchas nuevas.
+     */
+    public static int decidirTrasEscuchas(int escuchas, int n, long hechaEn, long ahora, long ventanaMs) {
+        if (hechaEn > 0 && (ahora - hechaEn) < ventanaMs) return TRAS_YA_HECHA;
+        return escuchas >= n ? TRAS_TOCA : TRAS_FALTAN;
+    }
+
+    /**
+     * Clave de una canción para el registro de «ya ejecutada»: título y primer
+     * artista sin tildes, mayúsculas ni signos, de modo que «Canción» y
+     * «CANCION» (o las dos formas en que Spotify y la notificación escriben el
+     * mismo tema) son la misma. Vacía si no hay título.
+     */
+    public static String claveCancion(String titulo, String artistas) {
+        String t = normalizar(titulo);
+        if (t.length() == 0) return "";
+        String primero = artistas == null ? "" : artistas;
+        int corte = -1;
+        String[] separadores = { ",", "&", ";" };
+        for (int i = 0; i < separadores.length; i++) {
+            int idx = primero.indexOf(separadores[i]);
+            if (idx > 0 && (corte < 0 || idx < corte)) corte = idx;
+        }
+        if (corte > 0) primero = primero.substring(0, corte);
+        return t + "|" + normalizar(primero);
+    }
+
+    static String normalizar(String s) {
+        if (s == null) return "";
+        String sin = java.text.Normalizer.normalize(s, java.text.Normalizer.Form.NFD)
+                .replaceAll("\\p{M}+", "")
+                .toLowerCase(java.util.Locale.ROOT)
+                .replaceAll("[^\\p{Alnum}]+", " ")
+                .trim();
+        return sin.replaceAll("\\s+", " ");
+    }
+
+    /** Canciones ya ejecutadas por una macro «tras N escuchas»: clave → cuándo. */
+    static Map<String, Long> leerHechas(Macro m, Store store) {
+        Map<String, Long> out = new LinkedHashMap<String, Long>();
+        String crudo = store.get(clave(m, "tras"));
+        if (crudo == null || crudo.length() == 0) return out;
+        String[] lineas = crudo.split("\n");
+        for (int i = 0; i < lineas.length; i++) {
+            String linea = lineas[i];
+            int tab = linea.indexOf('\t');
+            if (tab <= 0) continue;
+            long cuando = leerLong(linea.substring(0, tab));
+            String k = linea.substring(tab + 1);
+            if (cuando > 0 && k.length() > 0) out.put(k, Long.valueOf(cuando));
+        }
+        return out;
+    }
+
+    static final int MAX_HECHAS = 300;
+
+    /** Anota la canción como ejecutada y poda lo que ya salió de la ventana. */
+    static void anotarHecha(Macro m, String cancion, Store store, Clock clock) {
+        long ahora = clock.now();
+        long vent = ventanaMs(m.windowDays);
+        Map<String, Long> hechas = leerHechas(m, store);
+        hechas.remove(cancion);
+        StringBuilder sb = new StringBuilder();
+        sb.append(ahora).append('\t').append(cancion);
+        int n = 1;
+        for (Map.Entry<String, Long> e : hechas.entrySet()) {
+            if (n >= MAX_HECHAS) break;
+            if (ahora - e.getValue().longValue() >= vent) continue;
+            sb.append('\n').append(e.getValue().longValue()).append('\t').append(e.getKey());
+            n++;
+        }
+        store.put(clave(m, "tras"), sb.toString());
+    }
+
+    /**
+     * Evalúa las macros «tras N escuchas» con la canción que acaba de empezar.
+     * Sin llamadas de red salvo las de la propia acción: contar es leer el
+     * registro local. No anota en el historial las pasadas en que aún no toca
+     * (ocurriría en cada cambio de canción) y devuelve OMITIDA con el recuento
+     * para que «Ejecutar» pueda explicarlo.
+     */
+    public static List<Outcome> runEscuchas(Track track, List<Macro> macros, Http http,
+                                            Store store, Clock clock, Escuchas historial,
+                                            EnReproduccion vivo) {
+        List<Outcome> out = new ArrayList<Outcome>();
+        if (track == null || !esPistaDelCatalogo(track.uri) || historial == null) return out;
+
+        List<Macro> aplicables = deEscuchas(macros);
+        for (int i = 0; i < aplicables.size(); i++) {
+            Macro m = aplicables.get(i);
+
+            int rescatadas = aplicarAplazadas(m, http, store, vivo);
+            if (rescatadas > 0) {
+                anotar(m, store, clock, APLICADA, rescatadas,
+                        "En segundo plano: " + rescatadas + " canción(es) aplazadas ya aplicadas.");
+            }
+
+            String cancion = claveCancion(track.name, track.artists);
+            if (cancion.length() == 0) {
+                out.add(new Outcome(m.id, OMITIDA, "La canción no tiene título para contar sus escuchas.", 0, 0));
+                continue;
+            }
+
+            int n = escuchasNecesarias(m.plays);
+            int dias = ventanaDias(m.windowDays);
+            long ahora = clock.now();
+            long vent = ventanaMs(m.windowDays);
+
+            Long hecha = leerHechas(m, store).get(cancion);
+            int previas = historial.contar(track.name, track.artists, ahora - vent);
+            // La escucha en curso aún no está en el registro: se suma.
+            int escuchas = previas + 1;
+
+            int decision = decidirTrasEscuchas(escuchas, n, hecha == null ? 0L : hecha.longValue(), ahora, vent);
+            if (decision == TRAS_YA_HECHA) {
+                out.add(new Outcome(m.id, OMITIDA, "Ya se ejecutó para esta canción en los últimos " + dias + " días.", 0, 0));
+                continue;
+            }
+            if (decision == TRAS_FALTAN) {
+                out.add(new Outcome(m.id, OMITIDA,
+                        "Escuchas en " + dias + " días: " + escuchas + " de " + n + ". Aún no toca.", 0, 0));
+                continue;
+            }
+
+            if (cortariaLaReproduccion(m, track.uri, vivo)) {
+                aplazar(m, track.uri, store);
+                anotarHecha(m, cancion, store, clock);
+                String msg = "Aplazada: se aplicará al dejar de sonar, para no cortar la reproducción.";
+                anotar(m, store, clock, OMITIDA, 0, msg);
+                out.add(new Outcome(m.id, OMITIDA, msg, 1, 0));
+                continue;
+            }
+
+            List<Track> una = new ArrayList<Track>();
+            una.add(track);
+            String error = aplicarLote(m, una, http);
+            if (error == null) {
+                anotarHecha(m, cancion, store, clock);
+                String msg = "Tras " + n + " escuchas: " + descripcionCorta(m, track);
+                anotar(m, store, clock, APLICADA, 1, "En segundo plano: " + msg);
+                out.add(new Outcome(m.id, APLICADA, msg, 1, 1));
+            } else {
+                anotar(m, store, clock, ERROR, 0, "Error: " + error);
+                out.add(new Outcome(m.id, ERROR, error, 1, 0));
+            }
         }
         return out;
     }

@@ -301,23 +301,38 @@ final class SleepTimer {
      * Bloquea hasta que termina.
      */
     static void playChime(Context context) {
-        final int rate = 44_100;
+        final int rate = AvisoSonoro.RATE;
         final double[] notes = {440.0, 659.25};
         final double noteSeconds = 0.55;
-        final int perNote = (int) (rate * noteSeconds);
-        short[] pcm = new short[perNote * notes.length];
+        short[] pcm = AvisoSonoro.sintetizar(notes, noteSeconds, 0.4, rate);
+        reproducirPcm(pcm, rate, (long) (noteSeconds * notes.length * 1000) + 250L);
+    }
 
-        for (int n = 0; n < notes.length; n++) {
-            for (int i = 0; i < perNote; i++) {
-                double t = i / (double) rate;
-                double attack = Math.min(1.0, t / 0.015);
-                double decay = Math.exp(-t * 5.0);
-                double tone = Math.sin(2 * Math.PI * notes[n] * t)
-                        + 0.25 * Math.sin(4 * Math.PI * notes[n] * t);
-                pcm[n * perNote + i] = (short) (tone / 1.25 * attack * decay * 0.4 * Short.MAX_VALUE);
-            }
+    /**
+     * Aviso corto de confirmación (ver {@link AvisoSonoro}): el del botón de los
+     * auriculares. Misma vía que el del temporizador —canal multimedia, sin
+     * pedir el foco de audio, así que no corta ni baja la música— pero sin
+     * sonar si el volumen multimedia está a cero: si el usuario ha silenciado
+     * el móvil no se le impone un pitido. Bloquea lo que dura (menos de medio
+     * segundo): llamarlo desde un hilo propio, nunca desde el principal.
+     */
+    static void reproducirAviso(Context context, int tipo) {
+        double[] notas = AvisoSonoro.notas(tipo);
+        if (notas.length == 0) return;
+        try {
+            AudioManager am = context == null ? null
+                    : (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
+            if (am != null && am.getStreamVolume(AudioManager.STREAM_MUSIC) <= 0) return;
+        } catch (Throwable ignored) {
+            // Sin poder mirar el volumen, se deja sonar.
         }
+        short[] pcm = AvisoSonoro.sintetizar(notas, AvisoSonoro.segundosPorNota(tipo),
+                AvisoSonoro.ganancia(tipo), AvisoSonoro.RATE);
+        reproducirPcm(pcm, AvisoSonoro.RATE, AvisoSonoro.duracionMs(tipo) + 150L);
+    }
 
+    /** Reproduce muestras PCM mono de 16 bits por el canal multimedia y espera a que acaben. */
+    private static void reproducirPcm(short[] pcm, int rate, long esperaMs) {
         AudioTrack track = null;
         try {
             AudioAttributes attrs = new AudioAttributes.Builder()
@@ -333,7 +348,7 @@ final class SleepTimer {
                     AudioTrack.MODE_STATIC, AudioManager.AUDIO_SESSION_ID_GENERATE);
             track.write(pcm, 0, pcm.length);
             track.play();
-            sleepQuietly((long) (noteSeconds * notes.length * 1000) + 250L);
+            sleepQuietly(esperaMs);
         } catch (Throwable t) {
             Log.w(TAG, "no se pudo reproducir el aviso", t);
         } finally {

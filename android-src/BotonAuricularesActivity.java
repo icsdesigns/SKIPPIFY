@@ -64,7 +64,7 @@ public class BotonAuricularesActivity extends Activity {
             public void run() {
                 JSONObject r;
                 try {
-                    r = MacroBackground.ejecutarBoton(app);
+                    r = MacroBackground.ejecutarBotonConAviso(app);
                 } catch (Throwable t) {
                     Log.w(TAG, "fallo ejecutando la macro del botón", t);
                     r = new JSONObject();

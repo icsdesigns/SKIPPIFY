@@ -17,6 +17,7 @@
  */
 import { reactive, watch } from 'vue'
 import { useSpotify } from '@/composables/useSpotify'
+import { useEventStore } from '@/stores/events'
 
 const STORAGE_KEY = 'skippify-macros'
 const MAX_TRACKED_IDS = 400
@@ -103,8 +104,87 @@ export const MACRO_SOURCES = [
     detail: 'El top personal que calcula Spotify con tu historial reciente.',
     needsPlaylist: false,
     incremental: false
+  },
+  {
+    type: 'after_plays',
+    glyph: 'escuchas',
+    label: 'Tras N escuchas',
+    detail: 'Cuando una canción se escucha N veces en una ventana de tiempo (por defecto 3 en 7 días), se le aplica la acción. Una sola vez por canción y ventana.',
+    needsPlaylist: false,
+    incremental: false,
+    afterPlays: true
   }
 ]
+
+// ── «Tras N escuchas»: ajustes y decisión ───────────────────────────────────
+//
+// Se evalúa con cada cambio de canción (en segundo plano lo hace MacroRunner.java
+// con el registro de reproducciones del motor; aquí, el mismo criterio sobre el
+// historial local de la app). Cuenta las escuchas de la canción en la ventana,
+// SUMANDO la que está empezando, y actúa al alcanzar N. Mientras dure la ventana
+// no se repite sobre esa canción; vencida, sólo si reúne N escuchas nuevas.
+
+export const PLAYS_MIN = 2
+export const PLAYS_MAX = 10
+export const PLAYS_DEFECTO = 3
+/** Ventanas admitidas, en días. La primera es la de por defecto. */
+export const VENTANAS_DIAS = [7, 30]
+const DIA_MS = 24 * 60 * 60 * 1000
+const MAX_HECHAS = 300
+
+/** Valores válidos de «tras N escuchas» a partir de lo que traiga el origen. */
+export function normalizeAfterPlays (source) {
+  const plays = Number(source?.plays)
+  const windowDays = Number(source?.windowDays)
+  return {
+    plays: Number.isInteger(plays) && plays >= PLAYS_MIN && plays <= PLAYS_MAX ? plays : PLAYS_DEFECTO,
+    windowDays: VENTANAS_DIAS.includes(windowDays) ? windowDays : VENTANAS_DIAS[0]
+  }
+}
+
+const TRAS_TOCA = 'toca'
+const TRAS_FALTAN = 'faltan'
+const TRAS_YA_HECHA = 'ya_hecha'
+
+/**
+ * ¿Toca ejecutar? Misma regla que `MacroRunner.decidirTrasEscuchas`.
+ * @param {number} escuchas escuchas en la ventana, contando la actual
+ * @param {number} hechaEn  marca de la última ejecución para esta canción (0 = nunca)
+ */
+export function decidirTrasEscuchas (escuchas, n, hechaEn, ahora, ventanaMs) {
+  if (hechaEn > 0 && (ahora - hechaEn) < ventanaMs) return TRAS_YA_HECHA
+  return escuchas >= n ? TRAS_TOCA : TRAS_FALTAN
+}
+
+function normalizarTexto (valor) {
+  return String(valor || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .trim()
+}
+
+/** Título + primer artista, sin tildes ni mayúsculas. Vacía si no hay título. */
+export function claveCancion (titulo, artistas) {
+  const t = normalizarTexto(titulo)
+  if (!t) return ''
+  const primero = String(artistas || '').split(/[,&;]/)[0]
+  return `${t}|${normalizarTexto(primero)}`
+}
+
+/** Escuchas de una canción desde `desdeMs` en una lista de eventos del historial local. */
+export function contarEscuchas (events, titulo, artistas, desdeMs) {
+  const clave = claveCancion(titulo, artistas)
+  if (!clave) return 0
+  let n = 0
+  for (const e of Array.isArray(events) ? events : []) {
+    const cuando = Date.parse(e?.played_at)
+    if (!Number.isFinite(cuando) || cuando < desdeMs) continue
+    if (claveCancion(e.track, e.artist) === clave) n++
+  }
+  return n
+}
 
 // ── Catálogo B · acciones ───────────────────────────────────────────────────
 
@@ -253,7 +333,9 @@ export function normalizeMacro (macro) {
   const cursor = macro.cursor && typeof macro.cursor === 'object' ? macro.cursor : {}
   macro.cursor = {
     seen: Array.isArray(cursor.seen) ? cursor.seen : [],
-    lastRunAt: cursor.lastRunAt || null
+    lastRunAt: cursor.lastRunAt || null,
+    // «Tras N escuchas»: canción → cuándo se ejecutó.
+    tras: cursor.tras && typeof cursor.tras === 'object' && !Array.isArray(cursor.tras) ? cursor.tras : {}
   }
 
   const stats = macro.stats && typeof macro.stats === 'object' ? macro.stats : {}
@@ -282,16 +364,23 @@ watch(
   }
 )
 
+/** Copia del origen con los ajustes de «tras N escuchas» ya validados. */
+function sourceParaGuardar (source) {
+  const copia = { ...source }
+  if (copia.type === 'after_plays') Object.assign(copia, normalizeAfterPlays(copia))
+  return copia
+}
+
 export function createMacro (draft) {
   const macro = {
     id: `macro-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     name: (draft.name || '').trim() || describeMacro(draft),
     enabled: true,
     createdAt: new Date().toISOString(),
-    source: { ...draft.source },
+    source: sourceParaGuardar(draft.source),
     action: { ...draft.action },
     target: draft.target ? { ...draft.target } : null,
-    cursor: { seen: [], lastRunAt: null },
+    cursor: { seen: [], lastRunAt: null, tras: {} },
     stats: { runs: 0, applied: 0, lastResult: '' }
   }
   macros.unshift(macro)
@@ -314,9 +403,13 @@ export function describeMacro (macro) {
   const action = actionMeta(macro?.action?.type)
   const target = targetMeta(macro?.target?.type)
 
-  const sourceText = macro?.source?.playlistName
+  let sourceText = macro?.source?.playlistName
     ? `${source?.label} (${macro.source.playlistName})`
     : source?.label || '—'
+  if (source?.afterPlays) {
+    const { plays, windowDays } = normalizeAfterPlays(macro.source)
+    sourceText = `Canción tras ${plays} escuchas en ${windowDays} días`
+  }
 
   let targetText = ''
   if (action?.needsTarget && target) {
@@ -339,6 +432,14 @@ export function validateDraft (draft) {
 
   if (!source) return 'Elige de dónde salen las canciones.'
   if (source.needsPlaylist && !draft?.source?.playlistId) return 'Elige la playlist de origen.'
+  if (source.afterPlays) {
+    const plays = Number(draft?.source?.plays)
+    const dias = Number(draft?.source?.windowDays)
+    if (!Number.isInteger(plays) || plays < PLAYS_MIN || plays > PLAYS_MAX) {
+      return `Elige cuántas escuchas hacen falta, entre ${PLAYS_MIN} y ${PLAYS_MAX}.`
+    }
+    if (!VENTANAS_DIAS.includes(dias)) return 'Elige la ventana de tiempo: 7 o 30 días.'
+  }
   if (!action) return 'Elige qué quieres hacer con ellas.'
 
   if (action.requiresPlaylistSource && !source.needsPlaylist) {
@@ -381,7 +482,8 @@ const SOURCE_SCOPES = {
   playlist_all: ['playlist-read-private'],
   recently_played: ['user-read-recently-played'],
   liked_new: ['user-library-read'],
-  top_tracks: ['user-top-read']
+  top_tracks: ['user-top-read'],
+  after_plays: ['user-read-currently-playing']
 }
 
 /** Permisos que necesita cada pareja acción/destino para poder escribir. */
@@ -747,6 +849,64 @@ async function applyAction (macro, tracks, spotify) {
 }
 
 /**
+ * «Tras N escuchas»: mira la canción que suena, cuenta sus escuchas en el
+ * historial local y aplica la acción si alcanza N y no se hizo ya en la ventana.
+ * La escucha en curso se suma al recuento (aún no está cerrada). En la vista
+ * previa del navegador puede diferir en una escucha del servicio nativo, que
+ * cuenta sobre el registro del motor.
+ */
+async function runTrasEscuchas (macro, spotify, { dryRun, events }, result) {
+  const { plays, windowDays } = normalizeAfterPlays(macro.source)
+  const playing = await spotify.api('/me/player/currently-playing')
+  const track = normalizeTrack(playing?.item)
+  if (!track) {
+    result.nota = 'No hay ninguna canción sonando ahora mismo.'
+    return result
+  }
+
+  const ahora = Date.now()
+  const ventana = windowDays * DIA_MS
+  const clave = claveCancion(track.name, track.artists)
+  if (!clave) {
+    result.nota = 'La canción no tiene título para contar sus escuchas.'
+    return result
+  }
+
+  const historial = events || useEventStore().state.events
+  const escuchas = contarEscuchas(historial, track.name, track.artists, ahora - ventana) + 1
+  const hechaEn = Number(macro.cursor.tras?.[clave]) || 0
+  const decision = decidirTrasEscuchas(escuchas, plays, hechaEn, ahora, ventana)
+
+  if (decision === TRAS_YA_HECHA) {
+    result.nota = `Ya se ejecutó para esta canción en los últimos ${windowDays} días.`
+    return result
+  }
+  if (decision === TRAS_FALTAN) {
+    result.nota = `Escuchas en ${windowDays} días: ${escuchas} de ${plays}. Aún no toca.`
+    return result
+  }
+
+  result.matched = 1
+  result.tracks = [track]
+  if (dryRun) return result
+
+  result.applied = await applyAction(macro, [track], spotify)
+
+  const tras = { ...(macro.cursor.tras || {}), [clave]: ahora }
+  const vigentes = Object.entries(tras)
+    .filter(([, cuando]) => ahora - Number(cuando) < ventana)
+    .sort((a, b) => Number(b[1]) - Number(a[1]))
+    .slice(0, MAX_HECHAS)
+  macro.cursor.tras = Object.fromEntries(vigentes)
+  macro.cursor.lastRunAt = new Date().toISOString()
+  macro.stats.runs += 1
+  macro.stats.applied += result.applied
+  macro.stats.lastResult = `Tras ${plays} escuchas: «${track.name}» procesada.`
+  anotarEnHistorial(macro, HIST_APLICADA, result.applied, macro.stats.lastResult)
+  return result
+}
+
+/**
  * Cuántas canciones se procesan como mucho en una sola ejecución.
  *
  * Las acciones que escriben por lotes (playlists, «me gusta») gastan una
@@ -763,7 +923,8 @@ function maxTracksPerRun (macro) {
  * Ejecuta una macro. `dryRun` resuelve el origen y filtra, pero no escribe nada:
  * es lo que usa la vista previa antes de tocar la biblioteca del usuario.
  */
-export async function runMacro (macro, spotify, { dryRun = false } = {}) {
+export async function runMacro (macro, spotify, options = {}) {
+  const { dryRun = false } = options
   // Una macro guardada por una versión anterior puede no traer `cursor` ni
   // `stats`. Normalizar aquí garantiza que ni el cuerpo ni el `catch` se topen
   // con un `undefined` (que antes escapaba como excepción sin recoger).
@@ -783,6 +944,10 @@ export async function runMacro (macro, spotify, { dryRun = false } = {}) {
         anotarEnHistorial(macro, HIST_ERROR, 0, `Bloqueada: ${blocked}`)
       }
       return result
+    }
+
+    if (meta?.afterPlays) {
+      return await runTrasEscuchas(macro, spotify, { dryRun, events: options.events }, result)
     }
 
     const all = await resolveSource(macro, spotify)
@@ -890,7 +1055,7 @@ const nativeState = reactive({
    * Botón de los auriculares: la macro vinculada, las que se pueden vincular
    * (aunque estén pausadas) y por qué las demás no.
    */
-  boton: { macroId: '', elegibles: [], noElegibles: {} }
+  boton: { macroId: '', sonido: false, elegibles: [], noElegibles: {} }
 })
 
 function nativePlugin () {
@@ -907,7 +1072,8 @@ function paraNativo (macro) {
     action: macro.action?.type || '',
     target: macro.target?.type || '',
     targetPlaylistId: macro.target?.playlistId || '',
-    sourcePlaylistId: macro.source?.playlistId || ''
+    sourcePlaylistId: macro.source?.playlistId || '',
+    ...(macro.source?.type === 'after_plays' ? normalizeAfterPlays(macro.source) : {})
   }
 }
 
@@ -934,6 +1100,7 @@ function absorberEstado (estado) {
   }
   nativeState.boton = {
     macroId: boton.macroId || '',
+    sonido: !!boton.sonido,
     elegibles: Array.isArray(boton.elegibles) ? [...boton.elegibles] : [],
     noElegibles
   }
@@ -972,6 +1139,22 @@ export async function vincularBoton (id) {
   if (!NL?.setHeadsetMacro) return false
   try {
     absorberEstado(await NL.setHeadsetMacro({ id: id || '' }))
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Activa o apaga el aviso sonoro con el que el botón de los auriculares confirma
+ * que ha ejecutado la macro. Lo guarda el servicio, que es quien atiende la
+ * pulsación con la app cerrada.
+ */
+export async function fijarSonidoBoton (enabled) {
+  const NL = nativePlugin()
+  if (!NL?.setHeadsetSound) return false
+  try {
+    absorberEstado(await NL.setHeadsetSound({ enabled: !!enabled }))
     return true
   } catch {
     return false
@@ -1094,7 +1277,7 @@ async function ejecutarEnNativo (macro) {
 // Cualquier cambio en las macros viaja al servicio. Sin esto, una macro recién
 // creada no existiría para el segundo plano hasta el siguiente arranque.
 watch(
-  () => macros.map(m => `${m.id}|${m.enabled}|${m.source?.type}|${m.source?.playlistId}|${m.action?.type}|${m.target?.type}|${m.target?.playlistId}`).join(';'),
+  () => macros.map(m => `${m.id}|${m.enabled}|${m.source?.type}|${m.source?.playlistId}|${m.source?.plays}|${m.source?.windowDays}|${m.action?.type}|${m.target?.type}|${m.target?.playlistId}`).join(';'),
   () => { sincronizarConNativo() },
   { immediate: false }
 )
@@ -1159,6 +1342,7 @@ export function useMacros () {
     historialDe,
     historialPorDia,
     vincularBoton,
+    fijarSonidoBoton,
     probarBoton,
     vinculadaAlBoton
   }

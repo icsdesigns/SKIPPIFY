@@ -44,6 +44,9 @@ public final class MacroBackground {
     /** Id de la macro vinculada al botón de los auriculares; vacío si ninguna. */
     private static final String K_BOTON = "boton.macroId";
 
+    /** «Aviso sonoro al ejecutar»: "1" encendido. Apagado por defecto. */
+    private static final String K_BOTON_SONIDO = "boton.sonido";
+
     /**
      * Un solo hilo: los cambios de canción llegan en ráfaga y dos ejecuciones a
      * la vez sobre las mismas macros se pisarían el deduplicado.
@@ -168,7 +171,9 @@ public final class MacroBackground {
                         o.optString("action", ""),
                         vacioANull(o.optString("target", null)),
                         vacioANull(o.optString("targetPlaylistId", null)),
-                        vacioANull(o.optString("sourcePlaylistId", null))
+                        vacioANull(o.optString("sourcePlaylistId", null)),
+                        o.optInt("plays", 0),
+                        o.optInt("windowDays", 0)
                 ));
             }
         } catch (Throwable t) {
@@ -274,6 +279,34 @@ public final class MacroBackground {
         BotonAuricularesActivity.habilitar(ctx, id != null);
     }
 
+    /** ¿Suena un aviso al ejecutarse la macro del botón? */
+    public static boolean sonidoDelBoton(Context ctx) {
+        return "1".equals(store(ctx).get(K_BOTON_SONIDO));
+    }
+
+    public static void fijarSonidoDelBoton(Context ctx, boolean si) {
+        store(ctx).put(K_BOTON_SONIDO, si ? "1" : "0");
+    }
+
+    /**
+     * Ejecuta la macro del botón y, si el usuario lo pidió, confirma con un
+     * aviso sonoro corto: uno de éxito, o una nota grave si falló. Bloquea
+     * (la ejecución y el tono): llamarlo desde un hilo propio.
+     */
+    public static JSONObject ejecutarBotonConAviso(Context ctx) {
+        Context app = ctx.getApplicationContext();
+        JSONObject r = ejecutarBoton(app);
+        try {
+            boolean error = r.optString("error", "").length() > 0
+                    || r.optInt("status", MacroRunner.ERROR) == MacroRunner.ERROR;
+            int tipo = AvisoSonoro.tipoBoton(sonidoDelBoton(app), error);
+            if (tipo != AvisoSonoro.SIN_AVISO) SleepTimer.reproducirAviso(app, tipo);
+        } catch (Throwable t) {
+            Log.w(TAG, "no se pudo reproducir el aviso del botón", t);
+        }
+        return r;
+    }
+
     /** Estado para la app: qué macro está vinculada y cuáles se pueden vincular. */
     public static JSONObject estadoBoton(Context ctx) {
         JSONObject o = new JSONObject();
@@ -296,6 +329,7 @@ public final class MacroBackground {
         }
         try {
             o.put("macroId", valor(macroDelBoton(ctx)));
+            o.put("sonido", sonidoDelBoton(ctx));
             o.put("elegibles", elegibles);
             o.put("noElegibles", noElegibles);
         } catch (Throwable ignored) { }
@@ -420,14 +454,16 @@ public final class MacroBackground {
 
         List<MacroRunner.Outcome> res = new ArrayList<MacroRunner.Outcome>();
 
-        // 1 · La canción que suena ahora. Sólo se pregunta si hay alguna macro
-        // que la use: una petición de más en cada cambio de canción se nota.
+        // 1 · La canción que suena ahora (y «tras N escuchas», que se evalúa con
+        // la misma canción). Sólo se pregunta si hay alguna macro que la use: una
+        // petición de más en cada cambio de canción se nota.
         //
         // Se guarda también de qué playlist sale: borrar de ella la pista en
         // curso detiene la reproducción, y ésa era la causa de que la música se
         // pausara sola a media canción.
         MacroRunner.EnReproduccion vivo = null;
-        if (!MacroRunner.deCancionActual(objetivo).isEmpty()) {
+        if (!MacroRunner.deCancionActual(objetivo).isEmpty()
+                || !MacroRunner.deEscuchas(objetivo).isEmpty()) {
             vivo = MacroRunner.sonandoAhora(http);
             MacroRunner.Track track = vivo == null ? null : vivo.track;
             try {
@@ -435,6 +471,8 @@ public final class MacroBackground {
             } catch (Throwable ignored) { }
             if (track != null) {
                 res.addAll(MacroRunner.run(track, objetivo, http, store, RELOJ, forzar, vivo));
+                res.addAll(MacroRunner.runEscuchas(track, objetivo, http, store, RELOJ,
+                        escuchas(app), vivo));
             }
         }
 
@@ -465,6 +503,23 @@ public final class MacroBackground {
 
         Log.i(TAG, "macros en segundo plano: " + res.size() + " evaluadas");
         return resumen;
+    }
+
+    /**
+     * Fuente de las escuchas para «tras N escuchas»: el registro de
+     * reproducciones del motor de duplicadas (SQLite, 400 días), que guarda cada
+     * escucha cerrada con su clave canónica de canción + artista. Es la fuente
+     * fiable porque el listener la escribe con la app cerrada; el historial de
+     * la app (localStorage) no es legible desde aquí. La clave sale de la misma
+     * función que usó el motor al escribir, así «Canción», «CANCIÓN» y las
+     * versiones «feat.» casan igual que en el motor de saltos.
+     */
+    static MacroRunner.Escuchas escuchas(final Context app) {
+        return new MacroRunner.Escuchas() {
+            public int contar(String titulo, String artistas, long desdeMs) {
+                return PlayLogStore.countCommitted(app, DuplicateSkipEngine.keyOf(titulo, artistas), desdeMs);
+            }
+        };
     }
 
     /** ¿Hay alguna macro que borre de una playlist? Si no, no se pregunta nada. */

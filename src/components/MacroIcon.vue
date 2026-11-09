@@ -57,6 +57,16 @@
       <path d="M12.2 8C12.2 9.8 12.2 11.2 12.3 12.2C13.4 12.9 14.6 13.6 15.8 14.2" />
     </template>
 
+    <!-- Tras N escuchas: dos flechas circulares (repetir) con una nota en el centro. -->
+    <template v-else-if="name === 'escuchas'">
+      <path d="M19.4 11C19 7.6 16 5 12.4 5C10.3 5 8.4 5.9 7.1 7.4" />
+      <path d="M7.2 3.6C7.2 5 7.1 6.2 7.1 7.4C8.5 7.5 9.8 7.6 11 7.8" />
+      <path d="M4.6 13C5 16.4 8 19 11.6 19C13.7 19 15.6 18.1 16.9 16.6" />
+      <path d="M16.8 20.4C16.8 19 16.9 17.8 16.9 16.6C15.5 16.5 14.2 16.4 13 16.2" />
+      <circle cx="10.6" cy="14.2" r="1.5" fill="currentColor" stroke="none" />
+      <path d="M12.1 14C12.1 12.5 12.1 11.2 12.1 10C13.2 10.1 13.7 10.6 13.9 11.6" stroke-width="1.8" />
+    </template>
+
     <!-- Me gusta: corazón. -->
     <template v-else-if="name === 'megusta'">
       <path d="M12 20C7.6 16.7 3.7 13.4 3.3 9.3C3 6.2 5.1 4.2 7.7 4.2C9.5 4.2 11 5.2 12 6.9C13 5.2 14.5 4.2 16.3 4.2C18.9 4.2 21 6.2 20.7 9.3C20.3 13.4 16.4 16.7 12 20Z" />
@@ -166,7 +176,7 @@
 defineProps({
   /**
    * 'manual' | 'actual' | 'novedades' | 'playlist' | 'reciente' | 'megusta' |
-   * 'top' | 'copiar' | 'mover' | 'eliminar' | 'vaciar' | 'cola' | 'nueva' |
+   * 'top' | 'escuchas' | 'copiar' | 'mover' | 'eliminar' | 'vaciar' | 'cola' | 'nueva' |
    * 'atras' | 'siguiente' | 'reiniciar' | 'guardar' | 'actualizar' |
    * 'desconectar'
    */
