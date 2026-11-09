@@ -13,6 +13,7 @@
 import { ref } from 'vue'
 import { Capacitor } from '@capacitor/core'
 import { Filesystem, Directory, Encoding } from '@capacitor/filesystem'
+import { guardarArchivo } from '@/lib/guardarArchivo'
 import { useEventStore } from '@/stores/events'
 import { useFeatures } from '@/composables/useFeatures'
 
@@ -155,14 +156,15 @@ function jsHistorySummary (events) {
 export async function saveJson (fileName, text) {
   if (Capacitor.isNativePlatform()) {
     const dir = 'Skippify/registro'
-    await Filesystem.mkdir({ path: dir, directory: Directory.Documents, recursive: true })
-    await Filesystem.writeFile({
-      path: `${dir}/${fileName}`,
-      data: text,
+    // Carpeta ya creada o archivo con el mismo nombre: ver guardarArchivo.
+    const { ruta } = await guardarArchivo(Filesystem, {
       directory: Directory.Documents,
+      carpeta: dir,
+      nombre: fileName,
+      data: text,
       encoding: Encoding.UTF8
     })
-    return `Documents/${dir}/${fileName}`
+    return `Documents/${ruta}`
   }
 
   const blob = new Blob([text], { type: 'application/json' })

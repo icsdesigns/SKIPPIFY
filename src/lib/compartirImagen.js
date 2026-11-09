@@ -12,6 +12,7 @@
  */
 import { Capacitor } from '@capacitor/core'
 import { Filesystem, Directory } from '@capacitor/filesystem'
+import { guardarArchivo } from '@/lib/guardarArchivo'
 
 function blobABase64 (blob) {
   return new Promise((resolve, reject) => {
@@ -48,16 +49,16 @@ export async function guardarPng (blob, nombre, entorno = {}) {
   const nativo = entorno.nativo ?? Capacitor.isNativePlatform()
   if (nativo) {
     const dir = 'Skippify/wrapped'
-    const guardar = entorno.guardar ?? (async (b, n) => {
-      await Filesystem.mkdir({ path: dir, directory: Directory.Documents, recursive: true }).catch(() => {})
-      await Filesystem.writeFile({
-        path: `${dir}/${n}`,
-        data: await blobABase64(b),
-        directory: Directory.Documents
-      })
-    })
-    await guardar(blob, nombre)
-    return { estado: 'guardado', ruta: `Documents/${dir}/${nombre}` }
+    // Nunca falla por una carpeta ya creada ni pisa una imagen anterior con el
+    // mismo nombre: el archivo se guarda con sufijo (-2, -3…).
+    const guardar = entorno.guardar ?? (async (b, n) => guardarArchivo(Filesystem, {
+      directory: Directory.Documents,
+      carpeta: dir,
+      nombre: n,
+      data: await blobABase64(b)
+    }))
+    const guardado = await guardar(blob, nombre)
+    return { estado: 'guardado', ruta: `Documents/${guardado?.ruta || `${dir}/${nombre}`}` }
   }
 
   const url = URL.createObjectURL(blob)
