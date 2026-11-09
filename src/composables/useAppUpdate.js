@@ -11,6 +11,7 @@
  * una app normal, así que ese último toque es inevitable.
  */
 import { ref, computed } from 'vue'
+import { fechaDeRelease, evaluarRetraso, MARGEN_REVISION_MS } from '../lib/avisoActualizacion.js'
 
 const REPO = 'icsdesigns/SKIPPIFY'
 const LATEST_RELEASE_URL = `https://api.github.com/repos/${REPO}/releases/latest`
@@ -31,9 +32,16 @@ const progress = ref(0)
 const error = ref('')
 const downloadedPath = ref('')
 const dismissed = ref(false)
+/**
+ * La release detectada es demasiado reciente (< 6 h desde su publicación) para
+ * avisar. Sólo se retiene en las comprobaciones automáticas: la manual (botón
+ * «Buscar actualizaciones») la muestra al momento.
+ */
+const retenida = ref(false)
 
 let _initialized = false
 let _progressListener = null
+let _timerRetenida = null
 
 function plugin () {
   return window.Capacitor?.Plugins?.Updater || null
@@ -55,7 +63,7 @@ function plugin () {
 const TAG_PATTERN = /^v(.+)-b(\d+)$/
 
 const updateAvailable = computed(() => {
-  if (dismissed.value) return false
+  if (dismissed.value || retenida.value) return false
   if (!latest.value || !current.value) return false
   return latest.value.versionCode > current.value.versionCode
 })
@@ -87,6 +95,9 @@ async function readCurrentVersion () {
 async function check ({ manual = false } = {}) {
   if (!plugin()) return false          // navegador o build web: nada que hacer
   if (status.value === 'downloading') return false
+
+  // Una comprobación nueva sustituye a la espera programada (si sigue retenida, se reprograma).
+  if (_timerRetenida) { clearTimeout(_timerRetenida); _timerRetenida = null }
 
   // 'checking' sólo se anuncia desde el reposo. Desde 'available' o 'ready' el
   // aviso de actualización está en pantalla y `shouldPrompt` exige uno de esos
@@ -122,7 +133,19 @@ async function check ({ manual = false } = {}) {
       url: apk.browser_download_url,
       fileName: apk.name,
       size: apk.size || 0,
-      notes: release.body || ''
+      notes: release.body || '',
+      // ms de época de `published_at` (`created_at` de respaldo); 0 si no se lee.
+      publishedAt: fechaDeRelease(release)
+    }
+
+    // Plazo de 6 h desde la publicación antes de avisar por sí solos; una búsqueda
+    // manual es una petición explícita y lo ignora.
+    const espera = evaluarRetraso(Date.now(), latest.value.publishedAt)
+    retenida.value = !manual && espera.retenida && latest.value.versionCode > current.value.versionCode
+    if (retenida.value) {
+      // Con la app abierta, al cumplirse el plazo se vuelve a mirar y se avisa.
+      _timerRetenida = setTimeout(() => { _timerRetenida = null; return check() }, espera.abreEnMs + MARGEN_REVISION_MS)
+      _timerRetenida.unref?.()
     }
 
     // Un descarte sólo vale para esa build concreta: en cuanto se publique otra
