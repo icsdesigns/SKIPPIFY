@@ -46,7 +46,7 @@ export const MACRO_SOURCES = [
     glyph: 'actual',
     label: 'La canción que suena ahora',
     icon: '🎧',
-    detail: 'Toma la reproducción activa en Spotify en el momento de ejecutar la macro.',
+    detail: 'Toma la reproducción activa de Spotify al ejecutar la macro.',
     needsPlaylist: false,
     incremental: false
   },
@@ -55,7 +55,7 @@ export const MACRO_SOURCES = [
     glyph: 'manual',
     label: 'Ejecución manual',
     icon: '👆',
-    detail: 'Actúa sobre la canción que suena, sólo cuando pulses «Ejecutar» o el botón de los auriculares. Nunca se lanza sola.',
+    detail: 'Actúa sobre la canción que suena, sólo al pulsar «Ejecutar» o el botón de los auriculares.',
     needsPlaylist: false,
     incremental: false,
     manual: true
@@ -65,7 +65,7 @@ export const MACRO_SOURCES = [
     glyph: 'novedades',
     label: 'Novedades de una playlist',
     icon: '🆕',
-    detail: 'Detecta las canciones añadidas a una playlist desde la última vez que se ejecutó.',
+    detail: 'Las canciones añadidas a una playlist desde la última vez.',
     needsPlaylist: true,
     incremental: true
   },
@@ -74,7 +74,7 @@ export const MACRO_SOURCES = [
     glyph: 'playlist',
     label: 'Todas las canciones de una playlist',
     icon: '📃',
-    detail: 'Recorre la playlist entera cada vez. Útil para sincronizar o vaciar.',
+    detail: 'Recorre la playlist entera cada vez. Útil para sincronizar.',
     needsPlaylist: true,
     incremental: false
   },
@@ -83,7 +83,7 @@ export const MACRO_SOURCES = [
     glyph: 'reciente',
     label: 'Tus reproducciones recientes',
     icon: '🕒',
-    detail: 'Las últimas canciones que has escuchado según Spotify (máximo 50).',
+    detail: 'Las últimas que has escuchado en Spotify (máx. 50).',
     needsPlaylist: false,
     incremental: true
   },
@@ -92,7 +92,7 @@ export const MACRO_SOURCES = [
     glyph: 'megusta',
     label: 'Novedades en «Tus me gusta»',
     icon: '💚',
-    detail: 'Canciones que has marcado como favoritas desde la última ejecución.',
+    detail: 'Las que marcas como favoritas desde la última ejecución.',
     needsPlaylist: false,
     incremental: true
   },
@@ -101,7 +101,7 @@ export const MACRO_SOURCES = [
     glyph: 'top',
     label: 'Tus canciones más escuchadas',
     icon: '🏆',
-    detail: 'El top personal que calcula Spotify con tu historial reciente.',
+    detail: 'Tu top personal según Spotify, con tu historial reciente.',
     needsPlaylist: false,
     incremental: false
   },
@@ -109,7 +109,7 @@ export const MACRO_SOURCES = [
     type: 'after_plays',
     glyph: 'escuchas',
     label: 'Tras N escuchas',
-    detail: 'Cuando una canción se escucha N veces en una ventana de tiempo (por defecto 3 en 7 días), se le aplica la acción. Una sola vez por canción y ventana.',
+    detail: 'Cuando una canción llega a N escuchas en una ventana de días, se le aplica la acción.',
     needsPlaylist: false,
     incremental: false,
     afterPlays: true

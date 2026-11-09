@@ -321,7 +321,7 @@
         @click="tour.start()"
       >
         <template #icono><AjusteIcon name="tour" class="h-8 w-8" /></template>
-        <template #fin><span class="sk-chip shrink-0">Ver el tour</span></template>
+        <template #fin><span class="sk-chip hidden shrink-0 min-[420px]:inline-flex">Ver el tour</span></template>
       </OpcionFila>
     </FeaturePanel>
 
@@ -488,7 +488,7 @@ const orderedPermissionCards = computed(() => [
     icon: 'bateria',
     title: 'Optimización de batería',
     description: 'Excluir Skippify evita pausas agresivas del sistema y mejora la captura cuando la app está en segundo plano.',
-    meta: 'Recomendado · Crítico en capas restrictivas',
+    meta: 'Recomendado',
     granted: batteryOptimizationIgnored.value,
     actionLabel: 'Excluir de optimización'
   }

@@ -244,6 +244,7 @@ defineProps({
 /* · Paso 4: el botón de los auriculares */
 
 .mg-line {
+  margin-top: 6px;
   display: flex;
   width: 100%;
   flex-wrap: wrap;
@@ -289,6 +290,7 @@ defineProps({
 .mg-ring-2 { animation-delay: 0.45s; }
 
 .mg-hold-label {
+  margin-top: 10px;
   font-size: 10px;
   font-weight: 700;
   color: #8a8a8a;

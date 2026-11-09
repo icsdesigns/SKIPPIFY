@@ -556,6 +556,12 @@ public final class MacroRunner {
      * artista sin tildes, mayúsculas ni signos, de modo que «Canción» y
      * «CANCION» (o las dos formas en que Spotify y la notificación escriben el
      * mismo tema) son la misma. Vacía si no hay título.
+     *
+     * Limitación conocida: la normalización, tras quitar tildes, conserva sólo
+     * letras y cifras ASCII; un título en otro alfabeto (cirílico,
+     * japonés…) puede quedar vacío y la macro no actúa sobre él. Es el mismo
+     * comportamiento que {@code DuplicateSkipEngine.keyOf} (el recuento sale de
+     * su clave), así que no se cambia aquí para no alterar claves ya guardadas.
      */
     public static String claveCancion(String titulo, String artistas) {
         String t = normalizar(titulo);

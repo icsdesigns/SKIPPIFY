@@ -2,7 +2,7 @@
   <component
     :is="as"
     class="flex items-center rounded-xl border text-left transition-all"
-    :class="[compacta ? 'gap-3 p-2.5' : 'gap-3.5 p-3', clases]"
+    :class="[compacta ? 'gap-3 p-2.5' : 'gap-3.5 px-3 py-2.5', clases]"
     :type="as === 'button' ? 'button' : undefined"
   >
     <!-- Icono grande a la izquierda: es lo que da a «Crear una macro» su
@@ -13,8 +13,8 @@
     ><slot name="icono" /></span>
 
     <span class="min-w-0 flex-1">
-      <span class="block line-clamp-2 font-bold text-white [overflow-wrap:anywhere]" :class="compacta ? 'text-[13px] leading-snug' : 'text-sm'">{{ titulo }}</span>
-      <span v-if="detalle" class="mt-1 line-clamp-4 block text-[11px] leading-relaxed text-slate-500">{{ detalle }}</span>
+      <span class="line-clamp-2 font-bold text-white [overflow-wrap:anywhere]" :class="compacta ? 'text-[13px] leading-snug' : 'text-sm leading-tight'">{{ titulo }}</span>
+      <span v-if="detalle" class="mt-1 line-clamp-4 text-[11px] leading-relaxed text-slate-500">{{ detalle }}</span>
       <slot />
     </span>
 

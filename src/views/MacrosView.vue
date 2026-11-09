@@ -79,7 +79,10 @@
               >{{ paso.letter }}</span>
               <span
                 class="truncate"
-                :class="i === pasoIdx ? 'text-violet-100' : (i < pasoIdx ? 'text-brand-200' : 'text-slate-500')"
+                :class="[
+                  i === pasoIdx ? 'text-violet-100' : (i < pasoIdx ? 'text-brand-200' : 'text-slate-500'),
+                  i === pasoIdx ? '' : 'sr-only min-[420px]:not-sr-only'
+                ]"
               >{{ paso.label }}</span>
               <span v-if="i < pasos.length - 1" class="flex-1 border-t border-dashed border-white/[0.14]" />
             </li>
@@ -90,23 +93,18 @@
             <div v-if="pasoActual === 'source'">
               <p class="sk-eyebrow">¿De dónde salen las canciones?</p>
               <div class="mt-2.5 grid gap-2">
-                <button
+                <OpcionFila
                   v-for="source in sources"
                   :key="source.type"
-                  type="button"
-                  class="flex items-center gap-3.5 rounded-xl border p-3 text-left transition-all"
-                  :class="draft.source.type === source.type ? 'sk-option-active' : 'sk-option'"
+                  as="button"
+                  tono="brand"
+                  :activo="draft.source.type === source.type"
+                  :titulo="source.label"
+                  :detalle="source.detail"
                   @click="pickSource(source)"
                 >
-                  <span
-                    class="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl"
-                    :class="draft.source.type === source.type ? 'bg-brand-400/[0.22] text-brand-200' : 'bg-white/[0.06] text-slate-300'"
-                  ><MacroIcon :name="source.glyph" class="h-8 w-8" /></span>
-                  <span class="min-w-0 flex-1">
-                    <span class="block text-sm font-bold text-white">{{ source.label }}</span>
-                    <span class="mt-1 block text-[11px] leading-relaxed text-slate-500">{{ source.detail }}</span>
-                  </span>
-                </button>
+                  <template #icono><MacroIcon :name="source.glyph" class="h-8 w-8" /></template>
+                </OpcionFila>
               </div>
 
               <!-- «Tras N escuchas»: cuántas y en cuánto tiempo, en tarjetas compactas. -->
@@ -211,25 +209,18 @@
             <div v-else-if="pasoActual === 'action'">
               <p class="sk-eyebrow">¿Qué se hace con ellas?</p>
               <div class="mt-2.5 grid gap-2">
-                <button
+                <OpcionFila
                   v-for="action in availableActions"
                   :key="action.type"
-                  type="button"
-                  class="flex items-center gap-3.5 rounded-xl border p-3 text-left transition-all"
-                  :class="draft.action.type === action.type
-                    ? 'border-violet-400 bg-violet-400/[0.14] text-white'
-                    : 'sk-option'"
+                  as="button"
+                  tono="violet"
+                  :activo="draft.action.type === action.type"
+                  :titulo="action.label"
+                  :detalle="action.detail"
                   @click="pickAction(action)"
                 >
-                  <span
-                    class="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl"
-                    :class="draft.action.type === action.type ? 'bg-violet-400/[0.25] text-violet-100' : 'bg-white/[0.06] text-slate-300'"
-                  ><MacroIcon :name="action.glyph" class="h-8 w-8" /></span>
-                  <span class="min-w-0 flex-1">
-                    <span class="block text-sm font-bold text-white">{{ action.label }}</span>
-                    <span class="mt-1 block text-[11px] leading-relaxed text-slate-500">{{ action.detail }}</span>
-                  </span>
-                </button>
+                  <template #icono><MacroIcon :name="action.glyph" class="h-8 w-8" /></template>
+                </OpcionFila>
               </div>
             </div>
 
@@ -237,25 +228,18 @@
             <div v-else-if="pasoActual === 'target'">
               <p class="sk-eyebrow">¿Dónde acaban?</p>
               <div class="mt-2.5 grid gap-2">
-                <button
+                <OpcionFila
                   v-for="target in availableTargets"
                   :key="target.type"
-                  type="button"
-                  class="flex items-center gap-3.5 rounded-xl border p-3 text-left transition-all"
-                  :class="draft.target.type === target.type
-                    ? 'border-sky-400 bg-sky-400/[0.14] text-white'
-                    : 'sk-option'"
+                  as="button"
+                  tono="sky"
+                  :activo="draft.target.type === target.type"
+                  :titulo="target.label"
+                  :detalle="target.detail"
                   @click="pickTarget(target)"
                 >
-                  <span
-                    class="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl"
-                    :class="draft.target.type === target.type ? 'bg-sky-400/[0.25] text-sky-100' : 'bg-white/[0.06] text-slate-300'"
-                  ><MacroIcon :name="target.glyph" class="h-8 w-8" /></span>
-                  <span class="min-w-0 flex-1">
-                    <span class="block text-sm font-bold text-white">{{ target.label }}</span>
-                    <span class="mt-1 block text-[11px] leading-relaxed text-slate-500">{{ target.detail }}</span>
-                  </span>
-                </button>
+                  <template #icono><MacroIcon :name="target.glyph" class="h-8 w-8" /></template>
+                </OpcionFila>
               </div>
 
               <input
@@ -693,13 +677,14 @@
               v-for="macro in macrosParaBoton"
               :key="macro.id"
               as="button"
+              compacta
               role="radio"
               :aria-checked="nativeState.boton.macroId === macro.id"
               tono="sky"
               :activo="nativeState.boton.macroId === macro.id"
               :tenue="!macro.enabled"
-              :titulo="`${macro.name}${macro.enabled ? '' : ' (pausada)'}`"
-              :detalle="describeMacro(macro)"
+              :titulo="recortar(`${macro.name}${macro.enabled ? '' : ' (pausada)'}`, 30)"
+              :detalle="recortar(describeMacro(macro), 64)"
               :disabled="botonOcupado"
               @click="onVincularBoton(macro.id)"
             >
@@ -861,6 +846,12 @@ async function onVincularBoton (id) {
   botonResultado.value = null
   await vincularBoton(id)
   botonOcupado.value = false
+}
+
+/** Recorta con puntos suspensivos: los nombres largos no deben inflar la tarjeta del selector. */
+function recortar (texto, max) {
+  const t = String(texto || '')
+  return t.length > max ? `${t.slice(0, max - 1).trimEnd()}…` : t
 }
 
 async function onAlternarSonido () {

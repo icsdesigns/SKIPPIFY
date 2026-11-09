@@ -35,9 +35,9 @@
       </OpcionFila>
 
       <p class="px-1 text-[11px] leading-relaxed text-slate-500">
-        Se publica la estructura de tus macros (origen, acción, destino y sus ajustes) y su
-        nombre, sólo en tus grupos. Nunca tus playlists, tu cuenta de Spotify ni tu historial.
-        Al apagarlo se retira todo lo publicado.
+        Se publica la estructura de tus macros y su nombre, sólo en tus grupos; nunca tus
+        playlists ni tu cuenta. Al apagarlo se retira en la próxima sincronización, pero quien ya
+        sincronizó puede conservar su copia.
       </p>
 
       <!-- Sin grupos: invitación a unirse. -->
