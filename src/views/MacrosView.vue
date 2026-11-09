@@ -611,6 +611,11 @@
         </ul>
       </FeaturePanel>
 
+      <!-- ══ 3b · Macros de tu grupo ═══════════════════════════════════════════
+           Las que comparten los miembros de tus grupos, para clonarlas con tus
+           propias playlists, y el conmutador para compartir las tuyas. -->
+      <MacrosDeTuGrupo :playlists="playlists" />
+
       <!-- ══ 4 · Botón de los auriculares ════════════════════════════════════ -->
       <!--
         Sólo en la app: quien atiende la pulsación es el servicio nativo, con la
@@ -801,6 +806,7 @@ import FeaturePanel from '@/components/FeaturePanel.vue'
 import MacroIcon from '@/components/MacroIcon.vue'
 import GrupoIcono from '@/components/grupos/GrupoIcono.js'
 import SpotifyCuentaPanel from '@/components/SpotifyCuentaPanel.vue'
+import MacrosDeTuGrupo from '@/components/MacrosDeTuGrupo.vue'
 import GuiaInteractiva from '@/components/GuiaInteractiva.vue'
 import { guiaMacros } from '@/guias'
 import { useTour } from '@/composables/useTour'

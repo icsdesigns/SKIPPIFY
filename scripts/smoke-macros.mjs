@@ -444,6 +444,131 @@ console.log('\nSesión: el nativo es el dueño del refresco')
   deleteMacro(guardada.id)
 }
 
+// ── Macros compartidas con los grupos ────────────────────────────────────────
+{
+  console.log('\nMacros compartidas con los grupos: lo que sale')
+  const {
+    macroCompartible, macrosCompartibles, validarMacroCompartida, leerMacrosDelGrupo, fusionarGrupos,
+    planDePublicacion, borradorDesdeCompartida, idCompartido, nombrePublico, huella
+  } = await import('../src/lib/macrosCompartidas.js')
+
+  const privada = {
+    id: 'macro-1700000000000-abc12',
+    name: 'Novedades de una playlist (Mi lista secreta) → copiar → playlist «Gym privado»',
+    enabled: true,
+    source: { type: 'playlist_new', playlistId: 'SPOTIFYID_ORIGEN_123', playlistName: 'Mi lista secreta', playlistWritable: true },
+    action: { type: 'copy' },
+    target: { type: 'playlist', playlistId: 'SPOTIFYID_DESTINO_456', playlistName: 'Gym privado' },
+    cursor: { seen: ['trackid1', 'trackid2'], lastRunAt: '2026-01-01', tras: {} },
+    stats: { runs: 3, applied: 9, lastResult: 'ok' },
+    historial: [{ at: 1, message: 'Gym privado' }]
+  }
+  const fuera = macroCompartible(privada, 1234)
+  const texto = JSON.stringify(fuera)
+  check('se comparte la estructura', fuera.origen.tipo === 'playlist_new' && fuera.accion === 'copy' && fuera.destino === 'playlist', true)
+  check('ningún id de playlist sale', /SPOTIFYID/.test(texto), false)
+  check('ningún nombre de playlist sale', /secreta|Gym/i.test(texto), false)
+  check('ni el id local de la macro', texto.includes('macro-1700000000000') || texto.includes('abc12'), false)
+  check('ni cursor, contadores ni historial', /seen|trackid|runs|historial|lastResult|cursor/.test(texto), false)
+  check('el nombre por defecto (con playlists) se sustituye por la estructura',
+    fuera.nombre, /^Novedades de una playlist → copiar → Una playlist existente$/)
+  check('el id compartido es estable', idCompartido(privada.id), idCompartido(privada.id))
+  check('y no revela el original', idCompartido(privada.id).includes('1700000000000'), false)
+  check('forma m + 16 hex', idCompartido(privada.id), /^m[0-9a-f]{16}$/)
+  check('un nombre propio que no menciona playlists se conserva', nombrePublico({ ...privada, name: 'Mis favoritas' }), 'Mis favoritas')
+  check('con mayúsculas y tildes también se detecta', nombrePublico({ ...privada, name: 'Copia a GYM PRIVADO' }) !== 'Copia a GYM PRIVADO', true)
+  check('el nombre se recorta a 60', nombrePublico({ ...privada, name: 'x'.repeat(200) }).length, 60)
+  check('sin caracteres de control', nombrePublico({ ...privada, name: 'a\u0000b\nc' }), 'a b c')
+
+  const conN = macroCompartible({ id: 'z', name: 'Favoritas', source: { type: 'after_plays', plays: 4, windowDays: 30 }, action: { type: 'copy' }, target: { type: 'liked' } })
+  check('«tras N escuchas» lleva N y la ventana', JSON.stringify(conN.origen), '{"tipo":"after_plays","plays":4,"dias":30}')
+  check('una macro rota no se comparte', macroCompartible({ id: 'q', source: { type: 'nada' }, action: { type: 'copy' } }), null)
+  check('una combinación imposible no se comparte',
+    macroCompartible({ id: 'q', source: { type: 'current_track' }, action: { type: 'move' }, target: { type: 'liked' } }), null)
+  check('la lista descarta lo no compartible', macrosCompartibles([privada, { id: 'x' }, null]).length, 1)
+  check('acción sin destino: no se publica destino',
+    macroCompartible({ id: 'v', name: 'Cola', source: { type: 'current_track' }, action: { type: 'queue' }, target: { type: 'playlist', playlistId: 'SECRETO' } }).destino, null)
+
+  console.log('\nMacros compartidas: lo que llega')
+  const bueno = macroCompartible({ id: 'ok', name: 'Hola', source: { type: 'manual' }, action: { type: 'copy' }, target: { type: 'liked' } })
+  check('un registro bueno se valida', validarMacroCompartida(bueno)?.nombre, 'Hola')
+  check('y se reconstruye con los tipos', JSON.stringify(validarMacroCompartida(bueno).source), '{"type":"manual"}')
+  check('un id de playlist colado se descarta',
+    JSON.stringify(validarMacroCompartida({ ...bueno, origen: { tipo: 'playlist_new', playlistId: 'COLADO' }, destino: 'playlist', playlistId: 'COLADO2' })), /^null$|^(?!.*COLADO)/)
+  check('campos extra no sobreviven',
+    JSON.stringify(validarMacroCompartida({ ...bueno, token: 'SECRETO', accountId: 'U1' })).includes('SECRETO'), false)
+  check('versión desconocida', validarMacroCompartida({ ...bueno, v: 2 }), null)
+  check('tipo desconocido', validarMacroCompartida({ ...bueno, t: 'otra' }), null)
+  check('id mal formado', validarMacroCompartida({ ...bueno, mid: 'xx' }), null)
+  check('origen desconocido', validarMacroCompartida({ ...bueno, origen: { tipo: 'hackeo' } }), null)
+  check('acción desconocida', validarMacroCompartida({ ...bueno, accion: 'formatear' }), null)
+  check('destino incompatible con la acción', validarMacroCompartida({ ...bueno, accion: 'remove', destino: 'queue' }), null)
+  check('mover con origen que no es playlist', validarMacroCompartida({ ...bueno, accion: 'move' }), null)
+  check('basura', validarMacroCompartida('hola'), null)
+  check('nulo', validarMacroCompartida(null), null)
+  check('lista', validarMacroCompartida([1, 2]), null)
+  check('N fuera de rango se normaliza',
+    validarMacroCompartida({ ...bueno, origen: { tipo: 'after_plays', plays: 99, dias: 3 } }).source.plays, 3)
+  check('nombre vacío: descripción de la estructura', validarMacroCompartida({ ...bueno, nombre: '   ' }).nombre, /Ejecución manual → copiar → Tus me gusta/)
+  check('nombre gigante se recorta', validarMacroCompartida({ ...bueno, nombre: 'y'.repeat(500) }).nombre.length, 60)
+  check('nombre no textual se ignora', validarMacroCompartida({ ...bueno, nombre: { a: 1 } }).nombre, /Ejecución manual/)
+
+  const nombres = new Map([['pA', 'Ana'], ['pB', 'Beto'], ['yo', 'Yo']])
+  const e = (id, persona, data, hlc) => ({ id, persona, hlc, data })
+  const m1 = macroCompartible({ id: 'a1', name: 'Una', source: { type: 'manual' }, action: { type: 'copy' }, target: { type: 'liked' } })
+  const m2 = macroCompartible({ id: 'a2', name: 'Dos', source: { type: 'current_track' }, action: { type: 'queue' } })
+  const m1nueva = { ...m1, nombre: 'Una v2' }
+  const leidas = leerMacrosDelGrupo([
+    e('1', 'pA', m1, '0001'), e('2', 'pA', m1nueva, '0002'), e('3', 'pB', m2, '0001'),
+    e('4', 'yo', m1, '0001'), e('5', 'pA', { basura: true }, '0003'), e('6', '', m2, '0001')
+  ], nombres, 'yo')
+  check('una por persona y macro: gana la más reciente', leidas.filter(m => m.persona === 'pA').map(m => m.nombre).join(), 'Una v2')
+  check('las propias no se listan', leidas.some(m => m.persona === 'yo'), false)
+  check('lo mal formado y sin autor se descarta', leidas.length, 2)
+  check('con el nombre de quien la comparte', leidas.find(m => m.persona === 'pB').autor, 'Beto')
+  check('y su descripción sin playlists', leidas.find(m => m.persona === 'pB').descripcion, /La canción que suena ahora → poner en cola/)
+
+  const muchas = Array.from({ length: 80 }, (_, i) => e(String(i), 'pA', macroCompartible({ id: 'id' + i, name: 'n' + i, source: { type: 'manual' }, action: { type: 'copy' }, target: { type: 'liked' } }), String(1000 + i)))
+  check('tope por persona', leerMacrosDelGrupo(muchas, nombres, 'yo').length, 40)
+
+  const fusion = fusionarGrupos([
+    { grupo: 'Casa', macros: leidas },
+    { grupo: 'Trabajo', macros: leidas.filter(m => m.persona === 'pA') }
+  ])
+  check('la misma macro en dos grupos sale una vez', fusion.length, 2)
+  check('con sus dos grupos', fusion.find(m => m.autor === 'Ana').grupos.join(), 'Casa,Trabajo')
+
+  console.log('\nMacros compartidas: publicar y retirar')
+  const pub = (id, d, hlc) => ({ id, hlc, data: d })
+  let plan = planDePublicacion({ compartir: false, mias: [m1, m2], publicadas: [] })
+  check('sin consentimiento no se publica nada', plan.anadir.length + plan.retirar.length, 0)
+  plan = planDePublicacion({ compartir: false, mias: [m1], publicadas: [pub('r1', m1, '1'), pub('r2', m2, '1'), pub('r3', { x: 1 }, '1')] })
+  check('al apagarlo se retira todo lo publicado', plan.retirar.sort().join(), 'r1,r2,r3')
+  plan = planDePublicacion({ compartir: true, mias: [m1, m2], publicadas: [] })
+  check('con consentimiento se publican todas', plan.anadir.length, 2)
+  plan = planDePublicacion({ compartir: true, mias: [m1, m2], publicadas: [pub('r1', m1, '1'), pub('r2', m2, '1')] })
+  check('sin cambios no se toca nada', plan.anadir.length + plan.retirar.length, 0)
+  plan = planDePublicacion({ compartir: true, mias: [m1nueva, m2], publicadas: [pub('r1', m1, '1'), pub('r2', m2, '1')] })
+  check('al cambiar una se añade la nueva y se retira la vieja', plan.anadir.length === 1 && plan.anadir[0].nombre === 'Una v2' && plan.retirar.join() === 'r1', true)
+  plan = planDePublicacion({ compartir: true, mias: [m2], publicadas: [pub('r1', m1, '1'), pub('r2', m2, '1')] })
+  check('al borrar una se retira su copia', plan.anadir.length === 0 && plan.retirar.join() === 'r1', true)
+  plan = planDePublicacion({ compartir: true, mias: [m1], publicadas: [pub('a', m1, '1'), pub('b', m1, '2')] })
+  check('un duplicado se limpia', plan.retirar.join(), 'a')
+  check('la huella ignora la marca de tiempo', huella({ ...m1, at: 5 }), huella({ ...m1, at: 99 }))
+
+  console.log('\nMacros compartidas: clonar')
+  const clon = borradorDesdeCompartida({ nombre: 'Una', source: { type: 'playlist_new' }, action: { type: 'copy' }, target: { type: 'playlist' } })
+  check('el borrador viene sin playlists', clon.source.playlistId === '' && clon.target.playlistId === '', true)
+  check('y pide elegirlas antes de guardar', validateDraft(clon), /Elige la playlist de origen/)
+  clon.source.playlistId = 'MIA'
+  check('ahora pide el destino', validateDraft(clon), /Elige la playlist de destino/)
+  clon.target.playlistId = 'MIA2'
+  check('y con las dos, vale', validateDraft(clon), '')
+  const clonN = borradorDesdeCompartida({ nombre: 'F', source: { type: 'after_plays', plays: 5, windowDays: 30 }, action: { type: 'copy' }, target: { type: 'liked' } })
+  check('conserva N y la ventana', JSON.stringify([clonN.source.plays, clonN.source.windowDays]), '[5,30]')
+  check('«Tus me gusta» no necesita playlist', validateDraft(clonN), '')
+}
+
 console.log('\nvalidateDraft corta al crear la macro')
 check('destino no escribible',
   validateDraft({ source: { type: 'current_track' }, action: { type: 'copy' }, target: { type: 'playlist', playlistId: 'B', playlistWritable: false } }),

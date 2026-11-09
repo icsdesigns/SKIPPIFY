@@ -25,6 +25,8 @@ import { NostrTransport, DEFAULT_RELAYS } from '@/lib/localhost/nostrTransport'
 import { esCodigoExpres, formatearCodigo, generarCodigo, publicarExpres, resolverExpres, EXPRES_TTL_MS } from '@/lib/localhost/expres'
 import { actividadPorPersona, elegirExpulsados, LATIDO_MS, REVISION_MS } from '@/lib/localhost/inactividad'
 import { PERIODOS, DIAS_PUBLICADOS, decodeEscuchas, encodeEscuchas, partirEnLotes, ventanaPeriodo, puntuarSemana } from '@/lib/localhost/escuchas'
+import { useMacros } from '@/composables/useMacros'
+import { COLL_MACROS, fusionarGrupos, leerMacrosDelGrupo, macrosCompartibles, planDePublicacion } from '@/lib/macrosCompartidas'
 import {
   COLL_FUNCIONALIDAD, TOPE_FILAS, SUBIDA_TRAS_RESPUESTA_MS, desempaquetarRegistro, empaquetarRegistro,
   puedeComprimir, registroMeta, registrosDeSubida, resumirFuncionalidad, tocaSubir
@@ -86,6 +88,16 @@ const semanas = reactive({})
 const lastSyncByGroup = reactive({})
 /** { [groupId]: [{ id, nombre, yo, version, subidoEn, filas, total }] } — registros de funcionalidad. */
 const funcionalidad = reactive({})
+/** { [groupId]: [macro compartida por otro miembro] } — ver lib/macrosCompartidas.js. */
+const macrosGrupos = reactive({})
+/**
+ * «Compartir mis macros con mis grupos». Apagado por defecto: sin este
+ * consentimiento no sale nada de las macros del móvil.
+ */
+const MACROS_COMPARTIR_KEY = 'skippify-macros-compartir'
+const compartirMacros = ref((() => {
+  try { return localStorage.getItem(MACROS_COMPARTIR_KEY) === '1' } catch { return false }
+})())
 
 const runtimes = new Map()
 let kitPromise = null
@@ -288,6 +300,7 @@ function refreshMembers (groupId, group) {
     }))
   members[groupId] = list
   try { refrescarFuncionalidad(groupId, group, nombres) } catch { /* solo informativo */ }
+  try { refrescarMacrosGrupo(groupId, group, nombres) } catch { /* solo informativo */ }
   const meta = findGroup(groupId)
   if (meta) {
     meta.role = list.find(m => m.you)?.role || meta.role
@@ -829,6 +842,55 @@ async function publicarFuncionalidad (groupId) {
   guardarEstadoSubida(estado)
 }
 
+// ── Macros compartidas ──────────────────────────────────────────────────────
+//
+// Cada miembro puede publicar la estructura de sus macros (nunca sus playlists
+// ni su cuenta: ver lib/macrosCompartidas.js) para que los demás las clonen.
+// Sólo con el conmutador encendido; apagarlo retira lo publicado en la siguiente
+// sincronización. La persona autora sale de la firma del evento.
+
+function entradasMacros (group) {
+  const vista = group.membershipView()
+  const out = []
+  for (const item of group.records(COLL_MACROS).items()) {
+    if (item.removed || !item.data) continue
+    const persona = vista.personOf(item.author)
+    if (persona) out.push({ id: item.id, persona, hlc: item.hlc, data: item.data })
+  }
+  return out
+}
+
+function refrescarMacrosGrupo (groupId, group, nombres = nombresDe(group)) {
+  macrosGrupos[groupId] = leerMacrosDelGrupo(entradasMacros(group), nombres, group.me.person)
+}
+
+async function publicarMacros (groupId) {
+  // Con la app en segundo plano (WebView del servicio) no se publica nada.
+  if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return
+  const rt = runtimes.get(groupId)
+  if (!rt || rt.group.status !== 'ready' || !rt.group.canSeal() || rt.group.removedInOwnView()) return
+  const { group } = rt
+  const yo = group.me.person
+  const mias = entradasMacros(group).filter(e => e.persona === yo)
+  const plan = planDePublicacion({
+    compartir: compartirMacros.value,
+    mias: macrosCompartibles(useMacros().macros),
+    publicadas: mias
+  })
+  if (!plan.anadir.length && !plan.retirar.length) return
+  const coll = group.records(COLL_MACROS)
+  // Primero se añade y luego se retira: si algo falla a medias, no se pierde la copia.
+  for (const dato of plan.anadir) await coll.add(dato)
+  for (const id of plan.retirar) await coll.remove(id)
+}
+
+/** Enciende o apaga el consentimiento y lo aplica a los grupos sin esperar al próximo minuto. */
+async function fijarCompartirMacros (valor) {
+  compartirMacros.value = !!valor
+  try { localStorage.setItem(MACROS_COMPARTIR_KEY, valor ? '1' : '0') } catch { /* se pierde sólo la preferencia */ }
+  if (state.value.groups.length) await refreshAll({ silent: true })
+}
+
 /** Lanza la publicación sin esperarla: solo una a la vez y sin que un error llegue a nadie. */
 function publicarFuncionalidadEnSegundoPlano (groupId) {
   if (subiendoFuncionalidad) return
@@ -1012,6 +1074,7 @@ async function syncGroup (groupId, { silent = true } = {}) {
       await asegurarPerfil(rt.group)
       await publicarEscuchas(groupId)
       publicarFuncionalidadEnSegundoPlano(groupId)
+      try { await publicarMacros(groupId) } catch { /* se reintenta en la siguiente sincronización */ }
       try { await mantenimiento(groupId, rt, report) } catch { /* se reintenta en la siguiente */ }
     }
     refreshMembers(groupId, rt.group)
@@ -1176,6 +1239,13 @@ export function useLocalLeague () {
     semanas,
     lastSyncByGroup,
     funcionalidad,
+    macrosGrupos,
+    compartirMacros,
+    fijarCompartirMacros,
+    /** Macros de los miembros de TODOS mis grupos, sin repetidas. */
+    macrosDeMisGrupos: computed(() => fusionarGrupos(
+      state.value.groups.map(g => ({ grupo: g.name, macros: macrosGrupos[g.groupId] || [] }))
+    )),
     descargarFuncionalidad,
     activeMembers: computed(() => members[state.value.activeGroupId] || []),
     activeLeaderboard: computed(() => leaderboards[state.value.activeGroupId] || null),
