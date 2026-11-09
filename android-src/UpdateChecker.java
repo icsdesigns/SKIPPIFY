@@ -1,5 +1,6 @@
 package com.skippify.app;
 
+import android.app.AlarmManager;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
@@ -9,7 +10,9 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
+import android.content.BroadcastReceiver;
 import android.os.Build;
+import android.os.PowerManager;
 import android.util.Log;
 
 import androidx.annotation.Nullable;
@@ -31,6 +34,12 @@ import java.util.regex.Pattern;
  * NO descarga ni instala nada: eso sigue siendo cosa de {@link UpdaterPlugin},
  * con la confirmación del usuario que Android exige de todas formas.
  *
+ * Una release no se avisa hasta 6 horas después de publicarse (ver
+ * {@link ActualizacionAviso#RETRASO_AVISO_MS}), para no encadenar avisos si salen
+ * varias seguidas. Al detectar una todavía dentro del plazo se programa una
+ * alarma para la hora exacta en que cumple las 6 horas ({@link #alSonar}); el
+ * latido del servicio queda de red de seguridad si la alarma se pierde.
+ *
  * El latido lo pone el servicio en primer plano, que ya se despierta cada quince
  * minutos para reafirmar su notificación. Programar una alarma propia para algo
  * que pasa una vez al día sería gastar un despertar de más: aquí sólo se mira el
@@ -43,6 +52,15 @@ final class UpdateChecker {
     private static final String PREFS = "skippify-updates";
     private static final String PREF_LAST_CHECK_AT = "lastCheckAtMs";
     private static final String PREF_NOTIFIED_CODE = "notifiedVersionCode";
+    /** Release retenida por el plazo de 6 h: su versionCode y la hora en que ya se puede avisar. */
+    private static final String PREF_PENDING_CODE = "pendingVersionCode";
+    private static final String PREF_PENDING_OPEN_AT = "pendingOpenAtMs";
+    private static final String PREF_PENDING_ALARM_AT = "pendingAlarmAtMs";
+
+    /** Acción de la alarma puntual: la atiende {@link BootCompletedReceiver}. */
+    static final String ACTION_ALARMA = "com.skippify.app.action.AVISO_ACTUALIZACION";
+    private static final int ALARM_REQUEST_CODE = 0x5BE6;
+    private static final long WAKELOCK_MS = 2L * 60L * 1000L;
 
     /** Una vez al día: más a menudo no aporta nada y gasta batería y cupo. */
     static final long CHECK_INTERVAL_MS = 24L * 60L * 60L * 1000L;
@@ -80,6 +98,10 @@ final class UpdateChecker {
         if (context == null) return;
         final Context app = context.getApplicationContext();
 
+        // Aprovecha el latido para dejar puesta la alarma de una release retenida
+        // (la alarma no sobrevive a un reinicio ni a que el sistema la pierda).
+        reponerAlarma(app);
+
         if (!tocaComprobar(app)) return;
 
         POOL.execute(() -> {
@@ -94,11 +116,60 @@ final class UpdateChecker {
     static boolean tocaComprobar(Context app) {
         SharedPreferences sp = prefs(app);
         if (sp == null) return false;
-        long ultima = sp.getLong(PREF_LAST_CHECK_AT, 0L);
         // Un reloj movido hacia atrás dejaría la comprobación congelada para
-        // siempre, así que un "futuro" imposible también vale como vencida.
-        long transcurrido = System.currentTimeMillis() - ultima;
-        return ultima <= 0L || transcurrido >= CHECK_INTERVAL_MS || transcurrido < 0L;
+        // siempre, así que un "futuro" imposible también vale como vencida; y
+        // una release retenida cuya hora ya pasó no espera al día siguiente.
+        return ActualizacionAviso.tocaComprobar(System.currentTimeMillis(),
+                sp.getLong(PREF_LAST_CHECK_AT, 0L), CHECK_INTERVAL_MS,
+                sp.getLong(PREF_PENDING_OPEN_AT, 0L));
+    }
+
+    /**
+     * Ha sonado la alarma de las 6 horas (la recibe {@link BootCompletedReceiver}).
+     * Vuelve a consultar la release —puede haber salido otra más nueva, o el
+     * usuario haber actualizado ya— y avisa si procede. La marca de «última
+     * comprobación» no interviene: esta consulta es independiente de la diaria.
+     */
+    static void alSonar(Context ctx, @Nullable BroadcastReceiver.PendingResult pendiente) {
+        final Context app = ctx.getApplicationContext();
+        final PowerManager.WakeLock wl = tomarWakeLock(app);
+        try {
+            POOL.execute(() -> {
+                try {
+                    comprobarAhora(app);
+                } catch (Throwable t) {
+                    Log.w(TAG, "la alarma de actualización ha fallado", t);
+                } finally {
+                    soltar(wl);
+                    terminar(pendiente);
+                }
+            });
+        } catch (Throwable t) {
+            soltar(wl);
+            terminar(pendiente);
+        }
+    }
+
+    private static void terminar(@Nullable BroadcastReceiver.PendingResult pendiente) {
+        if (pendiente == null) return;
+        try { pendiente.finish(); } catch (Throwable ignored) { }
+    }
+
+    /** Tras un reinicio o al actualizar la app: repone la alarma de una release retenida. */
+    static void reponerAlarma(Context app) {
+        try {
+            SharedPreferences sp = prefs(app);
+            if (sp == null) return;
+            long apertura = sp.getLong(PREF_PENDING_OPEN_AT, 0L);
+            if (apertura <= 0L) return;
+            long cuando = ActualizacionAviso.momentoAlarma(apertura - ActualizacionAviso.RETRASO_AVISO_MS);
+            // Ya vencida: no hay nada que programar; el latido la recoge (tocaComprobar).
+            if (System.currentTimeMillis() >= cuando) return;
+            if (sp.getLong(PREF_PENDING_ALARM_AT, 0L) == cuando && hayAlarma(app)) return;
+            ponerAlarma(app, cuando);
+        } catch (Throwable t) {
+            Log.w(TAG, "no se pudo reponer la alarma de actualización", t);
+        }
     }
 
     // ── Comprobación ─────────────────────────────────────────────────────────
@@ -137,14 +208,112 @@ final class UpdateChecker {
         long codigoInstalado = versionCodeInstalado(app);
         if (codigoInstalado <= 0L || codigoNuevo <= codigoInstalado) return;
 
+        // Fecha de lanzamiento: published_at de GitHub (ISO UTC); si falta,
+        // created_at. Sin ninguna legible no se retiene nada (ver ActualizacionAviso).
+        long publicado = ActualizacionAviso.fechaDeRelease(
+                MacroRunner.Json.string(obj, "published_at"),
+                MacroRunner.Json.string(obj, "created_at"));
+
         // Una sola notificación por versión: si el usuario la ignora, no se le
         // repite el aviso cada día hasta que actualice.
         SharedPreferences sp = prefs(app);
-        if (sp != null && sp.getLong(PREF_NOTIFIED_CODE, 0L) >= codigoNuevo) return;
+        ActualizacionAviso.Decision d = ActualizacionAviso.decidir(System.currentTimeMillis(), publicado,
+                codigoNuevo, codigoInstalado, sp == null ? 0L : sp.getLong(PREF_NOTIFIED_CODE, 0L));
 
-        notificar(app, versionNueva);
-        if (sp != null) sp.edit().putLong(PREF_NOTIFIED_CODE, codigoNuevo).apply();
-        Log.i(TAG, "versión nueva disponible: " + versionNueva + " (b" + codigoNuevo + ")");
+        switch (d.accion) {
+            case NOTIFICAR:
+                notificar(app, versionNueva);
+                if (sp != null) sp.edit().putLong(PREF_NOTIFIED_CODE, codigoNuevo).apply();
+                limpiarPendiente(app);
+                Log.i(TAG, "versión nueva disponible: " + versionNueva + " (b" + codigoNuevo + ")");
+                break;
+            case PROGRAMAR:
+                // Demasiado reciente: se avisará, de la más nueva que haya entonces,
+                // cuando cumpla las 6 horas. Si ya había otra retenida, esta la sustituye.
+                if (sp != null) {
+                    sp.edit().putLong(PREF_PENDING_CODE, codigoNuevo)
+                            .putLong(PREF_PENDING_OPEN_AT, d.aperturaMs).apply();
+                }
+                ponerAlarma(app, d.cuandoMs);
+                Log.i(TAG, "versión " + versionNueva + " (b" + codigoNuevo
+                        + ") retenida: se avisará a las " + d.cuandoMs);
+                break;
+            default:
+                // Nada que avisar (ya instalada o ya avisada): no queda nada retenido.
+                limpiarPendiente(app);
+                break;
+        }
+    }
+
+    // ── Alarma ───────────────────────────────────────────────────────────────
+
+    private static PendingIntent intentAlarma(Context app, int flagBase) {
+        Intent intent = new Intent(app, BootCompletedReceiver.class);
+        intent.setAction(ACTION_ALARMA);
+        int flags = flagBase;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) flags |= PendingIntent.FLAG_IMMUTABLE;
+        return PendingIntent.getBroadcast(app, ALARM_REQUEST_CODE, intent, flags);
+    }
+
+    private static boolean hayAlarma(Context app) {
+        return intentAlarma(app, PendingIntent.FLAG_NO_CREATE) != null;
+    }
+
+    private static void ponerAlarma(Context app, long cuando) {
+        AlarmManager am = (AlarmManager) app.getSystemService(Context.ALARM_SERVICE);
+        if (am == null) return;
+        PendingIntent pi = intentAlarma(app, PendingIntent.FLAG_UPDATE_CURRENT);
+        // Igual que los demás avisos: exacta si el sistema lo permite (USE_EXACT_ALARM
+        // está declarado); si no, una inexacta llega con unos minutos de retraso.
+        boolean exacta = Build.VERSION.SDK_INT < Build.VERSION_CODES.S || am.canScheduleExactAlarms();
+        if (exacta && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, cuando, pi);
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, cuando, pi);
+        } else {
+            am.setExact(AlarmManager.RTC_WAKEUP, cuando, pi);
+        }
+        SharedPreferences sp = prefs(app);
+        if (sp != null) sp.edit().putLong(PREF_PENDING_ALARM_AT, cuando).apply();
+    }
+
+    private static void limpiarPendiente(Context app) {
+        try {
+            AlarmManager am = (AlarmManager) app.getSystemService(Context.ALARM_SERVICE);
+            PendingIntent pi = intentAlarma(app, PendingIntent.FLAG_NO_CREATE);
+            if (pi != null) {
+                if (am != null) am.cancel(pi);
+                pi.cancel();
+            }
+        } catch (Throwable ignored) {
+        }
+        SharedPreferences sp = prefs(app);
+        if (sp != null) {
+            sp.edit().remove(PREF_PENDING_CODE).remove(PREF_PENDING_OPEN_AT)
+                    .remove(PREF_PENDING_ALARM_AT).apply();
+        }
+    }
+
+    @Nullable
+    private static PowerManager.WakeLock tomarWakeLock(Context app) {
+        try {
+            PowerManager pm = (PowerManager) app.getSystemService(Context.POWER_SERVICE);
+            if (pm == null) return null;
+            PowerManager.WakeLock wl = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "skippify:actualizacion");
+            wl.setReferenceCounted(false);
+            // Con tiempo máximo: se suelta sola aunque algo falle.
+            wl.acquire(WAKELOCK_MS);
+            return wl;
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    private static void soltar(@Nullable PowerManager.WakeLock wl) {
+        try {
+            if (wl != null && wl.isHeld()) wl.release();
+        } catch (Throwable ignored) {
+        }
     }
 
     private static long versionCodeInstalado(Context app) {

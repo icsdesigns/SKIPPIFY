@@ -45,6 +45,12 @@ public class BootCompletedReceiver extends BroadcastReceiver {
             return;
         }
 
+        // Han pasado 6 horas desde que se publicó una versión nueva: avisar.
+        if (UpdateChecker.ACTION_ALARMA.equals(action)) {
+            UpdateChecker.alSonar(context, goAsync());
+            return;
+        }
+
         // Latido de seguridad de la sincronización de los grupos.
         if (ACTION_LH_LATIDO.equals(action)) {
             LocalHostBackground.alLatido(context, goAsync());
@@ -73,6 +79,12 @@ public class BootCompletedReceiver extends BroadcastReceiver {
         try {
             AvisoSemanaGrupos.latido(appContext);
             LocalHostBackground.latido(appContext);
+        } catch (Throwable ignored) {
+        }
+
+        // Una versión nueva retenida por el plazo de 6 h conserva su alarma.
+        try {
+            UpdateChecker.reponerAlarma(appContext);
         } catch (Throwable ignored) {
         }
 
