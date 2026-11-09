@@ -1,7 +1,7 @@
 <template>
   <div class="sk-stagger space-y-4">
-    <!-- Sin grupos va arriba y abierto: es lo primero que necesita quien llega. -->
-    <ComunidadInfo v-if="!grupos.length" :sin-grupos="true" />
+    <!-- Guía interactiva: flotante; explica cómo funcionan los grupos. -->
+    <GuiaInteractiva :guia="guiaGrupos" />
 
     <!-- ── Todos los grupos, como paneles plegados en línea ─────────────────
          Al abrir uno, LocalHostPanel monta dentro su detalle. -->
@@ -40,9 +40,6 @@
     </section>
 
     <LocalHostPanel v-model:nuevo="nuevoAbierto" :abierto="abiertoId" />
-
-    <!-- Con grupos, al final y plegado. -->
-    <ComunidadInfo v-if="grupos.length" :sin-grupos="false" />
   </div>
 </template>
 
@@ -57,7 +54,9 @@
  */
 import { computed, defineAsyncComponent, onMounted, ref } from 'vue'
 import PanelGrupo from '@/components/grupos/PanelGrupo.vue'
-import ComunidadInfo from '@/components/grupos/ComunidadInfo.vue'
+import GuiaInteractiva from '@/components/GuiaInteractiva.vue'
+import { guiaGrupos } from '@/guias'
+import { useTour } from '@/composables/useTour'
 import GrupoIcono from '@/components/grupos/GrupoIcono.js'
 import { formatearHorasCorto } from '@/lib/gruposResumen'
 // Los grupos se leen de un módulo ligero, no de useLocalLeague: así el
@@ -103,5 +102,12 @@ const grupos = computed(() => gruposLocales.value.map(g => ({
 
 const lleno = computed(() => grupos.value.length >= MAX_GROUPS)
 
-onMounted(releerCopiaLocal)
+const tour = useTour()
+
+onMounted(() => {
+  releerCopiaLocal()
+  // Primera visita a la pestaña: la guía se abre sola, una única vez. Si el
+  // tour de la app está a la vista, espera: dos paneles a la vez no se leen.
+  if (!tour.state.open) guiaGrupos.autoStart()
+})
 </script>

@@ -117,11 +117,17 @@ async function main () {
   }))
   liga.members[GRUPO_LOCAL] = yoSoy('uid-ana')
   const semana = (weekKey, members) => ({ weekKey, weekStart: weekKey, weekEnd: weekKey, provisional: false, members })
+  // Los dos periodos de la pestaña: la semana y el mes en curso (el mes con más escucha).
+  const delMes = MIEMBROS.map(m => ({ ...m, totalMinutes: m.totalMinutes * 3, totalTracks: m.totalTracks * 3 }))
   liga.semanas[GRUPO_LOCAL] = {
-    actual: semana('2026-09-14', MIEMBROS),
-    pasada: semana('2026-09-07', MIEMBROS.slice(0, 1)),
-    hace2: semana('2026-08-31', [])
+    semana: semana('2026-09-14', MIEMBROS),
+    mes: semana('2026-09', delMes)
   }
+  // Registro de funcionalidad de dos miembros: Ana subió el suyo, Bartolomé sólo su versión.
+  liga.funcionalidad[GRUPO_LOCAL] = [
+    { id: 'uid-ana', nombre: 'Ana', yo: true, version: '1.4.0', subidoEn: Date.UTC(2026, 8, 14, 9, 30), filas: 120, total: 200 },
+    { id: 'uid-largo', nombre: 'Bartolomé de las Casas Fernández', yo: false, version: '1.3.2', subidoEn: 0, filas: 0, total: 0 }
+  ]
 
   const { routes } = await import('../src/router/routes.js')
   const { default: App } = await import('../src/App.vue')
@@ -180,19 +186,26 @@ async function main () {
     check('ya no hay modo con servidor', !html.includes('data-raiz') && !html.includes('Con servidor') && !html.includes('comunidad-alta-servidor'))
   }
 
-  console.log('\nGrupo abierto: ranking, escucha común e invitar/abandonar')
+  console.log('\nGrupo abierto: portada, miembros e invitar/abandonar')
   {
     check('el detalle se monta dentro del panel del grupo', detalle.includes('data-grupo-detalle'))
     check('botón de actualizar sólo con icono', /aria-label="Actualizar"[^>]*>\s*<svg/.test(detalle) && !detalle.includes('>Actualizar<'))
-    check('Ranking y Escucha común, en ese orden',
-      detalle.indexOf('data-seccion="ranking"') > 0 && detalle.indexOf('data-seccion="comun"') > detalle.indexOf('data-seccion="ranking"'))
-    check('cada una con su desplegable de semana',
-      detalle.split('aria-label="Semana del ranking"').length === 2 &&
-      detalle.split('aria-label="Semana de la escucha común"').length === 2 &&
-      detalle.includes('Semana pasada') && detalle.includes('Hace 2 semanas'))
-    check('Ranking desplegado y Escucha común plegada',
-      /aria-expanded="true"[^>]*aria-controls="seccion-ranking"|aria-controls="seccion-ranking"[^>]*aria-expanded="true"/.test(detalle) &&
-      /aria-expanded="false"[^>]*aria-controls="seccion-comun"|aria-controls="seccion-comun"[^>]*aria-expanded="false"/.test(detalle))
+    check('la portada del resumen va antes que los miembros',
+      detalle.indexOf('data-portada') > 0 && detalle.indexOf('data-seccion="miembros"') > detalle.indexOf('data-portada'))
+    check('selector Semana / Mes (y no las semanas anteriores)',
+      detalle.includes('data-periodo="semana"') && detalle.includes('data-periodo="mes"') &&
+      !detalle.includes('Semana pasada') && !detalle.includes('Hace 2 semanas'))
+    check('la portada suma el tiempo del grupo y su podio',
+      /data-total-horas[^>]*>\s*18 h 38 min/.test(detalle) && detalle.includes('data-podio') && (detalle.match(/data-podio-puesto="/g) || []).length === 3, texto(detalle).slice(0, 300))
+    check('el podio no mueve nodos: el orden visual lo da `order` (1º en el centro)',
+      /data-podio-puesto="1"[^>]*>/.test(detalle) && /style="order: ?0;/.test(detalle.slice(detalle.indexOf('data-podio-puesto="2"') - 120, detalle.indexOf('data-podio-puesto="2"') + 5)) && /style="order: ?1;/.test(detalle.slice(detalle.indexOf('data-podio-puesto="1"') - 120, detalle.indexOf('data-podio-puesto="1"') + 5)))
+    check('sin la sección de escucha común entre miembros ni los registros aparte',
+      !detalle.includes('data-seccion="comun"') && !detalle.includes('parejas') &&
+      !detalle.includes('data-registros-funcionalidad') && !detalle.includes('Registros de funcionalidad<'))
+    check('el aviso «provisional» va en la portada, tras un icono de información',
+      detalle.includes('data-info-provisional') && /data-nota-provisional[^>]*>\s*Cifras provisionales/.test(detalle))
+    check('sin notas sobrantes («Toca a un miembro…», «100 % = oís lo mismo»)',
+      !/Toca a un miembro/.test(detalle) && !/oís lo mismo/.test(detalle) && !/El anillo es su tiempo/.test(detalle))
     check('botones Invitar y Abandonar', /Invitar\s*<\/button>/.test(detalle) && /Abandonar/.test(detalle))
     check('el administrador ve el lápiz para cambiar el nombre', detalle.includes('data-renombrar'))
     check('nada de invitación larga, vincular ni copia de seguridad',
@@ -214,8 +227,20 @@ async function main () {
     check('el podio lleva medallas', /oro text-black/.test(detalle) && /plata text-black/.test(detalle) && /bronce text-black/.test(detalle))
     check('el ranking va por tiempo de escucha', detalle.indexOf('Ana') < detalle.indexOf('Bartolomé') && detalle.indexOf('Bartolomé') < detalle.indexOf('Carlos'))
     check('el orden visual lo da `order`, sin mover nodos', /order: ?1/.test(detalle) && /order: ?2/.test(detalle))
-    check('aparece la escucha común entre dos miembros con datos', detalle.includes('Ana · Bartolomé de las Casas Fernández'))
-    check('una ficha antigua no genera una pareja', !detalle.includes('Carlos ·') && !detalle.includes('· Carlos'))
+    const ficha = (uid) => {
+      const i = detalle.indexOf(`data-miembro="${uid}"`)
+      return i < 0 ? '' : detalle.slice(i, detalle.indexOf('</li>', detalle.indexOf(`id="registro-${uid}"`)))
+    }
+    check('en la ficha de otro miembro, su % de escucha común contigo', /data-comun[^>]*>[\s\S]*?\d+ % en común/.test(ficha('uid-largo')), texto(ficha('uid-largo')).slice(0, 200))
+    check('la escucha común es contra mí: Ana y Bartolomé comparten Rosalía (51 %)', /51 % en común/.test(texto(ficha('uid-largo'))), texto(ficha('uid-largo')).slice(0, 200))
+    check('mi propia ficha no muestra el %', !ficha('uid-ana').includes('data-comun'))
+    check('un miembro sin datos de artistas no muestra %', !ficha('uid-viejo').includes('data-comun'))
+    check('ya no se enseña el parecido entre otros miembros', !detalle.includes('Ana · Bartolomé') && !detalle.includes('Bartolomé de las Casas Fernández · Carlos'))
+    check('cada ficha lleva su icono de información del registro',
+      (detalle.match(/data-info-registro/g) || []).length === 3 && /aria-label="Registro de funcionalidad de Ana"/.test(detalle))
+    check('el registro de Ana: versión, filas subidas y descarga', /1\.4\.0/.test(ficha('uid-ana')) && /120 filas/.test(texto(ficha('uid-ana'))) && ficha('uid-ana').includes('data-descargar="uid-ana"'))
+    check('el de quien sólo publicó su versión: sin descarga', /1\.3\.2/.test(ficha('uid-largo')) && /Sin registro compartido/.test(texto(ficha('uid-largo'))) && !ficha('uid-largo').includes('data-descargar'))
+    check('el de quien no ha publicado nada: «sin versión»', /sin versión/.test(texto(ficha('uid-viejo'))))
     const dentro = (uid) => {
       const ficha = detalle.indexOf(`id="ficha-${uid}"`)
       return ficha > 0 && detalle.indexOf(`data-expulsar="${uid}"`) > ficha
@@ -225,8 +250,7 @@ async function main () {
     check('«Expulsar» vive dentro de la ficha desplegable, no a la vista', dentro('uid-largo') && dentro('uid-viejo'))
     check('con tres miembros no hay «Ver todos»', !detalle.includes('data-ver-todos'))
     check('sin huecos ni NaN', !detalle.includes('undefined') && !detalle.includes('NaN'))
-    check('el panel «¿Cómo funciona?» va plegado con grupos', /data-info-comunidad[\s\S]{0,400}aria-expanded="false"/.test(html))
-    check('el aviso «provisional» está en «¿Cómo funciona?»', /provisionales/.test(html.slice(html.indexOf('data-info-comunidad'))))
+    check('ya no existe el panel «¿Cómo funciona?»', !html.includes('data-info-comunidad') && !html.includes('¿Cómo funciona?') && !htmlVivo.includes('¿Cómo funciona?'))
   }
 
   console.log('\nTop 3 con «Ver todos»')
@@ -237,12 +261,12 @@ async function main () {
     }))
     const todos = [...MIEMBROS, ...extra]
     liga.members[GRUPO_LOCAL] = todos.map(m => ({ uid: m.uid, displayName: m.displayName, role: m.uid === 'uid-ana' ? 'owner' : 'member', you: m.uid === 'uid-ana' }))
-    liga.semanas[GRUPO_LOCAL] = { ...liga.semanas[GRUPO_LOCAL], actual: semana('2026-09-14', todos) }
+    liga.semanas[GRUPO_LOCAL] = { ...liga.semanas[GRUPO_LOCAL], semana: semana('2026-09-14', todos) }
     const d5 = await renderDetalle()
     check('con cinco miembros sólo salen tres fichas', (d5.match(/data-miembro="/g) || []).length === 3)
     check('el botón «Ver todos» los cuenta', /data-ver-todos[\s\S]{0,200}Ver todos \(5\)/.test(d5))
     liga.members[GRUPO_LOCAL] = yoSoy('uid-ana')
-    liga.semanas[GRUPO_LOCAL] = { ...liga.semanas[GRUPO_LOCAL], actual: semana('2026-09-14', MIEMBROS) }
+    liga.semanas[GRUPO_LOCAL] = { ...liga.semanas[GRUPO_LOCAL], semana: semana('2026-09-14', MIEMBROS) }
   }
 
   console.log('\nUn miembro que no es administrador')

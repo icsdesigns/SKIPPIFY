@@ -21,7 +21,8 @@ import { useFeatures, sanitizeListeningMode } from '../src/composables/useFeatur
 import { useNotifListener } from '../src/composables/useNotifListener.js'
 import { useTour, TOUR_STEPS, TOUR_KEY } from '../src/composables/useTour.js'
 import GuiaInteractiva from '../src/components/GuiaInteractiva.vue'
-import { guiaMacros, guiaFunciones, GUIAS, guiaDeRuta } from '../src/guias/index.js'
+import { guiaMacros, guiaFunciones, guiaGrupos, GUIAS, guiaDeRuta } from '../src/guias/index.js'
+import { GRUPOS_GUIDE_KEY, GRUPOS_GUIDE_STEPS } from '../src/guias/grupos.js'
 import { FUNCIONES_GUIDE_KEY, FUNCIONES_GUIDE_STEPS } from '../src/guias/funciones.js'
 import { crearGuia } from '../src/composables/crearGuia.js'
 import { MACROS_GUIDE_STEPS, MACROS_GUIDE_KEY } from '../src/guias/macros.js'
@@ -327,6 +328,36 @@ async function main () {
   gf.finish()
   const guardadoF = JSON.parse(globalThis.localStorage.getItem(FUNCIONES_GUIDE_KEY) || '{}')
   check('lo visto se guarda en su clave', guardadoF.seen === true)
+
+  console.log('\nGuía animada de Grupos')
+
+  const gg = guiaGrupos
+  gg.reset()
+  check('tiene su propia clave de localStorage', gg.clave === GRUPOS_GUIDE_KEY && gg.clave !== FUNCIONES_GUIDE_KEY && gg.clave !== MACROS_GUIDE_KEY)
+  check('está registrada para la ruta de Grupos', guiaDeRuta('/comunidad') === gg && GUIAS.includes(gg))
+  check('Macros y Funciones siguen en las suyas', guiaDeRuta('/macros') === guiaMacros && guiaDeRuta('/features') === guiaFunciones)
+  check('cinco pasos', GRUPOS_GUIDE_STEPS === 5)
+  check('la primera visita la abre sola, una vez', gg.autoStart() === true && gg.autoStart() === false)
+  const pintarGr = () => renderToString(createSSRApp({
+    components: { GuiaInteractiva },
+    setup: () => ({ guia: guiaGrupos }),
+    template: '<GuiaInteractiva :guia="guia" />'
+  }))
+  const titulosGr = ['Grupos sin servidor', 'Crea un grupo o únete', 'Resumen y ranking', 'Escucha común', 'Privacidad y app cerrada']
+  const clavesGr = ['Cifrado, sin servidor', 'Invitación exprés', 'Cifras provisionales', 'en común', 'Sólo ven IP']
+  for (let i = 0; i < titulosGr.length; i++) {
+    gg.goTo(i)
+    const h = await pintarGr()
+    check(`paso ${i + 1}: «${titulosGr[i]}» con su escena y tarjetas compactas`,
+      h.includes(titulosGr[i]) && h.includes(clavesGr[i]) && h.includes('h-10 w-10 rounded-xl') && h.includes(`${i + 1} / 5`))
+  }
+  const textoGr = guiaGrupos.pasos.map(p => p.puntos.map(pt => pt.titulo + ' ' + pt.detalle).join(' ')).join(' ')
+  check('explica cifrado, invitación de 1 hora, administrador, relays y la app cerrada',
+    /cifrad/i.test(textoGr) && /1 hora/.test(textoGr) && /administrador/i.test(textoGr) && /relays/i.test(textoGr) && /app cerrada/i.test(textoGr))
+  check('los puntos llevan icono propio, sin emoji y con tarjetas acotadas (título ≤ 60, detalle ≤ 140)',
+    guiaGrupos.pasos.every(p => p.puntos.every(pt => /^(ajuste|feature|macro):/.test(pt.icono) && !/\p{Extended_Pictographic}/u.test(pt.titulo + pt.detalle) && pt.titulo.length <= 60 && pt.detalle.length <= 140)))
+  gg.finish()
+  check('lo visto se guarda en su clave', JSON.parse(globalThis.localStorage.getItem(GRUPOS_GUIDE_KEY) || '{}').seen === true)
 
   console.log('\nFábrica de guías')
 

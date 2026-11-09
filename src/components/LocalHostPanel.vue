@@ -184,7 +184,7 @@ const lastSync = computed(() => {
   return ms ? new Date(ms).toLocaleString('es-ES') : ''
 })
 
-/** Fichas del ranking de una semana, en el formato común de GrupoDetalle. */
+/** Fichas del ranking de un periodo (semana o mes), en el formato común de GrupoDetalle. */
 function fichasDe (groupId, lb) {
   const yo = (members[groupId] || []).find(m => m.you)?.uid
   const fichas = (lb?.members || []).map((item) => {
@@ -207,10 +207,10 @@ function fichasDe (groupId, lb) {
 
 const rankingVista = computed(() => {
   const porSemana = semanas[activeGroupId.value] || {}
-  return Object.fromEntries(['actual', 'pasada', 'hace2'].map(c => [c, fichasDe(activeGroupId.value, porSemana[c])]))
+  return Object.fromEntries(['semana', 'mes'].map(c => [c, fichasDe(activeGroupId.value, porSemana[c])]))
 })
 const miembrosVista = computed(() => {
-  const minutos = new Map((rankingVista.value.actual || []).map(f => [f.id, f.minutos]))
+  const minutos = new Map((rankingVista.value.semana || []).map(f => [f.id, f.minutos]))
   return activeMembers.value.map(m => ({
     id: m.uid,
     nombre: m.displayName || 'Sin nombre',

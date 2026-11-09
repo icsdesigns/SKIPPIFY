@@ -6,8 +6,9 @@
  */
 import { guiaMacros } from './macros'
 import { guiaFunciones } from './funciones'
+import { guiaGrupos } from './grupos'
 
-export const GUIAS = [guiaMacros, guiaFunciones]
+export const GUIAS = [guiaMacros, guiaFunciones, guiaGrupos]
 
-export { guiaMacros, guiaFunciones }
+export { guiaMacros, guiaFunciones, guiaGrupos }
 export { guiaDeRuta } from '@/composables/crearGuia'

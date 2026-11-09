@@ -8,69 +8,96 @@
     :style="{ '--retardo': `${indice * 70}ms` }"
     :data-miembro="ficha.id"
   >
-    <!-- Cabecera: siempre visible. Tocarla despliega las cifras. -->
-    <button
-      type="button"
-      class="flex w-full items-center gap-3 px-3 py-3 text-left"
-      :class="expandible ? 'hover:bg-white/[0.03]' : 'cursor-default'"
-      :aria-expanded="expandible ? abierta : undefined"
-      :aria-controls="expandible ? `ficha-${ficha.id}` : undefined"
-      :disabled="!expandible"
-      @click="abierta = !abierta"
-    >
-      <!-- Posición: medalla para el podio, número para el resto. -->
-      <span
-        class="medalla relative flex h-7 w-7 shrink-0 items-center justify-center rounded-full font-mono text-[11px] font-bold tabular-nums"
-        :class="claseMedalla"
-        :aria-label="sinDatos ? 'Sin posición' : `Puesto ${posicion}`"
+    <!-- Cabecera: siempre visible. Tocarla despliega las cifras; el icono de
+         información (hermano, no hijo: un botón dentro de otro no es válido)
+         despliega el registro de funcionalidad de ESTE miembro. -->
+    <div class="flex items-center">
+      <button
+        type="button"
+        class="flex min-w-0 flex-1 items-center gap-2.5 py-3 pl-3 pr-1 text-left"
+        :class="expandible ? 'hover:bg-white/[0.03]' : 'cursor-default'"
+        :aria-expanded="expandible ? abierta : undefined"
+        :aria-controls="expandible ? `ficha-${ficha.id}` : undefined"
+        :disabled="!expandible"
+        @click="abierta = !abierta"
       >
-        <span class="relative z-[1]">{{ sinDatos ? '·' : posicion }}</span>
-      </span>
-
-      <!-- Avatar con anillo: su tiempo respecto al que más ha escuchado. -->
-      <span class="relative h-11 w-11 shrink-0">
-        <svg viewBox="0 0 44 44" class="absolute inset-0 h-11 w-11 -rotate-90" aria-hidden="true">
-          <circle cx="22" cy="22" r="20" fill="none" stroke="currentColor" stroke-width="3" class="text-white/[0.08]" />
-          <circle
-            cx="22" cy="22" r="20" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"
-            class="anillo text-brand-400"
-            :stroke-dasharray="CIRCUNFERENCIA"
-            :stroke-dashoffset="CIRCUNFERENCIA * (1 - (visible ? progreso : 0))"
-          />
-        </svg>
-        <span
-          class="absolute inset-[5px] flex items-center justify-center rounded-full text-sm font-bold"
-          :class="ficha.yo ? 'bg-brand-400 text-black' : 'bg-white/[0.12] text-slate-100'"
-        >{{ inicialDe(ficha.nombre) }}</span>
-      </span>
-
-      <span class="min-w-0 flex-1">
-        <span class="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5">
-          <span class="sk-clamp-2 text-sm font-semibold text-white">{{ ficha.nombre }}</span>
-          <span v-if="ficha.yo" class="text-[10px] font-bold uppercase tracking-wider text-brand-400">tú</span>
-          <span v-if="ficha.admin" class="sk-chip !px-2 !py-0.5 !text-[10px]">Admin</span>
+        <!-- Avatar con anillo (su tiempo respecto al que más ha escuchado) y,
+             en su esquina, la medalla del puesto. -->
+        <span class="relative h-11 w-11 shrink-0">
+          <svg viewBox="0 0 44 44" class="absolute inset-0 h-11 w-11 -rotate-90" aria-hidden="true">
+            <circle cx="22" cy="22" r="20" fill="none" stroke="currentColor" stroke-width="3" class="text-white/[0.08]" />
+            <circle
+              cx="22" cy="22" r="20" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"
+              class="anillo text-brand-400"
+              :stroke-dasharray="CIRCUNFERENCIA"
+              :stroke-dashoffset="CIRCUNFERENCIA * (1 - (visible ? progreso : 0))"
+            />
+          </svg>
+          <span
+            class="absolute inset-[5px] flex items-center justify-center rounded-full text-sm font-bold"
+            :class="ficha.yo ? 'bg-brand-400 text-black' : 'bg-white/[0.12] text-slate-100'"
+          >{{ inicialDe(ficha.nombre) }}</span>
+          <span class="absolute -bottom-1 -left-1 flex rounded-full ring-2 ring-[#1c1c1c]"><Medalla tamano="sm" :posicion="posicion" :sin-datos="sinDatos" /></span>
         </span>
-        <span class="mt-0.5 block truncate text-[11px] text-slate-400">
-          <template v-if="!sinDatos">{{ ficha.canciones }} canciones</template>
-          <template v-else>Sin escuchas esta semana</template>
-        </span>
-      </span>
 
-      <span class="flex shrink-0 flex-col items-end gap-1">
-        <span
-          class="font-mono text-sm font-bold tabular-nums"
-          :class="sinDatos ? 'text-slate-600' : 'text-brand-400'"
-        >{{ sinDatos ? '—' : formatearHoras(ficha.minutos) }}</span>
+        <span class="min-w-0 flex-1">
+          <span class="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5">
+            <span class="sk-clamp-2 text-sm font-semibold text-white">{{ ficha.nombre }}</span>
+            <span v-if="ficha.yo" class="text-[10px] font-bold uppercase tracking-wider text-brand-400">tú</span>
+            <span v-if="ficha.admin" class="sk-chip !px-2 !py-0.5 !text-[10px]">Admin</span>
+          </span>
+          <span class="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-slate-400">
+            <template v-if="!sinDatos">
+              <span class="font-mono text-xs font-bold tabular-nums text-brand-400">{{ formatearHoras(ficha.minutos) }}</span>
+              <span>{{ ficha.canciones }} canciones</span>
+            </template>
+            <span v-else>{{ sinDatosTexto }}</span>
+            <!-- % de escucha común contigo: sólo en la ficha de los demás. -->
+            <span
+              v-if="comun !== null && comun !== undefined"
+              class="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-brand-400/[0.14] px-1.5 py-0.5 text-[10px] font-bold text-brand-300"
+              :title="'La parte de su escucha que coincide con la tuya, artista a artista'"
+              data-comun
+            >
+              <GrupoIcono name="users" class="h-3 w-3" />{{ comun }} % en común
+            </span>
+          </span>
+        </span>
+
         <GrupoIcono
           v-if="expandible"
           name="chevron"
-          class="h-4 w-4 text-slate-500 transition-transform duration-300"
+          class="h-4 w-4 shrink-0 text-slate-500 transition-transform duration-300"
           :class="abierta ? '-rotate-90' : 'rotate-90'"
         />
-      </span>
-    </button>
+      </button>
 
-    <!-- Detalle desplegable. Se queda en el DOM (también para lectores de
+      <button
+        v-if="descargar"
+        type="button"
+        class="mx-2 flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors"
+        :class="registroAbierto ? 'bg-brand-400 text-black' : 'bg-white/[0.08] text-slate-300 hover:bg-white/[0.16]'"
+        :aria-expanded="registroAbierto"
+        :aria-controls="`registro-${ficha.id}`"
+        :aria-label="`Registro de funcionalidad de ${ficha.nombre}`"
+        title="Registro de funcionalidad"
+        data-info-registro
+        @click="registroAbierto = !registroAbierto"
+      >
+        <GrupoIcono name="info" class="h-4 w-4" />
+      </button>
+    </div>
+
+    <!-- Registro de funcionalidad de este miembro (icono de información). -->
+    <div :id="`registro-${ficha.id}`" class="desplegable grid" :class="registroAbierto ? 'abierta' : ''" :inert="!registroAbierto">
+      <div class="min-h-0 overflow-hidden">
+        <div class="px-3 pb-3">
+          <RegistroMiembro v-if="descargar" :registro="registro" :descargar="descargar" />
+        </div>
+      </div>
+    </div>
+
+    <!-- Cifras desplegables. Se quedan en el DOM (también para lectores de
          pantalla con la ficha abierta); la altura anima con grid-rows. -->
     <div
       v-if="expandible"
@@ -158,6 +185,8 @@
  */
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import GrupoIcono from './GrupoIcono.js'
+import Medalla from './Medalla.vue'
+import RegistroMiembro from './RegistroMiembro.vue'
 import { formatearHoras, inicialDe } from '@/lib/gruposResumen'
 import { cifrasDe } from '@/lib/gruposExtras'
 
@@ -171,7 +200,15 @@ const props = defineProps({
   indice: { type: Number, default: 0 },
   abiertaAlInicio: { type: Boolean, default: false },
   /** El usuario es administrador y esta ficha es de otra persona. */
-  puedeExpulsar: { type: Boolean, default: false }
+  puedeExpulsar: { type: Boolean, default: false },
+  /** % de escucha común contigo en el periodo elegido; null en tu propia ficha. */
+  comun: { type: Number, default: null },
+  /** Texto cuando no hay escuchas en el periodo («Sin escuchas esta semana»). */
+  sinDatosTexto: { type: String, default: 'Sin escuchas' },
+  /** Registro de funcionalidad de este miembro: { id, nombre, version, subidoEn, filas } o null. */
+  registro: { type: Object, default: null },
+  /** async (id) => ruta del JSON. Sin ella no hay icono de información. */
+  descargar: { type: Function, default: null }
 })
 const emit = defineEmits(['expulsar'])
 
@@ -195,6 +232,7 @@ const sinDatos = computed(() => !(Number(props.ficha.minutos) > 0))
 /** Con datos se despliegan las cifras; sin ellos, sólo hay algo que abrir si se puede expulsar. */
 const expandible = computed(() => !sinDatos.value || props.puedeExpulsar)
 const abierta = ref(props.abiertaAlInicio && expandible.value)
+const registroAbierto = ref(false)
 const cifras = computed(() => cifrasDe(props.ficha.datos))
 
 // El anillo y las barras parten de cero y crecen al montarse la ficha. En el
@@ -204,13 +242,6 @@ onMounted(() => {
   requestAnimationFrame(() => { visible.value = true })
 })
 
-const claseMedalla = computed(() => {
-  if (sinDatos.value) return 'bg-white/[0.06] text-slate-500'
-  if (props.posicion === 1) return 'oro text-black'
-  if (props.posicion === 2) return 'plata text-black'
-  if (props.posicion === 3) return 'bronce text-black'
-  return 'bg-white/[0.10] text-slate-300'
-})
 </script>
 
 <style scoped>
@@ -222,30 +253,6 @@ const claseMedalla = computed(() => {
 @keyframes entrada {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
-}
-
-/* Podio: degradados metálicos; el primero lleva un brillo que pasa despacio. */
-.oro { background: linear-gradient(135deg, #fde68a, #f59e0b 55%, #fcd34d); }
-.plata { background: linear-gradient(135deg, #f1f5f9, #94a3b8 55%, #e2e8f0); }
-.bronce { background: linear-gradient(135deg, #fed7aa, #c2410c 60%, #fdba74); }
-
-/* El brillo es una banda que cruza la medalla con transform. Empieza y acaba
-   fuera de ella, así que el bucle no deja ver ningún salto al reiniciarse (el
-   anterior animaba background-position y se cortaba a mitad de recorrido). */
-.medalla { overflow: hidden; isolation: isolate; }
-.oro::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(110deg, transparent 30%, rgba(255, 255, 255, 0.75) 50%, transparent 70%);
-  transform: translateX(-130%);
-  animation: brillo 3.6s cubic-bezier(0.45, 0, 0.55, 1) infinite;
-  will-change: transform;
-}
-
-@keyframes brillo {
-  0% { transform: translateX(-130%); }
-  45%, 100% { transform: translateX(130%); }
 }
 
 .anillo {
@@ -274,7 +281,7 @@ const claseMedalla = computed(() => {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .ficha, .oro::after { animation: none !important; }
+  .ficha { animation: none !important; }
   .anillo, .desplegable, .cifra, .barra { transition: none !important; }
 }
 </style>

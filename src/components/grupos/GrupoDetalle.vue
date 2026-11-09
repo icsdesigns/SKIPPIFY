@@ -1,75 +1,145 @@
 <template>
   <div data-grupo-detalle>
-    <!-- ── Barra del grupo: cambiar nombre (admin) y actualizar, sólo iconos ─
-         El nombre y los miembros los pone el panel plegable que lo contiene. -->
-    <div class="flex items-center justify-end gap-2 px-5 pb-3 pt-1">
-      <p v-if="ultimaSync" class="mr-auto min-w-0 truncate text-[11px] text-slate-500">Sincronizado {{ ultimaSync }}</p>
-      <button
-        v-if="esAdmin"
-        type="button"
-        class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/[0.08] text-slate-200 transition-colors hover:bg-white/[0.16]"
-        :aria-expanded="editando"
-        title="Cambiar el nombre del grupo"
-        aria-label="Cambiar el nombre del grupo"
-        data-renombrar
-        @click="abrirEdicion"
-      >
-        <GrupoIcono name="pencil" class="h-4 w-4" />
-      </button>
-      <button
-        type="button"
-        class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/[0.08] text-slate-200 transition-colors hover:bg-white/[0.16] disabled:opacity-40"
-        :disabled="actualizando"
-        :title="ultimaSync ? `Última sincronización: ${ultimaSync}` : 'Actualizar'"
-        aria-label="Actualizar"
-        @click="$emit('actualizar')"
-      >
-        <GrupoIcono name="refresh" class="h-[18px] w-[18px]" :class="actualizando ? 'girar' : ''" />
-      </button>
-    </div>
-
-    <form v-if="editando" class="flex items-center gap-2 px-5 pb-3" @submit.prevent="guardarNombre">
-      <input
-        v-model.trim="nombreNuevo"
-        class="sk-input min-w-0 flex-1"
-        maxlength="32"
-        placeholder="Nombre del grupo (mín. 3 caracteres)"
-        aria-label="Nombre del grupo"
-        data-nombre-grupo
-      >
-      <button
-        type="submit"
-        class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-400 text-black transition-opacity disabled:opacity-40"
-        :disabled="!nombreValido"
-        title="Guardar"
-        aria-label="Guardar nombre"
-      >
-        <GrupoIcono name="check" class="h-[18px] w-[18px]" />
-      </button>
-      <button
-        type="button"
-        class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/[0.08] text-slate-200 hover:bg-white/[0.16]"
-        title="Cancelar"
-        aria-label="Cancelar"
-        @click="editando = false"
-      >
-        <GrupoIcono name="plus" class="h-[18px] w-[18px] rotate-45" />
-      </button>
-    </form>
-
     <slot name="aviso" />
 
-    <!-- ── Ranking ──────────────────────────────────────────────────────── -->
-    <SeccionGrupo id="ranking" titulo="Ranking" icono="medal" inicial>
-      <template #accion>
-        <SelectorSemana v-model="semanaRanking" :semanas="semanasDisponibles" aria-label="Semana del ranking" />
-      </template>
+    <!-- ── Portada: el resumen del grupo en el periodo elegido ───────────────
+         Es lo primero y lo que más pesa: tiempo total del grupo, podio y
+         cuánto lleva cada uno respecto al líder. El nombre y los miembros los
+         pone el panel plegable que lo contiene. -->
+    <section class="portada mx-3 overflow-hidden rounded-card" data-portada>
+      <div class="flex items-center gap-2 px-3.5 pt-3.5">
+        <SelectorPeriodo v-model="periodo" :periodos="PERIODOS" aria-label="Periodo del resumen" />
+        <span class="mr-auto" />
+        <button
+          v-if="esAdmin"
+          type="button"
+          class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/[0.08] text-slate-200 transition-colors hover:bg-white/[0.16]"
+          :aria-expanded="editando"
+          title="Cambiar el nombre del grupo"
+          aria-label="Cambiar el nombre del grupo"
+          data-renombrar
+          @click="abrirEdicion"
+        >
+          <GrupoIcono name="pencil" class="h-4 w-4" />
+        </button>
+        <button
+          type="button"
+          class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/[0.08] text-slate-200 transition-colors hover:bg-white/[0.16] disabled:opacity-40"
+          :disabled="actualizando"
+          :title="ultimaSync ? `Última sincronización: ${ultimaSync}` : 'Actualizar'"
+          aria-label="Actualizar"
+          @click="$emit('actualizar')"
+        >
+          <GrupoIcono name="refresh" class="h-[18px] w-[18px]" :class="actualizando ? 'girar' : ''" />
+        </button>
+      </div>
 
-      <p v-if="!filas.length" class="text-xs text-slate-500">Todavía no se ha podido leer la lista de miembros.</p>
-      <p v-else-if="!rankingActual.length" class="mb-2.5 text-xs text-slate-500">No hay escuchas en esta semana.</p>
+      <form v-if="editando" class="flex items-center gap-2 px-3.5 pt-3" @submit.prevent="guardarNombre">
+        <input
+          v-model.trim="nombreNuevo"
+          class="sk-input min-w-0 flex-1"
+          maxlength="32"
+          placeholder="Nombre del grupo (mín. 3 caracteres)"
+          aria-label="Nombre del grupo"
+          data-nombre-grupo
+        >
+        <button
+          type="submit"
+          class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-400 text-black transition-opacity disabled:opacity-40"
+          :disabled="!nombreValido"
+          title="Guardar"
+          aria-label="Guardar nombre"
+        >
+          <GrupoIcono name="check" class="h-[18px] w-[18px]" />
+        </button>
+        <button
+          type="button"
+          class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/[0.08] text-slate-200 hover:bg-white/[0.16]"
+          title="Cancelar"
+          aria-label="Cancelar"
+          @click="editando = false"
+        >
+          <GrupoIcono name="plus" class="h-[18px] w-[18px] rotate-45" />
+        </button>
+      </form>
 
-      <!-- Sin mover nodos: el orden visual lo da `order`, así las medallas no
-           reinician su animación cuando alguien sube o baja de puesto. -->
+      <!-- Cifra principal: el tiempo que ha escuchado el grupo entero. -->
+      <div class="px-3.5 pt-4">
+        <p class="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+          <span>{{ etiquetaPeriodo }}</span>
+          <button
+            type="button"
+            class="flex h-5 w-5 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-white/[0.1] hover:text-slate-100"
+            :aria-expanded="notaAbierta"
+            aria-controls="portada-nota"
+            aria-label="Sobre estas cifras"
+            data-info-provisional
+            @click="notaAbierta = !notaAbierta"
+          >
+            <GrupoIcono name="info" class="h-3.5 w-3.5" />
+          </button>
+        </p>
+        <p class="mt-1 break-words font-mono text-[26px] font-extrabold leading-none tabular-nums text-white sm:text-3xl" data-total-horas>
+          {{ formatearHoras(totalMinutos) }}
+        </p>
+        <p class="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-slate-400">
+          <span class="inline-flex items-center gap-1"><GrupoIcono name="users" class="h-3.5 w-3.5" />{{ miembros.length }} {{ miembros.length === 1 ? 'miembro' : 'miembros' }}</span>
+          <span class="inline-flex items-center gap-1"><GrupoIcono name="note" class="h-3.5 w-3.5" />{{ totalCanciones }} canciones</span>
+        </p>
+        <div id="portada-nota" class="desplegable grid" :class="notaAbierta ? 'abierta' : ''" :inert="!notaAbierta">
+          <div class="min-h-0 overflow-hidden">
+            <p class="mt-2.5 rounded-md bg-white/[0.06] px-3 py-2 text-[11px] leading-relaxed text-slate-300" data-nota-provisional>
+              Cifras provisionales: pueden cambiar cuando los demás miembros abran la app y publiquen sus últimas escuchas.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Podio. Sin mover nodos: el orden visual (2º, 1º, 3º) lo da `order`,
+           así las medallas no reinician su animación cuando alguien sube o
+           baja de puesto. -->
+      <p v-if="filas.length && !podio.length" class="px-3.5 pb-4 pt-3 text-xs text-slate-400">
+        No hay escuchas {{ periodo === 'mes' ? 'este mes' : 'esta semana' }}.
+      </p>
+      <p v-else-if="!filas.length" class="px-3.5 pb-4 pt-3 text-xs text-slate-400">
+        Todavía no se ha podido leer la lista de miembros.
+      </p>
+      <ul v-if="podio.length" class="flex items-end justify-center gap-2 px-3.5 pb-0 pt-4" data-podio>
+        <li
+          v-for="item in podio"
+          :key="item.id"
+          class="podio-col flex min-w-0 flex-1 flex-col items-center"
+          :style="{ order: ORDEN_PODIO[item.puesto - 1], maxWidth: '8rem' }"
+          :data-podio-puesto="item.puesto"
+        >
+          <span
+            class="flex items-center justify-center rounded-full font-bold"
+            :class="[item.yo ? 'bg-brand-400 text-black' : 'bg-white/[0.14] text-slate-100', item.puesto === 1 ? 'h-14 w-14 text-lg' : 'h-11 w-11 text-sm']"
+          >{{ inicialDe(item.nombre) }}</span>
+          <span class="mt-1.5 w-full truncate text-center text-[11px] font-semibold text-white" :title="item.nombre">{{ item.nombre }}</span>
+          <span class="font-mono text-[11px] font-bold tabular-nums text-brand-400">{{ formatearHorasCorto(item.minutos) }}</span>
+          <span class="barra-podio mt-1.5 flex w-full items-start justify-center rounded-t-lg pt-1.5" :style="{ height: `${item.alto}px` }">
+            <Medalla :posicion="item.puesto" tamano="lg" />
+          </span>
+        </li>
+      </ul>
+
+      <!-- Tú respecto al líder, cuando no estás en el podio. -->
+      <p v-if="miPuesto" class="mx-3.5 mb-3.5 mt-3 flex items-center justify-between gap-2 rounded-md bg-white/[0.06] px-3 py-2 text-[11px] text-slate-200" data-mi-puesto>
+        <span class="min-w-0 truncate font-semibold">Tú · puesto {{ miPuesto.puesto }}</span>
+        <span class="shrink-0 font-mono tabular-nums text-slate-400">{{ miPuesto.pct }} % del líder</span>
+      </p>
+      <div v-else-if="podio.length" class="h-px" />
+    </section>
+
+    <!-- ── Miembros ─────────────────────────────────────────────────────── -->
+    <section class="px-3 pb-1 pt-4" data-seccion="miembros">
+      <div class="mb-2 flex items-center justify-between gap-2 px-0.5">
+        <h3 class="sk-eyebrow">Miembros</h3>
+        <span class="sk-chip !px-2 !py-0.5 tabular-nums">{{ miembros.length }}</span>
+      </div>
+
+      <!-- Sin mover nodos: el orden visual lo da `order`. -->
       <ul v-if="filas.length" class="flex flex-col gap-2">
         <MiembroFicha
           v-for="(item, idx) in filasVisibles"
@@ -79,6 +149,10 @@
           :indice="idx"
           :progreso="aporte.get(item.id) || 0"
           :puede-expulsar="esAdmin && !item.yo"
+          :comun="item.yo ? null : comunConMiembro(rankingActual, item.id)"
+          :sin-datos-texto="periodo === 'mes' ? 'Sin escuchas este mes' : 'Sin escuchas esta semana'"
+          :registro="registroDe(item.id)"
+          :descargar="descargarRegistro"
           :style="{ order: idx }"
           @expulsar="$emit('expulsar', item.id)"
         />
@@ -94,74 +168,10 @@
         {{ verTodos ? 'Ver menos' : `Ver todos (${filas.length})` }}
         <GrupoIcono name="chevron" class="h-3.5 w-3.5 transition-transform duration-300" :class="verTodos ? '-rotate-90' : 'rotate-90'" />
       </button>
-      <p v-if="filas.some(f => f.minutos > 0)" class="mt-2 text-[11px] text-slate-500">
-        Toca a un miembro para ver sus cifras. El anillo es su tiempo respecto al que más ha escuchado.
-      </p>
-    </SeccionGrupo>
-
-    <!-- ── Escucha común ────────────────────────────────────────────────── -->
-    <SeccionGrupo id="comun" titulo="Escucha común" icono="users">
-      <template #accion>
-        <SelectorSemana v-model="semanaComun" :semanas="semanasDisponibles" aria-label="Semana de la escucha común" />
-      </template>
-
-      <template #default="{ abierta }">
-      <p class="mb-2.5 text-[11px] text-slate-500" title="La parte de su escucha que coincide, artista a artista">100 % = oís lo mismo</p>
-      <p v-if="!pares.length" class="text-xs text-slate-500">
-        Aparecerá cuando al menos dos miembros tengan escuchas en la semana elegida.
-      </p>
-      <ul v-else class="grid gap-2 sm:grid-cols-2">
-        <li
-          v-for="(par, i) in paresVisibles"
-          :key="`${par.idA}-${par.idB}`"
-          class="flex items-center gap-3 rounded-card px-3 py-2.5"
-          :class="par.yo ? 'bg-brand-400/[0.10] ring-1 ring-inset ring-brand-400/30' : 'bg-white/[0.04]'"
-        >
-          <span class="relative h-9 w-[60px] shrink-0" aria-hidden="true">
-            <span class="absolute left-0 top-0 flex h-9 w-9 items-center justify-center rounded-full bg-slate-600 pr-2 text-xs font-bold text-slate-100 ring-2 ring-black/50">{{ inicialDe(par.a) }}</span>
-            <span class="absolute left-6 top-0 flex h-9 w-9 items-center justify-center rounded-full bg-brand-400 text-xs font-bold text-black ring-2 ring-black/50">{{ inicialDe(par.b) }}</span>
-          </span>
-          <span class="min-w-0 flex-1">
-            <span class="block truncate text-sm font-semibold text-white">{{ par.a }} · {{ par.b }}</span>
-            <span class="mt-1.5 block h-1 overflow-hidden rounded-full bg-white/[0.08]">
-              <span class="barra-par block h-full rounded-full bg-brand-400" :style="{ width: `${abierta ? par.pct : 0}%`, transitionDelay: `${i * 50 + 150}ms` }" />
-            </span>
-          </span>
-          <span class="relative h-11 w-11 shrink-0">
-            <svg viewBox="0 0 44 44" class="absolute inset-0 h-11 w-11 -rotate-90" aria-hidden="true">
-              <circle cx="22" cy="22" r="18" fill="none" stroke="currentColor" stroke-width="3.5" class="text-white/[0.08]" />
-              <circle
-                cx="22" cy="22" r="18" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round"
-                class="anillo-par text-brand-400"
-                :stroke-dasharray="CIRC_PAR"
-                :stroke-dashoffset="CIRC_PAR * (1 - (abierta ? par.pct / 100 : 0))"
-                :style="{ transitionDelay: `${i * 50 + 150}ms` }"
-              />
-            </svg>
-            <span class="absolute inset-0 flex items-center justify-center font-mono text-[11px] font-bold tabular-nums text-white">{{ par.pct }} %</span>
-          </span>
-        </li>
-      </ul>
-      <button
-        v-if="pares.length > PARES_PLEGADOS"
-        type="button"
-        class="mt-2 flex w-full items-center justify-center gap-1.5 rounded-md py-2 text-[11px] font-semibold text-slate-400 transition-colors hover:bg-white/[0.05] hover:text-slate-200"
-        :aria-expanded="verTodasLasParejas"
-        @click="verTodasLasParejas = !verTodasLasParejas"
-      >
-        {{ verTodasLasParejas ? 'Ver menos' : `Ver las ${pares.length} parejas` }}
-        <GrupoIcono name="chevron" class="h-3.5 w-3.5 transition-transform duration-300" :class="verTodasLasParejas ? '-rotate-90' : 'rotate-90'" />
-      </button>
-      </template>
-    </SeccionGrupo>
-
-    <!-- ── Registros de funcionalidad ──────────────────────────────────── -->
-    <SeccionGrupo id="registros" titulo="Registros de funcionalidad" icono="copy">
-      <RegistrosFuncionalidad :registros="registros" :descargar="descargarRegistro" />
-    </SeccionGrupo>
+    </section>
 
     <!-- ── Invitar y abandonar ──────────────────────────────────────────── -->
-    <footer class="border-t border-white/[0.07] px-5 py-4">
+    <footer class="px-3 pb-4 pt-3">
       <div class="flex gap-2">
         <button
           v-if="esAdmin"
@@ -184,10 +194,15 @@
 <script setup>
 /**
  * Detalle de un grupo (va dentro de su panel plegable, que ya muestra el nombre y
- * el número de miembros): barra con cambiar nombre (administrador) y actualizar; el ranking y la escucha común (cada uno con su desplegable de
- * semana: actual, anterior y hace dos); los registros de funcionalidad de los
- * miembros (versión de la app y descarga con clave); y los botones de invitar y
- * abandonar.
+ * el número de miembros). De arriba abajo:
+ *
+ *   · la portada, con el selector Semana / Mes, el tiempo total del grupo, el
+ *     podio (top 3) y, si no estás en él, tu puesto respecto al líder; en su
+ *     barra, cambiar el nombre (administrador) y actualizar;
+ *   · los miembros: cada ficha con su % de escucha común contigo (en la de los
+ *     demás) y, tras un icono de información, el registro de funcionalidad de
+ *     ese miembro. Plegado, sólo el top 3 y «Ver todos»;
+ *   · invitar y abandonar.
  *
  * Es sólo presentación. Invitar y expulsar son cosa del administrador: el botón
  * y la acción de cada ficha sólo salen con `esAdmin`, y el kit lo vuelve a
@@ -196,19 +211,18 @@
 import { computed, onBeforeUnmount, ref } from 'vue'
 import GrupoIcono from './GrupoIcono.js'
 import MiembroFicha from './MiembroFicha.vue'
-import SeccionGrupo from './SeccionGrupo.vue'
-import SelectorSemana from './SelectorSemana.vue'
-import RegistrosFuncionalidad from './RegistrosFuncionalidad.vue'
-import { inicialDe, proporciones } from '@/lib/gruposResumen'
-import { paresEnComun } from '@/lib/gruposExtras'
+import Medalla from './Medalla.vue'
+import SelectorPeriodo from './SelectorPeriodo.vue'
+import { formatearHoras, formatearHorasCorto, inicialDe, proporciones } from '@/lib/gruposResumen'
+import { comunConMiembro } from '@/lib/gruposExtras'
 
 const props = defineProps({
   nombre: { type: String, required: true },
   /** [{ id, nombre, yo, admin, desde, minutos }] */
   miembros: { type: Array, default: () => [] },
   /**
-   * Una clasificación por semana: { actual, pasada, hace2 }, cada una
-   * [{ id, nombre, yo, minutos, canciones, … }] ya ordenada por tiempo.
+   * Una clasificación por periodo: { semana, mes }, cada una con las fichas ya
+   * ordenadas por tiempo: [{ id, nombre, yo, minutos, canciones, … }].
    */
   ranking: { type: Object, default: () => ({}) },
   esAdmin: { type: Boolean, default: false },
@@ -218,21 +232,30 @@ const props = defineProps({
   ultimaSync: { type: String, default: '' },
   /** [{ id, nombre, yo, version, subidoEn, filas, total }] — versión y registro de cada miembro. */
   registros: { type: Array, default: () => [] },
-  /** async (id | null) => ruta del JSON descargado. */
+  /** async (id) => ruta del JSON descargado. */
   descargarRegistro: { type: Function, default: async () => '' }
 })
 const emit = defineEmits(['actualizar', 'invitar', 'abandonar', 'expulsar', 'renombrar'])
 
-const semanasDisponibles = [
-  { id: 'actual', etiqueta: 'Esta semana' },
-  { id: 'pasada', etiqueta: 'Semana pasada' },
-  { id: 'hace2', etiqueta: 'Hace 2 semanas' }
+const PERIODOS = [
+  { id: 'semana', etiqueta: 'Semana' },
+  { id: 'mes', etiqueta: 'Mes' }
 ]
-const semanaRanking = ref('actual')
-const rankingActual = computed(() => props.ranking[semanaRanking.value] || [])
+const periodo = ref('semana')
+/** Fichas del periodo elegido (la semana o el mes en curso). */
+const rankingActual = computed(() => props.ranking[periodo.value] || [])
+
+/** «Esta semana» o el mes en curso («Noviembre de 2026»). */
+const etiquetaPeriodo = computed(() => {
+  if (periodo.value === 'mes') {
+    const m = new Date().toLocaleDateString('es-ES', { month: 'long', year: 'numeric', timeZone: 'UTC' })
+    return m.charAt(0).toUpperCase() + m.slice(1)
+  }
+  return 'Esta semana'
+})
 
 /**
- * Una fila por miembro: primero quienes tienen cifras en la semana elegida (ya
+ * Una fila por miembro: primero quienes tienen cifras en el periodo elegido (ya
  * ordenadas por tiempo), luego el resto del grupo.
  */
 const filas = computed(() => {
@@ -251,10 +274,42 @@ const filas = computed(() => {
 })
 const aporte = computed(() => proporciones(filas.value))
 
-/** Plegado, sólo el podio del ranking; el resto sale con «Ver todos». */
+// ── Portada ─────────────────────────────────────────────────────────────────
+const totalMinutos = computed(() => filas.value.reduce((s, f) => s + (Number(f.minutos) || 0), 0))
+const totalCanciones = computed(() => filas.value.reduce((s, f) => s + (Number(f.canciones) || 0), 0))
+
+/** Alto de la barra del podio: de 36 px (casi sin escucha) a 76 px (el líder). */
+const ALTO_MIN = 36
+const ALTO_MAX = 76
+/** Disposición clásica: el 2º a la izquierda, el 1º en el centro y el 3º a la derecha. */
+const ORDEN_PODIO = [1, 0, 2]
+const podio = computed(() => {
+  const top = filas.value.filter(f => f.minutos > 0).slice(0, 3)
+  const lider = top[0]?.minutos || 0
+  return top.map((f, i) => ({
+    ...f,
+    puesto: i + 1,
+    alto: Math.round(ALTO_MIN + (ALTO_MAX - ALTO_MIN) * (lider ? f.minutos / lider : 0))
+  }))
+})
+/** Tu puesto y tu parte respecto al líder, sólo si no estás ya en el podio. */
+const miPuesto = computed(() => {
+  const i = filas.value.findIndex(f => f.yo)
+  if (i < 3 || !(filas.value[i].minutos > 0)) return null
+  const lider = filas.value[0]?.minutos || 0
+  return { puesto: i + 1, pct: lider ? Math.round((filas.value[i].minutos / lider) * 100) : 0 }
+})
+const notaAbierta = ref(false)
+
+/** Plegado, sólo el top 3 de miembros; el resto sale con «Ver todos». */
 const TOP_PLEGADO = 3
 const verTodos = ref(false)
 const filasVisibles = computed(() => verTodos.value ? filas.value : filas.value.slice(0, TOP_PLEGADO))
+
+/** El registro de funcionalidad de un miembro, o null si aún no ha publicado nada. */
+function registroDe (id) {
+  return props.registros.find(r => r.id === id) || null
+}
 
 // Cambiar el nombre (sólo administrador): el campo sale al pulsar el lápiz.
 const editando = ref(false)
@@ -269,15 +324,6 @@ function guardarNombre () {
   emit('renombrar', nombreNuevo.value)
   editando.value = false
 }
-
-// Escucha común: la semana elegida es la del desplegable de esa sección.
-const semanaComun = ref('actual')
-const pares = computed(() => paresEnComun(props.ranking[semanaComun.value] || []))
-const CIRC_PAR = 2 * Math.PI * 18
-/** Plegadas, sólo las parejas más parecidas: con 5 miembros ya son 10. */
-const PARES_PLEGADOS = 3
-const verTodasLasParejas = ref(false)
-const paresVisibles = computed(() => verTodasLasParejas.value ? pares.value : pares.value.slice(0, PARES_PLEGADOS))
 
 /** Abandonar es irreversible sin otra invitación: se pide una segunda pulsación. */
 const confirmando = ref(false)
@@ -297,12 +343,34 @@ onBeforeUnmount(() => clearTimeout(confirmTimer))
 </script>
 
 <style scoped>
+.portada {
+  background:
+    radial-gradient(120% 90% at 100% 0%, rgba(30, 215, 96, 0.2), transparent 60%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.03));
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07);
+}
+
+.barra-podio {
+  background: linear-gradient(180deg, rgba(30, 215, 96, 0.34), rgba(30, 215, 96, 0.08));
+  transition: height 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.podio-col { animation: entrada 0.45s cubic-bezier(0.22, 1, 0.36, 1) both; }
+@keyframes entrada {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.desplegable {
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.desplegable.abierta { grid-template-rows: 1fr; }
+
 .girar { animation: girar 0.9s linear infinite; }
 @keyframes girar { to { transform: rotate(360deg); } }
-.anillo-par { transition: stroke-dashoffset 1s cubic-bezier(0.22, 1, 0.36, 1); }
-.barra-par { transition: width 0.9s cubic-bezier(0.22, 1, 0.36, 1); }
 @media (prefers-reduced-motion: reduce) {
-  .girar { animation: none !important; }
-  .anillo-par, .barra-par { transition: none !important; }
+  .girar, .podio-col { animation: none !important; }
+  .barra-podio, .desplegable { transition: none !important; }
 }
 </style>
