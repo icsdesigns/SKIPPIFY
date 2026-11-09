@@ -195,7 +195,7 @@
           class="w-full"
           :disabled="playLogBusy"
           :titulo="playLogBusy ? 'Exportando…' : 'Exportar registro de funcionalidad'"
-          :detalle="`Cada canción con su decisión, su motivo y la medición de fundido.${playLogTotal !== null ? ` Hay ${playLogTotal}.` : ''}`"
+          :detalle="`Cada canción y su decisión.${playLogTotal !== null ? ` Hay ${playLogTotal}.` : ''}`"
           @click="exportSkipLog"
         >
           <template #icono><AjusteIcon name="registro" class="h-8 w-8" /></template>
@@ -208,7 +208,7 @@
           tono="sky"
           :activo="fundidoMedir"
           titulo="Medir fundido"
-          detalle="Experimental: detecta si empieza con fundido."
+          detalle="Detecta si hay fundido."
         >
           <template #icono><AjusteIcon name="registro" class="h-8 w-8" /></template>
           <template #fin>
@@ -226,7 +226,7 @@
         </OpcionFila>
         <!-- Lo que no cabe en la tarjeta va debajo, no recortado dentro. -->
         <p class="px-1 text-[11px] leading-relaxed text-slate-500">
-          Cubre DJ, Mix y el crossfade de Spotify. Tras escuchar 30 minutos seguidos, te pregunta en una
+          Experimental. Cubre DJ, Mix y el crossfade de Spotify. Tras escuchar 30 minutos seguidos, te pregunta en una
           notificación si hubo fundido.
         </p>
 
@@ -235,7 +235,7 @@
           tono="sky"
           :activo="fundidoCompartir"
           titulo="Compartir registro"
-          detalle="Lo ven los miembros de tus grupos."
+          detalle="Lo ven tus grupos."
         >
           <template #icono><AjusteIcon name="copia" class="h-8 w-8" /></template>
           <template #fin>
@@ -510,8 +510,8 @@ const orderedPermissionCards = computed(() => [
     id: 'notif-access',
     icon: 'campana',
     title: 'Acceso a notificaciones',
-    description: 'Permite detectar automáticamente las canciones reproducidas en Spotify mediante NotificationListenerService.',
-    meta: 'Requerido · Todas las versiones de Android',
+    description: 'Permite detectar automáticamente las canciones reproducidas en Spotify mediante NotificationListenerService. Es obligatorio en todas las versiones de Android.',
+    meta: 'Requerido',
     granted: notifEnabled.value,
     actionLabel: 'Activar permiso'
   },
@@ -520,7 +520,7 @@ const orderedPermissionCards = computed(() => [
     icon: 'globo',
     title: 'Mostrar notificaciones',
     description: 'Necesario para mostrar notificaciones y mantener operativo el servicio de detección en primer plano.',
-    meta: 'Requerido en Android 13+',
+    meta: 'Android 13+',
     granted: postNotifGranted.value,
     actionLabel: 'Solicitar permiso'
   },

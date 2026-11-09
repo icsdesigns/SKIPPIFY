@@ -9,7 +9,7 @@
       class="w-full"
       :aria-busy="ocupado"
       titulo="¿Por qué no detecta?"
-      detalle="Diagnóstico guiado: lo comprueba y propone el arreglo en un toque."
+      detalle="Diagnóstico guiado con el arreglo en un toque."
       @click="ejecutar()"
     >
       <template #icono><AjusteIcon name="pulso" class="h-8 w-8" /></template>

@@ -1,4 +1,5 @@
 <template>
+  <div>
   <!-- Cada función va en su propio panel plegable (FeaturePanel). Para añadir
        una función nueva basta con otro <FeaturePanel> en esta lista. Sólo uno
        está desplegado a la vez: abrir otro pliega el anterior.
@@ -10,7 +11,6 @@
        lateral) se apilan; desde lg forman una rejilla de 2 y, desde xl, de 3.
        El panel desplegado ocupa todo el ancho y los demás se reparten debajo
        (grid-flow-dense rellena los huecos sin reordenar el DOM). -->
-  <div>
   <!-- Guía interactiva: flotante; fuera de la rejilla para que su animación de
        entrada no se mezcle con la de las teselas. -->
   <GuiaInteractiva :guia="guiaFunciones" />

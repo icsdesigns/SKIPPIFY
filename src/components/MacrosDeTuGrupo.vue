@@ -14,7 +14,7 @@
         tono="violet"
         :activo="compartirMacros"
         titulo="Compartir mis macros"
-        detalle="Sólo estructura y nombre; nunca tus playlists."
+        detalle="Sólo estructura y nombre."
         data-compartir-macros
       >
         <template #icono><GrupoIcono name="share" class="h-6 w-6" /></template>
@@ -49,13 +49,17 @@
         tono="violet"
         class="w-full"
         titulo="Aún no estás en ningún grupo"
-        detalle="Únete a uno o crea el tuyo para ver las macros de tus amigos y compartir las tuyas."
+        detalle="Únete a uno o crea el tuyo."
         data-macros-sin-grupo
         @click="irAGrupos"
       >
         <template #icono><GrupoIcono name="users" class="h-6 w-6" /></template>
         <template #fin><MacroIcon name="siguiente" class="h-4 w-4 shrink-0 text-slate-500" /></template>
       </OpcionFila>
+
+      <p v-if="!hasGroups" class="px-1 text-[11px] leading-relaxed text-slate-500">
+        En un grupo ves las macros de tus amigos y compartes las tuyas.
+      </p>
 
       <template v-else>
         <p class="sk-eyebrow">Compartidas por tus grupos</p>

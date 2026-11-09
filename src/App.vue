@@ -62,7 +62,7 @@
         class="sk-header sticky top-0 z-30"
         :class="scrolled ? 'sk-header--solid' : ''"
       >
-        <div class="mx-auto flex max-w-7xl items-center gap-3 px-4 py-3 sm:px-6 sm:py-4">
+        <div class="mx-auto flex h-16 max-w-7xl items-center gap-3 px-4 sm:px-6">
           <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-400 shadow-glow md:hidden">
             <BrandMark class="h-[22px] w-[22px] text-black" />
           </div>
