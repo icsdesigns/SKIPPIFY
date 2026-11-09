@@ -19,8 +19,7 @@ export const routes = [
     name: 'dashboard',
     component: DashboardView,
     meta: {
-      title: 'Inicio',
-      description: 'Qué suena ahora, cómo va tu semana y el historial completo de reproducciones.'
+      title: 'Inicio'
     }
   },
   {
@@ -28,8 +27,7 @@ export const routes = [
     name: 'stats',
     component: StatsView,
     meta: {
-      title: 'Estadísticas',
-      description: 'Analiza tus reproducciones, artistas y géneros con mayor detalle.'
+      title: 'Estadísticas'
     }
   },
   {
@@ -37,8 +35,7 @@ export const routes = [
     name: 'settings',
     component: SettingsView,
     meta: {
-      title: 'Configuración',
-      description: 'Gestiona permisos, respaldos y parámetros clave de funcionamiento de la app.'
+      title: 'Configuración'
     }
   },
   {
@@ -46,8 +43,7 @@ export const routes = [
     name: 'features',
     component: FeaturesView,
     meta: {
-      title: 'Funciones',
-      description: 'Salto de duplicadas, silenciado de anuncios y temporizador, con la calibración del motor a mano.'
+      title: 'Funciones'
     }
   },
   {
@@ -61,8 +57,7 @@ export const routes = [
     name: 'comunidad',
     component: CommunityView,
     meta: {
-      title: 'Grupos',
-      description: 'Crea o únete a un grupo y compara tu resumen de escucha con el de tus amigos.'
+      title: 'Grupos'
     }
   },
   {
@@ -80,8 +75,7 @@ export const routes = [
     name: 'macros',
     component: MacrosView,
     meta: {
-      title: 'Macros',
-      description: 'Automatiza tu biblioteca encadenando origen, acción y destino.'
+      title: 'Macros'
     }
   },
   {
@@ -89,8 +83,7 @@ export const routes = [
     name: 'calibration',
     component: CalibrationView,
     meta: {
-      title: 'Calibración de salto',
-      description: 'Ejecuta el asistente guiado o ajusta a mano cada parámetro del motor de duplicadas.'
+      title: 'Calibración de salto'
     }
   },
   {

@@ -67,14 +67,12 @@
             <BrandMark class="h-[22px] w-[22px] text-black" />
           </div>
 
-          <div class="min-w-0 flex-1">
-            <h1 class="truncate text-xl font-extrabold leading-tight tracking-tightest text-white sm:text-2xl">
-              {{ currentTabTitle }}
-            </h1>
-            <p class="sk-clamp-2 mt-0.5 text-[11px] leading-snug text-slate-400 sm:text-xs">
-              {{ currentTabDescription }}
-            </p>
-          </div>
+          <!-- Sólo el título, centrado en vertical con el logotipo y los botones
+               (la fila es `items-center`) y a una línea: si no cabe, se recorta con
+               puntos suspensivos, así la cabecera no cambia de altura entre pestañas. -->
+          <h1 class="min-w-0 flex-1 truncate text-xl font-extrabold leading-tight tracking-tightest text-white sm:text-2xl">
+            {{ currentTabTitle }}
+          </h1>
 
           <!-- Estado en vivo, siempre visible sin volver a Inicio. -->
           <span
@@ -231,7 +229,6 @@ const ajustesPendientesTexto = computed(() => {
 })
 
 const currentTabTitle = computed(() => route.meta?.title || 'Skippify')
-const currentTabDescription = computed(() => route.meta?.description || 'Funcionalidades premium para tu Spotify')
 
 const statusPill = computed(() => {
   const mode = nowPlaying.value?.mode
