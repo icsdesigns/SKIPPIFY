@@ -436,45 +436,52 @@
               ? 'border-white/[0.07] bg-black/30'
               : 'border-white/[0.07] bg-black/20'"
           >
-            <!-- Etiqueta plegada: icono grande de lo que hace la macro, y a su
-                 derecha nombre, descripción y estado. Tocarla la despliega. -->
-            <div class="flex items-center gap-3.5 p-3">
+            <!-- Cabecera compacta (no más alta que «Personalizado»): tesela de 40 px,
+                 nombre en una línea con sus marcas como iconos pequeños, descripción
+                 en dos líneas como mucho y, a la derecha, el interruptor. Las cifras
+                 de ejecuciones viven en el cuerpo desplegado. -->
+            <div class="flex items-center gap-3 p-2.5">
               <button
                 type="button"
-                class="flex min-w-0 flex-1 items-center gap-3.5 text-left"
+                class="flex min-w-0 flex-1 items-center gap-3 text-left"
                 :class="macro.enabled ? '' : 'opacity-60'"
                 :aria-expanded="!!abierta[macro.id]"
                 :aria-label="abierta[macro.id] ? 'Plegar macro' : 'Desplegar macro'"
                 @click="abierta[macro.id] = !abierta[macro.id]"
               >
                 <span
-                  class="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl transition-colors"
+                  class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-colors"
                   :class="macro.enabled ? 'bg-brand-400/[0.22] text-brand-200' : 'bg-white/[0.06] text-slate-300'"
-                ><MacroIcon :name="actionMeta(macro.action?.type)?.glyph || 'playlist'" class="h-8 w-8" /></span>
+                ><MacroIcon :name="actionMeta(macro.action?.type)?.glyph || 'playlist'" class="h-6 w-6" /></span>
 
                 <span class="min-w-0 flex-1">
-                  <span class="block truncate text-sm font-bold text-white">{{ macro.name }}</span>
-                  <span class="mt-1 line-clamp-2 text-[11px] leading-relaxed text-slate-500 [overflow-wrap:anywhere]">{{ describeMacro(macro) }}</span>
-                  <span class="mt-1.5 flex flex-wrap items-center gap-1.5">
+                  <span class="flex items-center gap-1.5">
+                    <span class="min-w-0 truncate text-[13px] font-bold leading-snug text-white">{{ macro.name }}</span>
                     <span
                       v-if="correEnSegundoPlano(macro)"
-                      class="inline-flex shrink-0 items-center gap-1 rounded-full bg-brand-400/[0.18] px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-brand-200"
-                    >
-                      <span class="h-1 w-1 rounded-full bg-brand-400" />segundo plano
-                    </span>
-                    <span
+                      class="h-1.5 w-1.5 shrink-0 rounded-full bg-brand-400"
+                      title="Se ejecuta en segundo plano"
+                      role="img"
+                      aria-label="En segundo plano"
+                    />
+                    <MacroIcon
                       v-if="esManual(macro)"
-                      class="inline-flex shrink-0 items-center gap-1 rounded-full bg-violet-400/[0.18] px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-violet-200"
-                    >manual</span>
-                    <span
+                      name="manual"
+                      class="h-3.5 w-3.5 shrink-0 text-violet-200"
+                      title="Manual"
+                      role="img"
+                      aria-label="Manual"
+                    />
+                    <FeatureIcon
                       v-if="vinculadaAlBoton(macro)"
-                      class="inline-flex shrink-0 items-center gap-1 rounded-full bg-sky-400/[0.18] px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-sky-200"
-                      title="Se ejecuta con la pulsación larga del botón de los auriculares"
-                    >
-                      <FeatureIcon name="auriculares" class="h-3 w-3" />botón
-                    </span>
-                    <span class="font-mono text-[10px] text-slate-500">{{ ejecuciones(macro) }} ejec.</span>
+                      name="auriculares"
+                      class="h-3.5 w-3.5 shrink-0 text-sky-200"
+                      title="Vinculada al botón de los auriculares"
+                      role="img"
+                      aria-label="Vinculada al botón de los auriculares"
+                    />
                   </span>
+                  <span class="mt-0.5 line-clamp-2 text-[11px] leading-relaxed text-slate-500 [overflow-wrap:anywhere]">{{ describeMacro(macro) }}</span>
                 </span>
 
                 <MacroIcon
@@ -500,6 +507,11 @@
 
             <!-- Etiqueta desplegada -->
             <div v-if="abierta[macro.id]" class="border-t border-white/[0.07] p-3.5">
+              <p class="mb-2 flex flex-wrap items-center gap-1.5">
+                <span v-if="correEnSegundoPlano(macro)" class="inline-flex items-center gap-1 rounded-full bg-brand-400/[0.18] px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-brand-200"><span class="h-1 w-1 rounded-full bg-brand-400" />segundo plano</span>
+                <span v-if="esManual(macro)" class="inline-flex rounded-full bg-violet-400/[0.18] px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-violet-200">manual</span>
+                <span v-if="vinculadaAlBoton(macro)" class="inline-flex items-center gap-1 rounded-full bg-sky-400/[0.18] px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-sky-200"><FeatureIcon name="auriculares" class="h-3 w-3" />botón</span>
+              </p>
               <p
                 v-if="!correEnSegundoPlano(macro) && !esManual(macro) && motivoSinSegundoPlano(macro)"
                 class="mb-2 text-[10px] leading-relaxed text-amber-300/80"
