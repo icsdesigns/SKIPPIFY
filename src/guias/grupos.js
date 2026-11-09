@@ -68,7 +68,7 @@ export const guiaGrupos = crearGuia({
       escenaProps: { paso: 'privacidad' },
       puntos: [
         { icono: 'ajuste:globo', titulo: 'Relays públicos', detalle: 'Los datos pasan cifrados por relays públicos, que sólo ven direcciones IP, horas y tamaños.' },
-        { icono: 'ajuste:campana', titulo: 'Se actualiza con la app cerrada', detalle: 'Tus escuchas se comparten solas en segundo plano. Quien pasa 30 días sin enviar nada sale del grupo.' },
+        { icono: 'ajuste:campana', titulo: 'Con la app cerrada', detalle: 'Tus escuchas se comparten solas. Quien pasa 30 días sin enviar nada sale del grupo.' },
         { icono: 'ajuste:desconexion', titulo: 'Abandonar borra la copia', detalle: 'Al abandonar un grupo se borra su copia de este móvil.' }
       ]
     }
