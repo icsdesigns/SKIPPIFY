@@ -1057,6 +1057,10 @@ public class SpotifyNotificationListener extends NotificationListenerService
             // necesita el mes entero, así que lleva su propia copia.
             RegistroEscuchas.anotar(getApplicationContext(), obj);
             WidgetsSkippify.actualizarSemana(getApplicationContext());
+            // Una escucha acaba de cerrarse o de empezar otra: con la app cerrada,
+            // los grupos se sincronizan enseguida (con freno) en vez de esperar a
+            // la siguiente tanda de cinco minutos. No bloquea: sólo programa.
+            LocalHostBackground.alRegistrarEscucha(getApplicationContext());
         } catch (Throwable ignored) {
         }
     }
@@ -1070,6 +1074,7 @@ public class SpotifyNotificationListener extends NotificationListenerService
         if (context == null || obj == null) return;
         appendJsonLine(context, obj);
         RegistroEscuchas.anotar(context, obj);
+        LocalHostBackground.alRegistrarEscucha(context);
     }
 
     private static void appendJsonLine(android.content.Context context, JSONObject obj) {

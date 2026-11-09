@@ -204,6 +204,14 @@ public class SkippifyForegroundService extends Service {
         } catch (Throwable ignored) {
         }
 
+        // El aviso de los domingos de los grupos: si se perdió la alarma (cambio
+        // de zona horaria, limpieza del sistema) se repone, y si el móvil estaba
+        // apagado a la hora, se avisa al volver.
+        try {
+            AvisoSemanaGrupos.latido(getApplicationContext());
+        } catch (Throwable ignored) {
+        }
+
         // Escuchas de la cuenta de Spotify (otros dispositivos incluidos) y las
         // que se escaparon con el servicio parado. El freno de cinco minutos
         // vive en EscuchasApiBackground.

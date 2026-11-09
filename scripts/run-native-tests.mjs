@@ -39,7 +39,10 @@ const FUENTES = [
   // La medición de fundido entre canciones y el reloj de las sesiones de escucha.
   join(raiz, 'android-src', 'FundidoDetector.java'),
   join(raiz, 'android-src', 'SesionEscuchaReloj.java'),
-  join(raiz, 'scripts', 'native-tests', 'PruebasFundido.java')
+  join(raiz, 'scripts', 'native-tests', 'PruebasFundido.java'),
+  // Los disparadores de los grupos en segundo plano y el aviso de los domingos.
+  join(raiz, 'android-src', 'RitmoGrupos.java'),
+  join(raiz, 'scripts', 'native-tests', 'PruebasGrupos.java')
 ]
 
 for (const f of FUENTES) {
@@ -76,6 +79,7 @@ try {
   execFileSync('java', ['-Dfile.encoding=UTF-8', '-cp', salida, 'com.skippify.app.PruebasResultados'], { stdio: 'inherit' })
   execFileSync('java', ['-Dfile.encoding=UTF-8', '-cp', salida, 'com.skippify.app.PruebasEscuchasApi'], { stdio: 'inherit' })
   execFileSync('java', ['-Dfile.encoding=UTF-8', '-cp', salida, 'com.skippify.app.PruebasFundido'], { stdio: 'inherit' })
+  execFileSync('java', ['-Dfile.encoding=UTF-8', '-cp', salida, 'com.skippify.app.PruebasGrupos'], { stdio: 'inherit' })
 } finally {
   rmSync(salida, { recursive: true, force: true })
 }

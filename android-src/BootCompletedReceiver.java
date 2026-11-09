@@ -17,6 +17,8 @@ import android.content.ComponentName;
 public class BootCompletedReceiver extends BroadcastReceiver {
 
     static final String ACTION_WATCHDOG = "com.skippify.app.action.WATCHDOG";
+    /** Latido de seguridad de los grupos sin servidor (ver LocalHostBackground). */
+    static final String ACTION_LH_LATIDO = "com.skippify.app.action.LH_LATIDO";
 
     @Override
     public void onReceive(Context context, Intent intent) {
@@ -37,6 +39,18 @@ public class BootCompletedReceiver extends BroadcastReceiver {
             return;
         }
 
+        // El domingo a media tarde: avisar de que se acaba la semana de los grupos.
+        if (AvisoSemanaGrupos.ACTION_ALARMA.equals(action)) {
+            AvisoSemanaGrupos.alSonar(context, goAsync());
+            return;
+        }
+
+        // Latido de seguridad de la sincronización de los grupos.
+        if (ACTION_LH_LATIDO.equals(action)) {
+            LocalHostBackground.alLatido(context, goAsync());
+            return;
+        }
+
         boolean shouldStart = Intent.ACTION_BOOT_COMPLETED.equals(action)
                 || Intent.ACTION_LOCKED_BOOT_COMPLETED.equals(action)
                 || Intent.ACTION_MY_PACKAGE_REPLACED.equals(action)
@@ -51,6 +65,14 @@ public class BootCompletedReceiver extends BroadcastReceiver {
         // Las alarmas no sobreviven a un reinicio: la del ranking se repone.
         try {
             LigaResultados.programar(appContext);
+        } catch (Throwable ignored) {
+        }
+
+        // Y las de los grupos: el aviso de los domingos y el latido de la
+        // sincronización (si hay grupos; si no, no hacen nada).
+        try {
+            AvisoSemanaGrupos.latido(appContext);
+            LocalHostBackground.latido(appContext);
         } catch (Throwable ignored) {
         }
 

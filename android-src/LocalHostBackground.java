@@ -1,10 +1,17 @@
 package com.skippify.app;
 
+import android.app.AlarmManager;
+import android.app.PendingIntent;
+import android.content.BroadcastReceiver;
 import android.content.Context;
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.PowerManager;
+import android.os.SystemClock;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebResourceResponse;
@@ -45,8 +52,20 @@ import java.util.Map;
  *     localStorage: las peticiones a ese host se sirven desde los assets de
  *     Capacitor, y cualquier otro host se rechaza (la red va por WebSocket, que
  *     no pasa por aquí).
- *   · El ritmo lo dicta JavaScript (`schedule`): cada pocos segundos si alguien
- *     espera entrar o hay una invitación vigente, cada cinco minutos si no.
+ *   · El ritmo base lo dicta JavaScript (`schedule`): cada pocos segundos si
+ *     alguien espera entrar o hay una invitación vigente, cada cinco minutos si
+ *     no. Se refuerza con tres disparadores (decisiones en {@link RitmoGrupos}):
+ *       1. Tras acabar una escucha (el listener llama a {@link #alRegistrarEscucha}):
+ *          una sincronización 30 s después (se juntan escuchas seguidas) y como
+ *          mucho una cada 3 min, para publicar lo recién oído sin esperar a la
+ *          siguiente tanda.
+ *       2. Un latido de seguridad cada ~15 min con una alarma que despierta al
+ *          móvil aunque esté en reposo (los temporizadores del hilo principal no
+ *          corren con la CPU dormida): fuerza una tanda, repone el servicio y
+ *          reinicia el WebView si lleva 20 min sin dar señales.
+ *       3. Al arrancar el servicio, tras un reinicio del móvil o una
+ *          actualización, y cuando suena el aviso del domingo
+ *          ({@link AvisoSemanaGrupos}): {@link #latido} y {@link #sincronizarYa}.
  *
  * Todo el estado se toca desde el hilo principal.
  */
@@ -74,6 +93,15 @@ public final class LocalHostBackground {
     private static boolean principalActiva;
     private static boolean corriendo;
     private static boolean parando;
+    /** Última vez que JS terminó una tanda (`schedule`), y cuándo arrancó este WebView. */
+    private static long ultimoPulso;
+    private static long arrancadoEn;
+    /** Última sincronización provocada por una escucha o un latido. */
+    private static long ultimaForzada;
+    /** Hay ya una sincronización por escucha en espera (se juntan las seguidas). */
+    private static boolean tickEscuchaPendiente;
+    /** Cuándo (reloj de arranque) vence el latido de seguridad ya armado; 0 si no se sabe. */
+    private static long latidoArmadoHasta;
     /** El servicio pudo escribir desde la última vez que la app lo supo. */
     private static boolean haEscrito;
     private static final List<Respuesta> esperando = new ArrayList<>();
@@ -91,6 +119,15 @@ public final class LocalHostBackground {
     };
     private static final Runnable PARADA_FORZADA = new Runnable() {
         @Override public void run() { terminarParada(); }
+    };
+    /** Sincronización provocada por una escucha acabada (tras juntar las seguidas). */
+    private static final Runnable TICK_ESCUCHA = new Runnable() {
+        @Override public void run() {
+            tickEscuchaPendiente = false;
+            if (app == null || principalActiva || !activo(app)) return;
+            ultimaForzada = System.currentTimeMillis();
+            forzarTick();
+        }
     };
 
     private LocalHostBackground() { }
@@ -131,11 +168,19 @@ public final class LocalHostBackground {
             @Override public void run() {
                 app = a;
                 prefs(a).edit().putBoolean(K_ACTIVO, activo).apply();
+                // El aviso de los domingos sólo existe si hay grupos.
+                try { AvisoSemanaGrupos.configurar(a, activo); } catch (Throwable ignored) { }
                 if (!activo) {
                     H.removeCallbacks(ARRANCAR);
                     H.removeCallbacks(LATIDO_JS);
+                    H.removeCallbacks(TICK_ESCUCHA);
+                    tickEscuchaPendiente = false;
+                    cancelarLatido(a);
                     if (corriendo) pedirParada();
-                } else if (!principalActiva && !corriendo) {
+                } else {
+                    programarLatido(a, false);
+                }
+                if (activo && !principalActiva && !corriendo) {
                     H.removeCallbacks(ARRANCAR);
                     H.postDelayed(ARRANCAR, ARRANQUE_MS);
                 }
@@ -159,13 +204,143 @@ public final class LocalHostBackground {
         });
     }
 
-    /** Latido del servicio en primer plano: reanuda si el proceso se reinició. */
+    /**
+     * Latido del servicio en primer plano (al arrancar, tras un reinicio y en su
+     * vigilancia): reanuda si el proceso se reinició, reinicia el WebView si está
+     * colgado y se asegura de que el latido de seguridad está armado.
+     */
     public static void latido(final Context ctx) {
         final Context a = ctx.getApplicationContext();
         H.post(new Runnable() {
             @Override public void run() {
                 if (app == null) app = a;
-                if (activo(a) && !principalActiva && !corriendo) arrancar();
+                if (!activo(a)) return;
+                programarLatido(a, false);
+                if (principalActiva) return;
+                if (!corriendo) arrancar();
+                else if (!parando && RitmoGrupos.colgado(System.currentTimeMillis(), ultimoPulso, arrancadoEn)) reiniciar();
+            }
+        });
+    }
+
+    /**
+     * El listener acaba de anotar un evento de escucha (pausa, parada o cambio de
+     * canción). Con la app cerrada, programa una sincronización breve para
+     * publicar lo recién oído: 30 s después, y como mucho una cada 3 minutos.
+     * Con la app a la vista publica JS por su cuenta.
+     */
+    public static void alRegistrarEscucha(final Context ctx) {
+        final Context a = ctx.getApplicationContext();
+        H.post(new Runnable() {
+            @Override public void run() {
+                if (app == null) app = a;
+                if (principalActiva || !activo(a)) return;
+                // Si ya hay una pendiente se respeta: así las escuchas seguidas se juntan.
+                if (tickEscuchaPendiente) return;
+                tickEscuchaPendiente = true;
+                H.postDelayed(TICK_ESCUCHA, RitmoGrupos.esperaTrasEscucha(System.currentTimeMillis(), ultimaForzada));
+            }
+        });
+    }
+
+    /** Sincroniza ya (si hay grupos y la app no está a la vista): lo usa el aviso del domingo. */
+    public static void sincronizarYa(final Context ctx) {
+        final Context a = ctx.getApplicationContext();
+        H.post(new Runnable() {
+            @Override public void run() {
+                if (app == null) app = a;
+                if (!activo(a) || principalActiva) return;
+                ultimaForzada = System.currentTimeMillis();
+                forzarTick();
+            }
+        });
+    }
+
+    /** Fuerza una tanda: arranca el WebView si no está, o le pide otra a JS ya. */
+    private static void forzarTick() {
+        if (app == null || principalActiva) return;
+        if (!corriendo) arrancar();
+        else if (!parando && paginaLista) evaluar("window.__lhTick&&window.__lhTick()");
+    }
+
+    // ── Latido de seguridad (alarma que despierta el móvil) ───────────────────
+
+    private static PendingIntent intentLatido(Context c, int flagBase) {
+        Intent intent = new Intent(c, BootCompletedReceiver.class);
+        intent.setAction(BootCompletedReceiver.ACTION_LH_LATIDO);
+        int flags = flagBase;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) flags |= PendingIntent.FLAG_IMMUTABLE;
+        return PendingIntent.getBroadcast(c, 0x5BD3, intent, flags);
+    }
+
+    /**
+     * Arma la alarma inexacta del latido (cada ~15 min, aunque el móvil esté en
+     * reposo: `setAndAllowWhileIdle` la deja pasar, con la limitación que impone
+     * el sistema de una cada varios minutos). Es idempotente salvo con `forzar`:
+     * volver a armarla cada vez que alguien llama la retrasaría sin fin.
+     */
+    private static void programarLatido(Context c, boolean forzar) {
+        try {
+            long ahora = SystemClock.elapsedRealtime();
+            if (!forzar && latidoArmadoHasta > ahora && intentLatido(c, PendingIntent.FLAG_NO_CREATE) != null) return;
+            AlarmManager am = (AlarmManager) c.getSystemService(Context.ALARM_SERVICE);
+            if (am == null) return;
+            PendingIntent pi = intentLatido(c, PendingIntent.FLAG_UPDATE_CURRENT);
+            long cuando = ahora + RitmoGrupos.LATIDO_MS;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                am.setAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP, cuando, pi);
+            } else {
+                am.set(AlarmManager.ELAPSED_REALTIME_WAKEUP, cuando, pi);
+            }
+            latidoArmadoHasta = cuando;
+        } catch (Throwable ignored) { }
+    }
+
+    private static void cancelarLatido(Context c) {
+        try {
+            latidoArmadoHasta = 0L;
+            PendingIntent pi = intentLatido(c, PendingIntent.FLAG_NO_CREATE);
+            if (pi == null) return;
+            AlarmManager am = (AlarmManager) c.getSystemService(Context.ALARM_SERVICE);
+            if (am != null) am.cancel(pi);
+            pi.cancel();
+        } catch (Throwable ignored) { }
+    }
+
+    /**
+     * Ha sonado la alarma del latido. Mantiene la CPU despierta un rato para que
+     * la tanda de sincronización llegue a hacerse, arma el siguiente latido y
+     * fuerza una tanda (o reinicia el WebView si está colgado).
+     */
+    public static void alLatido(Context ctx, final BroadcastReceiver.PendingResult pendiente) {
+        final Context a = ctx.getApplicationContext();
+        try {
+            PowerManager pm = (PowerManager) a.getSystemService(Context.POWER_SERVICE);
+            if (pm != null) {
+                PowerManager.WakeLock wl = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "skippify:lhlatido");
+                wl.setReferenceCounted(false);
+                // Con tiempo máximo: se suelta sola aunque algo falle.
+                wl.acquire(RitmoGrupos.WAKELOCK_MS);
+            }
+        } catch (Throwable ignored) { }
+        H.post(new Runnable() {
+            @Override public void run() {
+                try {
+                    if (app == null) app = a;
+                    if (!activo(a)) return;
+                    programarLatido(a, true);
+                    if (principalActiva) return;
+                    // El proceso pudo reiniciarse: se asegura el servicio en primer plano.
+                    try { SkippifyForegroundService.start(a, false); } catch (Throwable ignored) { }
+                    if (corriendo && !parando && RitmoGrupos.colgado(System.currentTimeMillis(), ultimoPulso, arrancadoEn)) {
+                        reiniciar();
+                    } else {
+                        ultimaForzada = System.currentTimeMillis();
+                        forzarTick();
+                    }
+                } finally {
+                    if (pendiente != null) pendiente.finish();
+                }
             }
         });
     }
@@ -177,6 +352,8 @@ public final class LocalHostBackground {
         parando = false;
         haEscrito = true;
         paginaLista = false;
+        ultimoPulso = 0L;
+        arrancadoEn = System.currentTimeMillis();
         try {
             SkippifyForegroundService.start(app, false);
         } catch (Throwable ignored) { }
@@ -209,6 +386,21 @@ public final class LocalHostBackground {
             corriendo = false;
             web = null;
         }
+    }
+
+    /** WebView colgado: se destruye sin esperar a JS y se vuelve a crear. */
+    private static void reiniciar() {
+        H.removeCallbacks(LATIDO_JS);
+        H.removeCallbacks(PARADA_FORZADA);
+        corriendo = false;
+        parando = false;
+        paginaLista = false;
+        if (web != null) {
+            try { web.stopLoading(); } catch (Throwable ignored) { }
+            try { web.destroy(); } catch (Throwable ignored) { }
+            web = null;
+        }
+        if (app != null && !principalActiva && activo(app)) arrancar();
     }
 
     private static void pedirParada() {
@@ -257,6 +449,8 @@ public final class LocalHostBackground {
         @JavascriptInterface public void schedule(final long ms) {
             H.post(new Runnable() {
                 @Override public void run() {
+                    // Cada tanda de JS acaba aquí: es la señal de que el WebView sigue vivo.
+                    ultimoPulso = System.currentTimeMillis();
                     if (!corriendo || parando || principalActiva) return;
                     long espera = Math.max(MIN_PERIODO_MS, Math.min(MAX_PERIODO_MS, ms));
                     H.removeCallbacks(LATIDO_JS);

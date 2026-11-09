@@ -1128,6 +1128,9 @@ async function refreshAll (options = {}) {
  * sincronizaba nunca hasta reiniciarla: la invitación se quedaba sin atender.
  */
 function startWatch () {
+  // El lado nativo se entera de si hay grupos ya al abrir la app (sincronización
+  // en segundo plano y aviso de los domingos), aunque la primera sincronización falle.
+  void avisarServicio()
   if (state.value.groups.length) void syncAll()
   if (watchTimer || typeof window === 'undefined') return
   watchTimer = setInterval(tick, TICK_MS)
