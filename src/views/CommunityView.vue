@@ -19,22 +19,21 @@
         <h2 class="sk-eyebrow">Añadir grupo</h2>
         <span class="sk-chip !px-2 !py-0.5 tabular-nums">{{ grupos.length }} / {{ MAX_GROUPS }}</span>
       </div>
-      <div class="grid grid-cols-2 gap-2.5">
-        <button
+      <div class="grid gap-2.5 sm:grid-cols-2">
+        <OpcionFila
           v-for="opcion in OPCIONES"
           :key="opcion.id"
-          type="button"
-          class="sk-option rounded-xl border p-3.5 text-left transition-all duration-200 disabled:opacity-40"
+          as="button"
+          compacta
+          :titulo="opcion.title"
+          :detalle="opcion.description"
+          :class="lleno ? 'opacity-40' : ''"
           :disabled="lleno"
           :data-nuevo="opcion.id"
           @click="nuevoAbierto = opcion.id"
         >
-          <span class="flex h-10 w-10 items-center justify-center rounded-full bg-white/[0.08] text-slate-300">
-            <GrupoIcono :name="opcion.icon" class="h-5 w-5" />
-          </span>
-          <p class="mt-2 text-sm font-bold text-white">{{ opcion.title }}</p>
-          <p class="mt-0.5 text-[11px] leading-relaxed text-slate-400">{{ opcion.description }}</p>
-        </button>
+          <template #icono><GrupoIcono :name="opcion.icon" class="h-5 w-5" /></template>
+        </OpcionFila>
       </div>
       <p v-if="lleno" class="mt-2.5 text-[11px] text-slate-500">Has llegado al máximo de {{ MAX_GROUPS }} grupos: abandona uno para añadir otro.</p>
     </section>
@@ -58,6 +57,7 @@ import GuiaInteractiva from '@/components/GuiaInteractiva.vue'
 import { guiaGrupos } from '@/guias'
 import { useTour } from '@/composables/useTour'
 import GrupoIcono from '@/components/grupos/GrupoIcono.js'
+import OpcionFila from '@/components/OpcionFila.vue'
 import { formatearHorasCorto } from '@/lib/gruposResumen'
 // Los grupos se leen de un módulo ligero, no de useLocalLeague: así el
 // desplegable los enseña sin cargar libsodium (ver src/lib/comunidadLocal.js).

@@ -123,23 +123,6 @@ export function escuchaComun (a, b) {
 }
 
 /**
- * Todas las parejas de miembros con datos, de más a menos parecidas.
- * @param {Array<{id: string, nombre: string, conteoArtistas?: Array}>} fichas
- */
-export function paresEnComun (fichas) {
-  const con = (fichas || []).filter(f => Array.isArray(f.conteoArtistas) && f.conteoArtistas.length)
-  const pares = []
-  for (let i = 0; i < con.length; i += 1) {
-    for (let j = i + 1; j < con.length; j += 1) {
-      const pct = escuchaComun(con[i].conteoArtistas, con[j].conteoArtistas)
-      if (pct === null) continue
-      pares.push({ a: con[i].nombre, b: con[j].nombre, idA: con[i].id, idB: con[j].id, pct, yo: !!(con[i].yo || con[j].yo) })
-    }
-  }
-  return pares.sort((x, y) => y.pct - x.pct || (x.a + x.b < y.a + y.b ? -1 : 1))
-}
-
-/**
  * % de escucha común entre TÚ y un miembro del grupo, en el periodo de las
  * fichas dadas (la semana o el mes que esté elegido). `null` si el miembro eres
  * tú, si no se sabe quién eres o si alguno de los dos no tiene escuchas.

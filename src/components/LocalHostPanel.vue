@@ -55,24 +55,19 @@
 
     <!-- Crear o unirme: sube desde abajo al pulsar una de las opciones de «Añadir grupo». -->
     <HojaInferior :abierta="!!nuevo" titulo="Nuevo grupo" @cerrar="$emit('update:nuevo', '')">
-      <div class="grid grid-cols-2 gap-2.5">
-        <button
+      <div class="grid gap-2.5 sm:grid-cols-2">
+        <OpcionFila
           v-for="opcion in opciones"
           :key="opcion.id"
-          type="button"
-          class="rounded-xl border p-3.5 text-left transition-all duration-200"
-          :class="accion === opcion.id ? 'sk-option-active' : 'sk-option'"
+          as="button"
+          compacta
+          :activo="accion === opcion.id"
+          :titulo="opcion.title"
+          :detalle="opcion.description"
           @click="accion = opcion.id"
         >
-          <span
-            class="flex h-10 w-10 items-center justify-center rounded-full transition-colors"
-            :class="accion === opcion.id ? 'bg-brand-400/25 text-brand-200' : 'bg-white/[0.08] text-slate-300'"
-          >
-            <GrupoIcono :name="opcion.icon" class="h-5 w-5" />
-          </span>
-          <p class="mt-2 text-sm font-bold text-white">{{ opcion.title }}</p>
-          <p class="mt-0.5 text-[11px] leading-relaxed text-slate-400">{{ opcion.description }}</p>
-        </button>
+          <template #icono><GrupoIcono :name="opcion.icon" class="h-5 w-5" /></template>
+        </OpcionFila>
       </div>
 
       <div class="mt-4 border-t border-white/[0.07] pt-4">
@@ -126,6 +121,7 @@ import GrupoDetalle from '@/components/grupos/GrupoDetalle.vue'
 import InvitacionExpres from '@/components/grupos/InvitacionExpres.vue'
 import HojaInferior from '@/components/grupos/HojaInferior.vue'
 import GrupoIcono from '@/components/grupos/GrupoIcono.js'
+import OpcionFila from '@/components/OpcionFila.vue'
 import { conectarLocal, grupoLocalPedido } from '@/lib/comunidadLocal'
 
 const props = defineProps({

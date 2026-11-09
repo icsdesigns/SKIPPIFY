@@ -19,7 +19,6 @@
  * modo no paga su peso en el arranque.
  */
 import { computed, reactive, ref } from 'vue'
-import { LocalNotifications } from '@capacitor/local-notifications'
 import { useEventStore } from '@/stores/events'
 import { IdbStorage, deleteSlot } from '@/lib/localhost/idbStorage'
 import { NostrTransport, DEFAULT_RELAYS } from '@/lib/localhost/nostrTransport'
@@ -69,9 +68,7 @@ const state = ref({
   /** [{ groupId, name, role, relays, kitGroupId }] — `groupId` es la ranura local (`lh_…`). */
   groups: [],
   activeGroupId: '',
-  lastSyncAt: null,
-  /** weekKey ya visto por grupo, para avisar una sola vez. */
-  lastSeenWeekKeys: {}
+  lastSyncAt: null
 })
 
 const syncing = ref(false)
@@ -105,8 +102,7 @@ function loadState () {
     state.value = {
       ...state.value,
       ...parsed,
-      groups: Array.isArray(parsed.groups) ? parsed.groups.filter(g => g?.groupId) : [],
-      lastSeenWeekKeys: parsed.lastSeenWeekKeys || {}
+      groups: Array.isArray(parsed.groups) ? parsed.groups.filter(g => g?.groupId) : []
     }
   } catch { /* estado ilegible: se empieza limpio */ }
 }
@@ -942,29 +938,6 @@ async function loadSemanas (groupId = state.value.activeGroupId) {
   return nuevas
 }
 
-async function avisarSiSemanaNueva (groupId) {
-  const meta = findGroup(groupId)
-  const result = await calcularRanking(groupId, 'pasada')
-  if (!meta || !result || !result.members.some(m => m.totalTracks > 0)) return false
-  const previo = state.value.lastSeenWeekKeys?.[groupId]
-  state.value.lastSeenWeekKeys = { ...state.value.lastSeenWeekKeys, [groupId]: result.weekKey }
-  saveState()
-  if (!previo || previo === result.weekKey) return false
-  try {
-    const permissions = await LocalNotifications.checkPermissions()
-    if (permissions.display !== 'granted') return true
-    await LocalNotifications.schedule({
-      notifications: [{
-        id: Date.now() % 2147483647,
-        title: 'Skippify',
-        body: `Ya está el resumen semanal de ${meta.name} (provisional hasta que todos sincronicen).`,
-        schedule: { at: new Date(Date.now() + 1000) }
-      }]
-    })
-  } catch { /* sin permiso o sin plugin: no es un fallo */ }
-  return true
-}
-
 // ── Presencia y expulsión por inactividad ───────────────────────────────────
 //
 // Un dispositivo que no envía nada en 30 días sale del grupo. Cada móvil
@@ -1101,7 +1074,6 @@ function syncAll (options = {}) {
       if (statuses[g.groupId] === 'expelled') continue
       const r = await syncGroup(g.groupId, options)
       if (r) n += 1
-      try { await avisarSiSemanaNueva(g.groupId) } catch { /* sin datos aún */ }
     }
     // Todos los grupos llevan sus cifras de la semana: las tarjetas las enseñan.
     for (const g of state.value.groups) {

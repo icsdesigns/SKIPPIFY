@@ -47,7 +47,7 @@ export const guiaGrupos = crearGuia({
       escenaProps: { paso: 'ranking' },
       puntos: [
         { icono: 'ajuste:ojo', titulo: 'Semana o mes', detalle: 'Mira la semana en curso o el mes en curso. El resumen suma el tiempo de todo el grupo.' },
-        { icono: 'ajuste:registro', titulo: 'Podio y miembros', detalle: 'Los tres que más escuchan, en el podio. Toca a un miembro para abrir sus cifras.' },
+        { icono: 'ajuste:registro', titulo: 'Podio y miembros', detalle: 'El podio muestra a los tres que más escuchan. Cada miembro tiene su ficha con sus cifras y su escucha común contigo.' },
         { icono: 'ajuste:umbral', titulo: 'Cifras provisionales', detalle: 'Pueden cambiar cuando los demás abran la app y publiquen sus últimas escuchas.' }
       ]
     },

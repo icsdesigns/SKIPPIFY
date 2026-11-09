@@ -17,7 +17,7 @@ import {
   decodeEscuchas, encodeEscuchas, partirEnLotes, puntuarSemana, ventanaSemana, ventanaMes, ventanaPeriodo, tuplaAEvento, PERIODOS, DIAS_PUBLICADOS
 } from '../src/lib/localhost/escuchas.js'
 import { scoreMember, esNoMusical } from '../firebase/functions/scoring.js'
-import { comunConMiembro, escuchaComun, extrasNuevos, ordenarPorTiempo, paresEnComun, perfilHorario, diaCorto } from '../src/lib/gruposExtras.js'
+import { comunConMiembro, escuchaComun, extrasNuevos, ordenarPorTiempo, perfilHorario, diaCorto } from '../src/lib/gruposExtras.js'
 
 let fallos = 0
 let total = 0
@@ -246,13 +246,6 @@ titulo('Estadísticas nuevas de cada miembro')
   check('nada en común = 0 %', escuchaComun(ana, [['Otro', 3]]) === 0)
   check('proporciones, no cantidades: 10 contra 100 escuchas', escuchaComun([['A', 1]], [['A', 100]]) === 100)
   check('sin datos no hay porcentaje', escuchaComun([], ana) === null)
-  const pares = paresEnComun([
-    { id: '1', nombre: 'Ana', yo: true, conteoArtistas: ana },
-    { id: '2', nombre: 'Luis', conteoArtistas: luis },
-    { id: '3', nombre: 'Mar', conteoArtistas: ana },
-    { id: '4', nombre: 'Sin datos', conteoArtistas: [] }
-  ])
-  check('pares: 3 parejas y la más parecida primero', pares.length === 3 && pares[0].pct === 100 && pares[0].a === 'Ana' && pares[0].b === 'Mar', JSON.stringify(pares))
   const fichas = [
     { id: '1', nombre: 'Ana', yo: true, conteoArtistas: ana },
     { id: '2', nombre: 'Luis', conteoArtistas: luis },
