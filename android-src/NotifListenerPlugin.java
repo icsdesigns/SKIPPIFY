@@ -276,6 +276,42 @@ public class NotifListenerPlugin extends Plugin
     }
 
     /**
+     * Reenlaza el servicio de notificaciones (arreglo del diagnóstico «¿por qué no
+     * detecta?»). Con el acceso concedido, algunas capas dejan el servicio sin
+     * enlazar; `ensureBound` alterna el componente para forzar el reenlace.
+     *
+     * Enlazar es asíncrono: se espera hasta ~4 s a que el servicio conecte y se
+     * contesta con { enabled, connected, rebound } para que la pantalla diga si
+     * ha funcionado. Si no hay acceso concedido no hay nada que reenlazar.
+     */
+    @PluginMethod
+    public void reconnectListener(final PluginCall call) {
+        final boolean enabled = isNotificationListenerEnabled();
+        if (!enabled || SpotifyNotificationListener.isConnected()) {
+            JSObject result = new JSObject();
+            result.put("enabled", enabled);
+            result.put("connected", SpotifyNotificationListener.isConnected());
+            result.put("rebound", false);
+            call.resolve(result);
+            return;
+        }
+        SpotifyNotificationListener.ensureBound(getContext());
+        new Thread(new Runnable() {
+            public void run() {
+                long limite = System.currentTimeMillis() + 4000L;
+                while (!SpotifyNotificationListener.isConnected() && System.currentTimeMillis() < limite) {
+                    try { Thread.sleep(250L); } catch (InterruptedException ignored) { break; }
+                }
+                JSObject result = new JSObject();
+                result.put("enabled", true);
+                result.put("connected", SpotifyNotificationListener.isConnected());
+                result.put("rebound", true);
+                call.resolve(result);
+            }
+        }, "skippify-reconectar").start();
+    }
+
+    /**
      * Excluye la app de la optimización de batería.
      *
      * Se intenta primero el diálogo del sistema (ACTION_REQUEST_IGNORE_BATTERY_

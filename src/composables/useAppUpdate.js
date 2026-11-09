@@ -88,7 +88,11 @@ async function check ({ manual = false } = {}) {
   if (!plugin()) return false          // navegador o build web: nada que hacer
   if (status.value === 'downloading') return false
 
-  status.value = 'checking'
+  // 'checking' sólo se anuncia desde el reposo. Desde 'available' o 'ready' el
+  // aviso de actualización está en pantalla y `shouldPrompt` exige uno de esos
+  // estados: pasar por 'checking' lo hacía desaparecer y reaparecer (parpadeo)
+  // cada vez que se pulsaba «Buscar actualizaciones» con una nueva ya detectada.
+  if (status.value === 'idle') status.value = 'checking'
   error.value = ''
 
   if (!current.value && !(await readCurrentVersion())) {
@@ -129,7 +133,11 @@ async function check ({ manual = false } = {}) {
       skipped === String(latest.value.versionCode) || isPostponed(latest.value.versionCode)
     )
 
-    status.value = updateAvailable.value ? 'available' : 'idle'
+    // Si el aviso ya estaba mostrando una fase más avanzada (descargada, a punto
+    // de instalar), una nueva comprobación no la retrocede.
+    if (!['ready', 'installing'].includes(status.value) || !updateAvailable.value) {
+      status.value = updateAvailable.value ? 'available' : 'idle'
+    }
     return updateAvailable.value
   } catch (e) {
     error.value = e?.message || String(e)

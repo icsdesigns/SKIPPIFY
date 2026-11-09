@@ -192,6 +192,7 @@
         <OpcionFila
           as="button"
           tono="sky"
+          class="w-full"
           :disabled="playLogBusy"
           :titulo="playLogBusy ? 'Exportando…' : 'Exportar registro de funcionalidad'"
           :detalle="`Cada canción con su decisión, su motivo y la medición de fundido.${playLogTotal !== null ? ` Hay ${playLogTotal}.` : ''}`"
@@ -206,8 +207,8 @@
           plana
           tono="sky"
           :activo="fundidoMedir"
-          titulo="Medir fundido (experimental)"
-          detalle="Detecta si una canción empieza con fundido (DJ, Mix o crossfade de Spotify) y, tras escuchar 30 minutos seguidos, te pregunta en una notificación si lo hubo."
+          titulo="Medir fundido"
+          detalle="Experimental: detecta si empieza con fundido."
         >
           <template #icono><AjusteIcon name="registro" class="h-8 w-8" /></template>
           <template #fin>
@@ -223,13 +224,18 @@
             </button>
           </template>
         </OpcionFila>
+        <!-- Lo que no cabe en la tarjeta va debajo, no recortado dentro. -->
+        <p class="px-1 text-[11px] leading-relaxed text-slate-500">
+          Cubre DJ, Mix y el crossfade de Spotify. Tras escuchar 30 minutos seguidos, te pregunta en una
+          notificación si hubo fundido.
+        </p>
 
         <OpcionFila
           plana
           tono="sky"
           :activo="fundidoCompartir"
-          titulo="Compartir mi registro de funcionalidad con mis grupos"
-          detalle="El registro contiene los títulos y artistas de las canciones que escuchas. Lo verán los miembros de tus grupos que tengan la clave de descarga. Desactívalo y se retira de tus grupos; la versión de tu app se sigue mostrando."
+          titulo="Compartir registro"
+          detalle="Lo ven los miembros de tus grupos."
         >
           <template #icono><AjusteIcon name="copia" class="h-8 w-8" /></template>
           <template #fin>
@@ -245,17 +251,19 @@
             </button>
           </template>
         </OpcionFila>
+        <p class="px-1 text-[11px] leading-relaxed text-slate-500">
+          «Compartir mi registro de funcionalidad con mis grupos»: contiene los títulos y artistas de las
+          canciones que escuchas y lo ven los miembros que tengan la clave de descarga. Desactívalo y se retira
+          de tus grupos; la versión de tu app se sigue mostrando.
+        </p>
       </div>
     </FeaturePanel>
 
-    <!-- ── Parámetros de la app ───────────────────────────────────────────── -->
     <!--
       La comprobación automática al arrancar es silenciosa a propósito: sin
       cobertura no debe dar la lata. El precio es que un fallo real se ve igual
       que «no hay nada nuevo», así que aquí sí se enseña lo que ocurre.
     -->
-    <EscuchasApiPanel />
-
     <FeaturePanel
       title="Actualizaciones"
       subtitle="Se comprueba sola al abrir la app."
@@ -267,35 +275,55 @@
       </template>
 
       <div class="space-y-2">
+        <!-- El número va en el cuerpo de la tarjeta, no en una columna estrecha
+             a la derecha: así puede ocupar varias líneas. Cada parte («4.5.5»,
+             «· build 455») es un bloque que no se parte; sólo se rompe entre ellas. -->
         <OpcionFila
           plana
           tono="brand"
           titulo="Versión instalada"
-          detalle="La que está funcionando ahora en este dispositivo."
         >
           <template #icono><AjusteIcon name="version" class="h-8 w-8" /></template>
-          <template #fin>
-            <span class="font-mono text-sm font-bold text-brand-400">{{ installedVersionLabel }}</span>
-          </template>
+          <span class="mt-0.5 block font-mono text-sm font-bold leading-snug text-brand-400" data-version-instalada>
+            <template v-for="(parte, i) in installedVersionParts" :key="i">
+              <span class="inline-block whitespace-nowrap">{{ parte }}</span>{{ ' ' }}
+            </template>
+          </span>
         </OpcionFila>
 
+        <!-- Texto y estructura fijos: mientras comprueba sólo gira el indicador
+             de #fin (que ocupa siempre el mismo hueco). Antes el título pasaba a
+             «Comprobando…» y el botón, que se ajustaba a su contenido, cambiaba
+             de ancho con cada pulsación. No usa disabled (cambia el aspecto):
+             un guardián en checkForUpdates ignora el segundo toque. -->
         <OpcionFila
           as="button"
           tono="brand"
-          :disabled="updateBusy"
-          :titulo="updateBusy ? 'Comprobando…' : 'Buscar actualizaciones'"
+          class="w-full"
+          :aria-busy="updateBusy"
+          titulo="Buscar actualizaciones"
           detalle="Mira si hay una versión nueva publicada."
+          data-buscar-actualizaciones
           @click="checkForUpdates"
         >
           <template #icono><UpdateIcon class="h-8 w-8" /></template>
+          <template #fin>
+            <span class="flex h-5 w-5 shrink-0 items-center justify-center" aria-hidden="true">
+              <span v-if="updateBusy" class="h-4 w-4 animate-spin rounded-full border-2 border-brand-400/30 border-t-brand-300" />
+            </span>
+          </template>
         </OpcionFila>
 
+        <!-- El mensaje ocupa su hueco desde la primera pulsación y pasa de
+             «Comprobando…» al resultado sin mover nada. -->
         <p
           v-if="updateCheckMessage"
-          class="rounded-card px-3 py-2.5 text-xs"
+          class="flex min-h-[3.25rem] items-center rounded-card px-3 py-2.5 text-xs leading-relaxed"
           :class="updateCheckFailed
             ? 'bg-rose-500/[0.16] text-rose-100'
             : 'bg-brand-400/[0.14] text-brand-100'"
+          role="status"
+          data-resultado-actualizacion
         >{{ updateCheckMessage }}</p>
 
         <p v-if="!isCapacitor" class="text-[11px] text-slate-500">
@@ -313,16 +341,21 @@
     >
       <template #icono><AjusteIcon name="ayuda" class="h-5 w-5" /></template>
 
-      <OpcionFila
-        as="button"
-        tono="sky"
-        titulo="Tour de la app"
-        detalle="Seis pasos para conocer cada pestaña."
-        @click="tour.start()"
-      >
-        <template #icono><AjusteIcon name="tour" class="h-8 w-8" /></template>
-        <template #fin><span class="sk-chip hidden shrink-0 min-[420px]:inline-flex">Ver el tour</span></template>
-      </OpcionFila>
+      <div class="space-y-2">
+        <OpcionFila
+          as="button"
+          tono="sky"
+          class="w-full"
+          titulo="Tour de la app"
+          detalle="Seis pasos para conocer cada pestaña."
+          @click="tour.start()"
+        >
+          <template #icono><AjusteIcon name="tour" class="h-8 w-8" /></template>
+          <template #fin><span class="sk-chip hidden shrink-0 min-[420px]:inline-flex">Ver el tour</span></template>
+        </OpcionFila>
+
+        <DiagnosticoPanel />
+      </div>
     </FeaturePanel>
 
     <FeaturePanel
@@ -335,11 +368,12 @@
       <div class="space-y-2">
         <OpcionFila
           v-for="row in runtimeRows"
-          :key="row.label"
+          :key="row.clave"
           plana
           :titulo="row.label"
+          :detalle="row.detalle"
         >
-          <template #icono><AjusteIcon name="umbral" class="h-7 w-7" /></template>
+          <template #icono><AjusteIcon :name="row.icono" class="h-7 w-7" /></template>
           <template #fin>
             <span class="shrink-0 font-mono text-sm font-bold text-brand-400">{{ row.value }}</span>
           </template>
@@ -365,7 +399,8 @@ import UpdateIcon from '@/components/UpdateIcon.vue'
 import FeaturePanel from '@/components/FeaturePanel.vue'
 import AjusteIcon from '@/components/AjusteIcon.vue'
 import OpcionFila from '@/components/OpcionFila.vue'
-import EscuchasApiPanel from '@/components/EscuchasApiPanel.vue'
+import { guardarArchivo } from '@/lib/guardarArchivo'
+import DiagnosticoPanel from '@/components/DiagnosticoPanel.vue'
 import {
   REGISTER_DUPLICATE_PROGRESS_RATIO,
   REGISTER_NEW_SONG_PROGRESS_RATIO,
@@ -417,6 +452,10 @@ const installedVersionLabel = computed(() => {
   return APP_VERSION
 })
 
+/** «4.5.5 · build 455» → ['4.5.5', '· build 455']: sólo se parte entre partes. */
+const installedVersionParts = computed(() =>
+  installedVersionLabel.value.split(/\s+(?=·)/).map(parte => parte.trim()).filter(Boolean))
+
 /**
  * Comprobación a petición del usuario.
  *
@@ -425,8 +464,10 @@ const installedVersionLabel = computed(() => {
  * estaban cancelando por CORS, y desde fuera era idéntico a «no hay novedades».
  */
 async function checkForUpdates () {
+  if (updateBusy.value) return
   updateBusy.value = true
-  updateCheckMessage.value = ''
+  // «Comprobando…» ocupa el hueco del resultado, que ya no desaparece y vuelve.
+  updateCheckMessage.value = isCapacitor.value ? 'Comprobando si hay una versión nueva…' : ''
   updateCheckFailed.value = false
 
   try {
@@ -497,10 +538,12 @@ const orderedPermissionCards = computed(() => [
 const grantedCount = computed(() => orderedPermissionCards.value.filter(card => card.granted).length)
 const allPermissionsGranted = computed(() => grantedCount.value === orderedPermissionCards.value.length)
 
+// Cada umbral lleva el icono de lo que mide, asignado por su clave (no por su
+// posición): reordenar o añadir filas no los baraja.
 const runtimeRows = computed(() => [
-  { label: 'Escucha mínima para registrar nueva canción', value: formatPercent(REGISTER_NEW_SONG_PROGRESS_RATIO) },
-  { label: 'Escucha mínima para registrar tiempo escuchado', value: formatPercent(REGISTER_LISTEN_TIME_PROGRESS_RATIO) },
-  { label: 'Escucha mínima para registrar canción como duplicada', value: formatPercent(REGISTER_DUPLICATE_PROGRESS_RATIO) }
+  { clave: 'nueva', icono: 'nota', label: 'Nueva canción', detalle: 'Escucha mínima para registrarla.', value: formatPercent(REGISTER_NEW_SONG_PROGRESS_RATIO) },
+  { clave: 'tiempo', icono: 'tiempo', label: 'Tiempo escuchado', detalle: 'Escucha mínima para sumar su tiempo.', value: formatPercent(REGISTER_LISTEN_TIME_PROGRESS_RATIO) },
+  { clave: 'duplicada', icono: 'duplicada', label: 'Canción duplicada', detalle: 'Escucha mínima para darla por duplicada.', value: formatPercent(REGISTER_DUPLICATE_PROGRESS_RATIO) }
 ])
 
 function formatPercent (ratio) {
@@ -642,20 +685,16 @@ async function exportBackup () {
     }
 
     if (isCapacitor.value && Capacitor.isNativePlatform()) {
-      const defaultDir = 'Skippify/backups'
-      const defaultPath = `${defaultDir}/${fileName}`
-      await Filesystem.mkdir({
-        path: defaultDir,
+      // La carpeta puede existir ya de una exportación anterior y un archivo con
+      // el mismo nombre no se pisa: guardarArchivo lo resuelve (ver su cabecera).
+      const guardado = await guardarArchivo(Filesystem, {
         directory: Directory.Documents,
-        recursive: true
-      })
-      await Filesystem.writeFile({
-        path: defaultPath,
+        carpeta: 'Skippify/backups',
+        nombre: fileName,
         data: payloadJson,
-        directory: Directory.Documents,
         encoding: Encoding.UTF8
       })
-      backupMessage.value = `Respaldo autoexportado en Documents/${defaultPath} (${payload.data.events.length} canciones).`
+      backupMessage.value = `Respaldo autoexportado en Documents/${guardado.ruta} (${payload.data.events.length} canciones).`
       backupWarning.value = backupWarning.value || 'Se usó carpeta predeterminada porque el selector de carpeta no está disponible en este dispositivo.'
       return
     }

@@ -163,6 +163,59 @@
       <path d="M8 5.6C8 5.1 8.5 4.8 9 5.1L18.4 11.1C18.8 11.4 18.8 12 18.4 12.3L9 18.5C8.5 18.8 8 18.5 8 18Z" fill="currentColor" />
     </template>
 
+    <!-- Umbral «nueva canción»: nota musical con un «+». -->
+    <template v-else-if="name === 'nota'">
+      <path d="M9.2 17.2V6.4C11.6 6.8 13.4 7.6 14.6 9" />
+      <ellipse cx="7" cy="17.4" rx="2.4" ry="2" fill="currentColor" stroke="none" />
+      <path d="M17.2 12.6V18.2" /><path d="M14.4 15.4H20" />
+    </template>
+
+    <!-- Umbral «tiempo escuchado»: cronómetro con el sector recorrido. -->
+    <template v-else-if="name === 'tiempo'">
+      <circle cx="12" cy="13.2" r="7.2" />
+      <path d="M12 13.2V8.6" />
+      <path d="M12 13.2 15.6 15.2" stroke-width="1.8" />
+      <path d="M10 3.6H14" /><path d="M18.4 6.2 19.6 5" stroke-width="1.8" />
+    </template>
+
+    <!-- Umbral «duplicada»: dos hojas superpuestas. -->
+    <template v-else-if="name === 'duplicada'">
+      <path d="M8.8 8.4C8.8 7.5 9.5 6.8 10.4 6.8H18C18.9 6.8 19.6 7.5 19.6 8.4V15.6C19.6 16.5 18.9 17.2 18 17.2H10.4C9.5 17.2 8.8 16.5 8.8 15.6Z" />
+      <path d="M15.2 17.2V18.6C15.2 19.5 14.5 20.2 13.6 20.2H6C5.1 20.2 4.4 19.5 4.4 18.6V11C4.4 10.1 5.1 9.4 6 9.4H8.8" />
+    </template>
+
+    <!-- Diagnóstico: línea de pulso. -->
+    <template v-else-if="name === 'pulso'">
+      <path d="M3.2 12.4H7.4L9.4 7.2L13 17.6L15.2 12.4H20.8" />
+    </template>
+
+    <!-- Comprobación correcta: marca. -->
+    <template v-else-if="name === 'comprobado'">
+      <path d="M5.4 12.6 10 17.2 18.8 7.4" />
+    </template>
+
+    <!-- Comprobación fallida: aspa. -->
+    <template v-else-if="name === 'cruz'">
+      <path d="M6.6 6.6 17.4 17.4" /><path d="M17.4 6.6 6.6 17.4" />
+    </template>
+
+    <!-- Aviso: triángulo con exclamación. -->
+    <template v-else-if="name === 'alerta'">
+      <path d="M12 4.4C12.4 4.4 12.7 4.6 12.9 5L20 17.6C20.4 18.3 19.9 19.2 19 19.2H5C4.1 19.2 3.6 18.3 4 17.6L11.1 5C11.3 4.6 11.6 4.4 12 4.4Z" />
+      <path d="M12 9.8V13.4" /><circle cx="12" cy="16.2" r="1" fill="currentColor" stroke="none" />
+    </template>
+
+    <!-- Información: «i» en un círculo. -->
+    <template v-else-if="name === 'informacion'">
+      <circle cx="12" cy="12" r="8.6" />
+      <path d="M12 11V16.2" /><circle cx="12" cy="7.9" r="1" fill="currentColor" stroke="none" />
+    </template>
+
+    <!-- No disponible: guion. -->
+    <template v-else-if="name === 'guion'">
+      <path d="M6.4 12H17.6" />
+    </template>
+
     <!-- Reloj de arena / temporizador. -->
     <template v-else-if="name === 'reloj'">
       <circle cx="12" cy="12.6" r="7.4" />
@@ -177,7 +230,8 @@ defineProps({
   /**
    * 'brujula' | 'casual' | 'ajustes' | 'calibrar' | 'etiqueta' | 'pausa' |
    * 'campana' | 'globo' | 'bateria' | 'escudo' | 'copia' | 'registro' |
-   * 'umbral' | 'ojo' | 'play' | 'ayuda' | 'tour' | 'version' | 'antena' | 'cuenta' | 'reloj' | 'desconexion'
+   * 'umbral' | 'ojo' | 'play' | 'ayuda' | 'tour' | 'version' | 'antena' | 'cuenta' | 'reloj' | 'desconexion' |
+   * 'nota' | 'tiempo' | 'duplicada' | 'pulso' | 'comprobado' | 'cruz' | 'alerta' | 'informacion' | 'guion'
    */
   name: { type: String, required: true }
 })
