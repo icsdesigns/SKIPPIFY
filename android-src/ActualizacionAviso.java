@@ -62,7 +62,7 @@ final class ActualizacionAviso {
      */
     static Decision decidir(long ahora, long publicadoMs, long codigoNuevo,
                             long codigoInstalado, long codigoNotificado) {
-        if (codigoInstalado <= 0L || codigoNuevo <= codigoInstalado) return nada();
+        if (codigoNuevo <= 0L || codigoInstalado <= 0L || codigoNuevo <= codigoInstalado) return nada();
         if (codigoNotificado >= codigoNuevo) return nada();
 
         // Sin fecha: comportamiento de siempre, avisar ya.
@@ -74,6 +74,24 @@ final class ActualizacionAviso {
         long apertura = publicadoMs + RETRASO_AVISO_MS;
         if (ahora >= apertura) return new Decision(Accion.NOTIFICAR, 0L, 0L);
         return new Decision(Accion.PROGRAMAR, momentoAlarma(publicadoMs), apertura);
+    }
+
+    /**
+     * Decisión cuando GitHub contesta pero no hay una release utilizable (sin
+     * etiqueta, etiqueta rara, release retirada): no queda nada que esperar.
+     */
+    static Decision sinReleaseUtil() {
+        return nada();
+    }
+
+    /**
+     * Hora de apertura que debe quedar guardada como «retenida» tras una
+     * decisión: la de la release si se programa, y {@code 0} (nada pendiente)
+     * en cualquier otro caso. Así una release instalada o retirada antes de las
+     * 6 h no deja el latido consultando GitHub para siempre.
+     */
+    static long pendienteTras(Decision d) {
+        return d.accion == Accion.PROGRAMAR ? d.aperturaMs : 0L;
     }
 
     /** Cuándo suena la alarma de una release publicada en {@code publicadoMs}. */

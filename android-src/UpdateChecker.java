@@ -189,11 +189,15 @@ final class UpdateChecker {
         Object raiz = MacroRunner.Json.parse(r.body);
         Map<String, Object> obj = MacroRunner.Json.object(raiz);
         String etiqueta = MacroRunner.Json.string(obj, "tag_name");
-        if (etiqueta == null) return;
+        if (etiqueta == null) {
+            aplicarSinPendiente(app, ActualizacionAviso.sinReleaseUtil());
+            return;
+        }
 
         Matcher m = TAG_PATTERN.matcher(etiqueta.trim());
         if (!m.matches()) {
             Log.i(TAG, "etiqueta de release inesperada: " + etiqueta);
+            aplicarSinPendiente(app, ActualizacionAviso.sinReleaseUtil());
             return;
         }
 
@@ -202,11 +206,13 @@ final class UpdateChecker {
         try {
             codigoNuevo = Long.parseLong(m.group(2));
         } catch (NumberFormatException e) {
+            aplicarSinPendiente(app, ActualizacionAviso.sinReleaseUtil());
             return;
         }
 
+        // Sin saber qué hay instalado, o con la release ya instalada, `decidir`
+        // responde NADA y más abajo se limpia lo retenido.
         long codigoInstalado = versionCodeInstalado(app);
-        if (codigoInstalado <= 0L || codigoNuevo <= codigoInstalado) return;
 
         // Fecha de lanzamiento: published_at de GitHub (ISO UTC); si falta,
         // created_at. Sin ninguna legible no se retiene nada (ver ActualizacionAviso).
@@ -243,6 +249,11 @@ final class UpdateChecker {
                 limpiarPendiente(app);
                 break;
         }
+    }
+
+    /** Aplica una decisión sin release que esperar: borra la alarma y lo retenido. */
+    private static void aplicarSinPendiente(Context app, ActualizacionAviso.Decision d) {
+        if (ActualizacionAviso.pendienteTras(d) <= 0L) limpiarPendiente(app);
     }
 
     // ── Alarma ───────────────────────────────────────────────────────────────

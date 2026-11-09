@@ -103,6 +103,33 @@ public final class PruebasActualizaciones {
         check("la marca de la consulta que programó no bloquea la alarma de las 6 h",
                 ActualizacionAviso.tocaComprobar(apertura + ActualizacionAviso.MARGEN_ALARMA_MS, pub + MIN, dia, apertura), true);
 
+        // ── Release retenida que deja de serlo: no queda pendiente (sin consultas eternas) ──
+        d = ActualizacionAviso.decidir(pub + 10 * MIN, pub, nueva, inst, 0L);
+        long pendiente = ActualizacionAviso.pendienteTras(d);
+        check("retenida: queda pendiente su hora de apertura", pendiente, pub + 6 * H);
+        check("mientras no venza, el latido no consulta antes del día",
+                ActualizacionAviso.tocaComprobar(pub + 20 * MIN, pub + 10 * MIN, dia, pendiente), false);
+
+        d = ActualizacionAviso.decidir(pub + 2 * H, pub, nueva, nueva, 0L);
+        check("instalada a mano antes de las 6 h: nada", d.accion, ActualizacionAviso.Accion.NADA);
+        check("y no queda pendiente", ActualizacionAviso.pendienteTras(d), 0L);
+        check("con el pendiente borrado el latido ya no consulta pasadas las 6 h",
+                ActualizacionAviso.tocaComprobar(pub + 7 * H, pub + 2 * H, dia, ActualizacionAviso.pendienteTras(d)), false);
+
+        d = ActualizacionAviso.decidir(pub + 2 * H, pub, nueva + 3, nueva + 5, 0L);
+        check("instalada una posterior: no queda pendiente", ActualizacionAviso.pendienteTras(d), 0L);
+
+        d = ActualizacionAviso.sinReleaseUtil();
+        check("release retirada o etiqueta rara: nada", d.accion, ActualizacionAviso.Accion.NADA);
+        check("y no queda pendiente", ActualizacionAviso.pendienteTras(d), 0L);
+        d = ActualizacionAviso.decidir(pub + 2 * H, pub, 0L, inst, 0L);
+        check("código de release no válido (0): nada", d.accion, ActualizacionAviso.Accion.NADA);
+
+        d = ActualizacionAviso.decidir(pub + 2 * H, pub, nueva, inst, nueva);
+        check("ya avisada: tampoco queda pendiente", ActualizacionAviso.pendienteTras(d), 0L);
+        d = ActualizacionAviso.decidir(pub + 7 * H, pub, nueva, inst, 0L);
+        check("al avisar, no queda pendiente", ActualizacionAviso.pendienteTras(d), 0L);
+
         System.out.println();
         System.out.println("Actualizaciones: " + (total - fallos) + "/" + total + " pruebas correctas");
         if (fallos > 0) System.exit(1);
