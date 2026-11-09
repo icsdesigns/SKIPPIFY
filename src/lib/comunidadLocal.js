@@ -58,7 +58,7 @@ export const gruposLocales = computed(() => {
   const v = vivo.value
   const lista = v ? v.state.value.groups : copia.value.groups
   return lista.map(g => {
-    const lb = v?.semanas[g.groupId]?.actual
+    const lb = v?.semanas[g.groupId]?.semana
     return {
       id: g.groupId,
       nombre: g.name || 'Grupo',

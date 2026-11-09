@@ -14,10 +14,10 @@ import { LocalHost, MemoryTransport } from '../src/vendor/localhost-core/index.t
 import { IdbStorage } from '../src/lib/localhost/idbStorage.js'
 import { actividadPorPersona, elegirExpulsados } from '../src/lib/localhost/inactividad.js'
 import {
-  decodeEscuchas, encodeEscuchas, partirEnLotes, puntuarSemana, ventanaSemana, tuplaAEvento
+  decodeEscuchas, encodeEscuchas, partirEnLotes, puntuarSemana, ventanaSemana, ventanaMes, ventanaPeriodo, tuplaAEvento, PERIODOS, DIAS_PUBLICADOS
 } from '../src/lib/localhost/escuchas.js'
 import { scoreMember, esNoMusical } from '../firebase/functions/scoring.js'
-import { escuchaComun, extrasNuevos, ordenarPorTiempo, paresEnComun, perfilHorario, diaCorto } from '../src/lib/gruposExtras.js'
+import { comunConMiembro, escuchaComun, extrasNuevos, ordenarPorTiempo, paresEnComun, perfilHorario, diaCorto } from '../src/lib/gruposExtras.js'
 
 let fallos = 0
 let total = 0
@@ -253,8 +253,42 @@ titulo('Estadísticas nuevas de cada miembro')
     { id: '4', nombre: 'Sin datos', conteoArtistas: [] }
   ])
   check('pares: 3 parejas y la más parecida primero', pares.length === 3 && pares[0].pct === 100 && pares[0].a === 'Ana' && pares[0].b === 'Mar', JSON.stringify(pares))
+  const fichas = [
+    { id: '1', nombre: 'Ana', yo: true, conteoArtistas: ana },
+    { id: '2', nombre: 'Luis', conteoArtistas: luis },
+    { id: '4', nombre: 'Sin datos', conteoArtistas: [] }
+  ]
+  check('común conmigo: sólo contra mí, en la ficha del otro', comunConMiembro(fichas, '2') === 50)
+  check('en mi propia ficha no hay porcentaje', comunConMiembro(fichas, '1') === null)
+  check('un miembro sin escuchas no tiene porcentaje', comunConMiembro(fichas, '4') === null)
+  check('sin saber quién soy no hay porcentaje', comunConMiembro(fichas.map(f => ({ ...f, yo: false })), '2') === null)
   const orden = ordenarPorTiempo([{ nombre: 'B', minutos: 30 }, { nombre: 'A', minutos: 90 }, { nombre: 'C', minutos: 30 }])
   check('ranking por tiempo de escucha, sin puntos', orden.map(f => f.nombre).join('') === 'ABC')
+}
+
+titulo('Periodos de la pestaña: semana y mes')
+{
+  check('la pestaña ofrece semana y mes', PERIODOS.join() === 'semana,mes')
+  const jueves = new Date('2026-11-12T10:30:00.000Z')
+  const m = ventanaMes(jueves)
+  check('el mes empieza el día 1 a las 00:00 UTC', m.weekStartIso === '2026-11-01T00:00:00.000Z', m.weekStartIso)
+  check('y llega hasta ahora', m.weekEndIso === jueves.toISOString())
+  check('su clave es el mes', m.weekKey === '2026-11')
+  const primero = ventanaMes(new Date('2026-12-01T00:00:00.000Z'))
+  check('el día 1 a medianoche abre el mes nuevo', primero.weekStartIso === '2026-12-01T00:00:00.000Z' && primero.weekKey === '2026-12')
+  const ultimo = ventanaMes(new Date('2026-12-31T23:59:59.000Z'))
+  check('el último segundo del mes sigue en ese mes', ultimo.weekStartIso === '2026-12-01T00:00:00.000Z')
+  check('ventanaPeriodo(semana) es la semana actual', ventanaPeriodo('semana', jueves).weekStartIso === ventanaSemana('actual', jueves).weekStartIso)
+  check('ventanaPeriodo(mes) es ventanaMes', ventanaPeriodo('mes', jueves).weekStartIso === m.weekStartIso)
+  check('el mes natural más largo cabe en lo que se publica', DIAS_PUBLICADOS >= 31 + 7)
+  // El mes cuenta las escuchas de todo el mes y la semana sólo las suyas.
+  const fin = Date.parse('2026-11-12T10:30:00.000Z')
+  const hace = d => fin - d * 86_400_000
+  const lista = [1, 2, 9, 11].map((d, i) => [`x${i}`, hace(d), 'T' + i, 'A', 200_000, 190_000, 190_000])
+  const sem = puntuarSemana('u', 'U', lista, ventanaPeriodo('semana', jueves))
+  const mes = puntuarSemana('u', 'U', lista, m)
+  check('la semana sólo cuenta lo de esta semana (lun 9 en adelante)', sem.totalTracks === 2, String(sem.totalTracks))
+  check('el mes cuenta todo desde el día 1', mes.totalTracks === 4, String(mes.totalTracks))
 }
 
 console.log(`\n${total - fallos}/${total} comprobaciones correctas`)

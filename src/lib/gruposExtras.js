@@ -139,6 +139,20 @@ export function paresEnComun (fichas) {
   return pares.sort((x, y) => y.pct - x.pct || (x.a + x.b < y.a + y.b ? -1 : 1))
 }
 
+/**
+ * % de escucha común entre TÚ y un miembro del grupo, en el periodo de las
+ * fichas dadas (la semana o el mes que esté elegido). `null` si el miembro eres
+ * tú, si no se sabe quién eres o si alguno de los dos no tiene escuchas.
+ * Sólo se calcula contra ti: la pestaña no enseña el parecido entre terceros.
+ */
+export function comunConMiembro (fichas, idMiembro) {
+  const lista = fichas || []
+  const yo = lista.find(f => f.yo)
+  const otro = lista.find(f => f.id === idMiembro)
+  if (!yo || !otro || yo.id === otro.id) return null
+  return escuchaComun(yo.conteoArtistas, otro.conteoArtistas)
+}
+
 /** Ordena el ranking por tiempo de escucha, de más a menos (y por nombre si empatan). */
 export function ordenarPorTiempo (fichas) {
   return [...fichas].sort((a, b) => (b.minutos - a.minutos) || String(a.nombre).localeCompare(String(b.nombre), 'es'))

@@ -79,8 +79,17 @@ function esTupla (t) {
     Number.isFinite(t[4]) && Number.isFinite(t[5]) && Number.isFinite(t[6])
 }
 
-/** Semanas que se pueden consultar, de la más reciente a la más antigua. */
+/** Semanas que admite `ventanaSemana` (la pestaña sólo enseña la actual; las otras sirven al aviso semanal). */
 export const SEMANAS = ['actual', 'pasada', 'hace2']
+
+/**
+ * Periodos que enseña la pestaña Grupos: la semana en curso y el mes en curso.
+ * Ambos se calculan con la misma puntuación y se leen del mismo registro de escuchas.
+ */
+export const PERIODOS = ['semana', 'mes']
+
+/** Días de escuchas que se publican: el mes natural más largo (31) más un margen. */
+export const DIAS_PUBLICADOS = 40
 
 /**
  * Ventana semanal, lunes a lunes en UTC, como la función programada de Firebase.
@@ -109,6 +118,29 @@ export function ventanaSemana (cual, now = new Date()) {
     weekEndIso: fin.toISOString(),
     weekKey: inicio.toISOString().slice(0, 10)
   }
+}
+
+/**
+ * Ventana mensual: el mes natural en curso en UTC, del día 1 a las 00:00 hasta
+ * ahora (como la semana, que va del lunes hasta ahora). Se eligió el mes natural
+ * y no «los últimos 30 días» para que el periodo tenga nombre y se reinicie
+ * solo, igual que la semana; consecuencia: el día 1 empieza casi vacío y las
+ * cifras son provisionales todo el mes.
+ */
+export function ventanaMes (now = new Date()) {
+  const inicio = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
+  return {
+    weekStartIso: inicio.toISOString(),
+    weekEndIso: new Date(now).toISOString(),
+    weekKey: inicio.toISOString().slice(0, 7)
+  }
+}
+
+/** Ventana de un periodo de la pestaña ('semana' | 'mes') o de una semana concreta ('actual' | 'pasada' | 'hace2'). */
+export function ventanaPeriodo (cual, now = new Date()) {
+  if (cual === 'mes') return ventanaMes(now)
+  if (cual === 'semana') return ventanaSemana('actual', now)
+  return ventanaSemana(cual, now)
 }
 
 /** Convierte una tupla al evento que espera scoreMember (igual que useLeague.js al subir). */

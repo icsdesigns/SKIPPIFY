@@ -25,7 +25,7 @@ import { IdbStorage, deleteSlot } from '@/lib/localhost/idbStorage'
 import { NostrTransport, DEFAULT_RELAYS } from '@/lib/localhost/nostrTransport'
 import { esCodigoExpres, formatearCodigo, generarCodigo, publicarExpres, resolverExpres, EXPRES_TTL_MS } from '@/lib/localhost/expres'
 import { actividadPorPersona, elegirExpulsados, LATIDO_MS, REVISION_MS } from '@/lib/localhost/inactividad'
-import { SEMANAS, decodeEscuchas, encodeEscuchas, partirEnLotes, ventanaSemana, puntuarSemana } from '@/lib/localhost/escuchas'
+import { PERIODOS, DIAS_PUBLICADOS, decodeEscuchas, encodeEscuchas, partirEnLotes, ventanaPeriodo, puntuarSemana } from '@/lib/localhost/escuchas'
 import {
   COLL_FUNCIONALIDAD, TOPE_FILAS, SUBIDA_TRAS_RESPUESTA_MS, desempaquetarRegistro, empaquetarRegistro,
   puedeComprimir, registroMeta, registrosDeSubida, resumirFuncionalidad, tocaSubir
@@ -54,8 +54,13 @@ const FAST_WINDOW_MS = 10 * 60_000
  */
 const ENTRADA_CADA_MS = 4_000
 const ENTRADA_DURANTE_MS = 3 * 60_000
-/** Sólo se publican las escuchas de los últimos días: el ranking mira dos semanas. */
-const PUBLISH_WINDOW_MS = 15 * 24 * 3600 * 1000
+/**
+ * Sólo se publican las escuchas de los últimos días. El ranking mira la semana y
+ * el mes en curso: con 40 días el mes natural más largo (31) cabe entero. Como el
+ * registro deduplica por id de escucha, ampliar la ventana hace que cada móvil
+ * publique por sí solo lo que le faltaba del mes (una sola vez).
+ */
+const PUBLISH_WINDOW_MS = DIAS_PUBLICADOS * 24 * 3600 * 1000
 /** Margen tras el final teórico de la canción para dar su `ms_played` por definitivo. */
 const FINAL_GRACE_MS = 3 * 60 * 1000
 
@@ -78,7 +83,7 @@ const statuses = reactive({})
 const members = reactive({})
 /** { [groupId]: { weekKey, members, provisional, cual } } — la última consultada. */
 const leaderboards = reactive({})
-/** { [groupId]: { actual, pasada, hace2 } } — cada una con la forma de arriba. */
+/** { [groupId]: { semana, mes } } — cada periodo con la forma de arriba. */
 const semanas = reactive({})
 /** { [groupId]: ms de la última sincronización con éxito } */
 const lastSyncByGroup = reactive({})
@@ -884,11 +889,11 @@ async function descargarFuncionalidad (groupId, uid = null) {
 
 // ── Ranking ─────────────────────────────────────────────────────────────────
 
-async function calcularRanking (groupId, cual = 'actual', leidas = null) {
+async function calcularRanking (groupId, cual = 'semana', leidas = null) {
   const rt = runtimes.get(groupId)
   if (!rt) return null
   const { group } = rt
-  const ventana = ventanaSemana(cual, new Date())
+  const ventana = ventanaPeriodo(cual, new Date())
   const escuchas = leidas || await leerEscuchas(group)
   const nombres = nombresDe(group)
   const lista = [...nombres.entries()].map(([uid, displayName]) =>
@@ -899,16 +904,17 @@ async function calcularRanking (groupId, cual = 'actual', leidas = null) {
     weekKey: ventana.weekKey,
     weekStart: ventana.weekStartIso,
     weekEnd: ventana.weekEndIso,
-    // Hasta un día después del cierre de la semana las cifras todavía pueden
-    // moverse: los demás móviles publican sus últimas escuchas al abrir la app.
-    provisional: cual === 'actual' || Date.now() < Date.parse(ventana.weekEndIso) + 24 * 3600 * 1000,
+    // La semana y el mes en curso siguen abiertos; una semana cerrada aún puede
+    // moverse hasta un día después: los demás móviles publican sus últimas
+    // escuchas al abrir la app.
+    provisional: cual === 'semana' || cual === 'mes' || cual === 'actual' || Date.now() < Date.parse(ventana.weekEndIso) + 24 * 3600 * 1000,
     members: lista
   }
 }
 
 async function loadLeaderboard (options = {}) {
   const groupId = options?.groupId || state.value.activeGroupId
-  const cual = options?.cual || 'actual'
+  const cual = options?.cual || 'semana'
   if (!groupId) return null
   try { await openRuntime(groupId) } catch { return null }
   const result = await calcularRanking(groupId, cual)
@@ -919,7 +925,7 @@ async function loadLeaderboard (options = {}) {
   return result
 }
 
-/** Las tres semanas consultables de un grupo, leyendo las escuchas una sola vez. */
+/** La semana y el mes en curso de un grupo, leyendo las escuchas una sola vez. */
 async function loadSemanas (groupId = state.value.activeGroupId) {
   if (!groupId) return null
   try { await openRuntime(groupId) } catch { return null }
@@ -927,12 +933,12 @@ async function loadSemanas (groupId = state.value.activeGroupId) {
   if (!rt) return null
   const escuchas = await leerEscuchas(rt.group)
   const nuevas = {}
-  for (const cual of SEMANAS) {
+  for (const cual of PERIODOS) {
     const r = await calcularRanking(groupId, cual, escuchas)
     if (r) nuevas[cual] = { ...r, cual }
   }
   semanas[groupId] = nuevas
-  if (nuevas.actual) leaderboards[groupId] = nuevas.actual
+  if (nuevas.semana) leaderboards[groupId] = nuevas.semana
   return nuevas
 }
 
