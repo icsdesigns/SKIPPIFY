@@ -62,6 +62,13 @@
         <span class="fg-bars" aria-hidden="true"><i /><i /><i /><i /><i /><i /></span>
       </span>
     </div>
+    <div class="fg-row fg-rise-2">
+      <span class="fg-tile fg-tile-amber"><AjusteIcon name="etiqueta" class="h-6 w-6" /></span>
+      <span class="fg-grow">
+        <span class="fg-eyebrow">Lo detecta por el título</span>
+        <span class="fg-words"><i>publicidad</i><i>anuncio</i><i>anuncios</i></span>
+      </span>
+    </div>
     <div class="fg-slot">
       <span class="fg-chip fg-chip-warn fg-ad">Anuncio detectado: silencio</span>
       <span class="fg-chip fg-chip-ok fg-back">Volumen restaurado</span>
@@ -70,8 +77,12 @@
 
   <!-- 5 · Temporizador: cuenta atrás y pausa al acabar la canción -->
   <div v-else-if="paso === 'temporizador'" class="fg-stage">
+    <div class="fg-row fg-rise-1">
+      <span class="fg-tile fg-tile-sky"><AjusteIcon name="reloj" class="h-6 w-6" /></span>
+      <span class="fg-grow"><span class="fg-eyebrow">Parar dentro de</span><span class="fg-title">30 min</span></span>
+    </div>
     <div class="fg-mode fg-rise-1">
-      <span class="fg-line"><span class="fg-title">Temporizador</span><span class="fg-eyebrow">se agota</span></span>
+      <span class="fg-line"><span class="fg-title">Tiempo</span><span class="fg-eyebrow">se agota</span></span>
       <span class="fg-track fg-track-lg"><span class="fg-fill fg-fill-time" /></span>
     </div>
     <div class="fg-mode fg-rise-2">
@@ -180,6 +191,7 @@ defineProps({
   background: rgba(167, 139, 250, 0.25);
   color: #ddd6fe;
 }
+.fg-tile-sky { background: rgba(125, 211, 252, 0.22); color: #bae6fd; }
 .fg-tile-amber { background: rgba(251, 191, 36, 0.22); color: #fde68a; }
 
 .fg-tag {
@@ -286,6 +298,17 @@ defineProps({
 .fg-bars i:nth-child(4) { animation-delay: 0.15s; }
 .fg-bars i:nth-child(5) { animation-delay: 0.2s; }
 .fg-bars i:nth-child(6) { animation-delay: 0.25s; }
+
+.fg-words { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 3px; }
+.fg-words i {
+  padding: 1px 8px;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.1);
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 700;
+  color: #e5e5e5;
+}
 
 .fg-slot { display: grid; justify-items: center; }
 .fg-slot > * { grid-area: 1 / 1; }

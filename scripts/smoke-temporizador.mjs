@@ -59,7 +59,7 @@ async function main () {
   state.endAt = state.now + 30 * 60_000
   const enMarcha = await pintar()
   check('en marcha enseña la cuenta atrás', enMarcha.includes('Quedan 30:00'))
-  check('con aria-live para anunciarla', enMarcha.includes('aria-live="polite"'))
+  check('el lector anuncia la fase, no cada segundo', /aria-live="polite"[^>]*>Temporizador en marcha</.test(enMarcha) && !/aria-live="polite"[^>]*>[^<]*Quedan/.test(enMarcha))
   check('y la vista rápida pasa a enseñar el estado', (await pintarRapido()).includes('Quedan 30:00'))
   check('en marcha se puede cancelar y alargar', enMarcha.includes('Cancelar') && enMarcha.includes('+15 min'))
 

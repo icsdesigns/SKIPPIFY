@@ -2,8 +2,10 @@
   <!-- Temporizador en marcha: una tarjeta de opción con lo que queda y, debajo,
        los botones de siempre. Es la misma pieza en el panel y en la vista
        rápida del panel plegado (prop `compacta`). El aviso de lectura
-       (aria-live) está aquí para que ambos sitios lo anuncien igual. -->
-  <div aria-live="polite">
+       anuncia sólo los cambios de fase, no cada segundo de la cuenta atrás:
+       el texto visible no es una región viva y el aviso va aparte, oculto. -->
+  <div>
+    <span class="sr-only" role="status" aria-live="polite">{{ anuncioFase }}</span>
     <OpcionFila
       plana
       color-tesela
@@ -52,6 +54,13 @@ const titulo = computed(() => {
   if (timer.phase === 'counting') return `Quedan ${formatoCuenta(restanteMs.value)}`
   if (timer.phase === 'waiting') return 'Esperando a que acabe la canción'
   return 'Terminando…'
+})
+
+/** Lo que lee el lector de pantalla: cambia sólo al cambiar de fase. */
+const anuncioFase = computed(() => {
+  if (timer.phase === 'counting') return 'Temporizador en marcha'
+  if (timer.phase === 'waiting') return 'Esperando a que acabe la canción'
+  return 'Temporizador terminando'
 })
 
 const detalle = computed(() => {

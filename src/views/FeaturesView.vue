@@ -203,6 +203,9 @@
           <span v-for="kw in palabrasRapidas" :key="kw" class="sk-chip">{{ kw }}</span>
           <span v-if="palabrasOcultas" class="sk-chip">+{{ palabrasOcultas }}</span>
         </div>
+        <p class="mt-3 text-[11px] leading-relaxed text-slate-500">
+          Solo tiene efecto en cuentas gratuitas de Spotify. Puedes editar las palabras aunque esté apagado.
+        </p>
         <div class="mt-auto pt-3">
           <button type="button" class="sk-btn sk-btn-ghost sk-btn-sm" @click="grupo = 'anuncios'">
             <AjusteIcon name="etiqueta" class="h-4 w-4" />
@@ -213,12 +216,13 @@
 
       <OpcionFila
         plana
+        compacta
         tono="amber"
         :activo="features.silenceAds"
         titulo="Silenciar anuncios"
         detalle="Baja el volumen mientras dura un anuncio."
       >
-        <template #icono><FeatureIcon name="silencio" class="h-8 w-8" /></template>
+        <template #icono><FeatureIcon name="silencio" class="h-6 w-6" /></template>
         <template #fin>
           <button
             role="switch"
@@ -233,8 +237,9 @@
         </template>
       </OpcionFila>
 
-      <Transition name="desplegar">
-        <div v-if="features.silenceAds" class="mt-4 border-t border-white/[0.07] pt-4">
+      <!-- Las palabras clave son configuración: se editan también con los
+           anuncios apagados, para dejarlas listas antes de activarlos. -->
+      <div class="mt-4 border-t border-white/[0.07] pt-4">
           <p class="sk-eyebrow">Palabras clave detectadas</p>
           <div class="mt-2 flex flex-wrap gap-1.5">
             <span v-for="kw in features.silenceAdsKeywords" :key="kw" class="sk-chip">
@@ -259,8 +264,7 @@
             <button class="sk-btn sk-btn-primary sk-btn-sm" @click="addKeyword">Añadir</button>
           </div>
           <p class="mt-2 text-[11px] text-slate-500">Las palabras por defecto no se pueden eliminar.</p>
-        </div>
-      </Transition>
+      </div>
     </FeaturePanel>
 
     <!-- ══ 3 · Temporizador ══════════════════════════════════════════════════ -->
