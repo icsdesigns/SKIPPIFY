@@ -4,9 +4,7 @@ Estas normas valen para todo el trabajo en Skippify, salvo que Iván indique exp
 
 ## Cómo se trabaja
 
-1. Las tareas las hace un agente **Sonnet 5.5 implementador**. Al terminar, otro agente **Sonnet 5.5 verificador**:
-   1. comprueba primero que el implementador ha completado **todas** las tareas (si falta alguna, se le pide de nuevo al implementador que la complete);
-   2. cuando eso está verificado, revisa que las tareas están bien implementadas y que funcionan como deben.
+1. Las tareas las hace un **único agente Opus 5.5**, que las implementa y se verifica a sí mismo: comprueba que ha completado **todas** las tareas y que están bien implementadas y funcionan como deben (compilación, pruebas y revisión de la interfaz). Ya no hay agente implementador y agente verificador por separado, salvo que Iván indique otra cosa.
 2. Nada se sube a `main` sin el visto bueno escrito de Iván.
 3. En commits, PR, README, manifiestos y cabeceras no figura Claude ni Anthropic como autor o coautor.
 
