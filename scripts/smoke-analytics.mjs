@@ -208,69 +208,144 @@ async function main () {
   check('vacío: marca vacio y 0/0 sin NaN', JSON.stringify([vacioRep.vacio, vacioRep.pctEste, vacioRep.pctOtros, vacioRep.pctEsteTiempo]), '[true,0,0,null]')
   check('anuncios no cuentan', W.repartoDispositivos([{ ...conFuente(1, 'notification'), track: 'Anuncio' }], ahora).total, 0)
 
-  // ── Wrapped: cálculos ─────────────────────────────────────────────────────
-  console.log('\nWrapped: cálculos')
-  const h = (dias, hora) => {
-    const d = new Date(ahora - dias * DIA); d.setHours(hora, 0, 0, 0); return d.toISOString()
+  // ── Wrapped: cálculos (sólo mensual, últimos 30 días) ─────────────────
+  console.log('\nWrapped: cálculos (mes = últimos 30 días)')
+  const h = (dias, hora, min = 0) => {
+    const d = new Date(ahora - dias * DIA); d.setHours(hora, min, 0, 0); return d.toISOString()
   }
   const hist = [
-    { ...escucha(1, 'Uno', 'Ana'), played_at: h(1, 21) }, { ...escucha(1, 'uno', 'ANA'), played_at: h(1, 21) },
-    { ...escucha(2, 'Uno', 'Ana'), played_at: h(2, 21) },
-    { ...escucha(2, 'Dos', 'Beto'), played_at: h(2, 8) }, { ...escucha(3, 'Dos', 'Beto'), played_at: h(3, 8) },
-    { ...escucha(3, 'Tres', 'Beto'), played_at: h(3, 21) },
-    { ...escucha(3, 'Cuatro', 'Cleo'), played_at: h(3, 21) },
-    { ...escucha(20, 'Antigua', 'Zoe'), played_at: h(20, 3) },
-    { ...escucha(1, 'Anuncio', 'Spotify'), played_at: h(1, 5) }
+    // Día 1: sesión de 20 min (21:00, 21:10, 21:20)
+    { ...escucha(1, 'Uno', 'Ana'), played_at: h(1, 21, 0) }, { ...escucha(1, 'uno', 'ANA'), played_at: h(1, 21, 10) },
+    { ...escucha(1, 'Úno', 'Ána'), played_at: h(1, 21, 20) },
+    // Día 2: sesión de 10 min (8:00, 8:10); el anuncio de las 8:05 cae dentro
+    { ...escucha(2, 'Dos', 'Beto'), played_at: h(2, 8, 0) }, { ...escucha(2, 'Dos', 'Beto'), played_at: h(2, 8, 10) },
+    { ...escucha(2, 'Anuncio', 'Spotify'), played_at: h(2, 8, 5) },
+    // Día 3: 21:00 y una escucha sin título a las 21:05 → sesión de 5 min
+    { ...escucha(3, 'Tres', 'Beto'), played_at: h(3, 21, 0) },
+    { ...escucha(3, '', 'Beto'), played_at: h(3, 21, 5) },
+    // Día 20: dentro del mes; 3:00 y 3:30 (justo 30 min: no parte la sesión)
+    { ...escucha(20, 'Cuatro', 'Cleo'), played_at: h(20, 3, 0) }, { ...escucha(20, 'Cinco', 'Zoe'), played_at: h(20, 3, 30) },
+    // Fuera de los 30 días
+    { ...escucha(31, 'Antigua', 'Yago'), played_at: h(31, 3) }
   ]
-  const ws = W.calcularWrapped(hist, 'week', ahora, { variedad: 82.4 })
-  check('semana: 7 escuchas (sin anuncio ni la de hace 20 días)', ws.escuchas, 7)
-  check('top 1 canción (agrupa mayúsculas y tildes)', ws.canciones[0].titulo, 'Uno')
-  check('top 1 canción con 3 escuchas', ws.canciones[0].count, 3)
-  check('máximo 3 canciones', ws.canciones.length, 3)
-  check('top 1 artista', ws.artistas[0].nombre, 'Ana')
-  check('hora favorita 21:00', ws.horaFavorita.etiqueta, '21:00')
-  check('mejor racha de la semana (días 1, 2 y 3)', ws.mejorRacha, 3)
-  check('variedad redondeada', ws.variedad, 82)
-  check('tiempo total: 7 × 3 min = 21 min', ws.tiempo, '21 min')
-  check('el mes sí incluye la de hace 20 días', W.calcularWrapped(hist, 'month', ahora).escuchas, 8)
-  check('periodo desconocido cae en semana', W.calcularWrapped(hist, 'x', ahora).periodo, 'week')
-  const wv = W.calcularWrapped([], 'year', ahora)
-  check('vacío: sin NaN y con marca', JSON.stringify([wv.vacio, wv.escuchas, wv.tiempo, wv.horaFavorita, wv.mejorRacha, wv.variedad]), '[true,0,"0 min",null,0,null]')
+  const wm = W.calcularWrapped(hist, ahora, { variedad: 82.4 })
+  check('ventana de 30 días', W.DIAS_WRAPPED, 30)
+  check('título y rango mensuales', `${wm.titulo} · ${wm.rango}`, 'Tu mes en música · Últimos 30 días')
+  check('trae las fechas del rango', /^\d{1,2} \S+ – \d{1,2} \S+$/.test(wm.fechas), true)
+  check('tiempo: 9 escuchas × 3 min (sin anuncio ni la de hace 31 días)', wm.tiempo, '27 min')
+  check('top 1 canción (agrupa mayúsculas y tildes)', wm.canciones[0].titulo, 'Uno')
+  check('top 1 canción con 3 escuchas', wm.canciones[0].count, 3)
+  check('top 2 canción', wm.canciones[1].titulo, 'Dos')
+  check('máximo 3 canciones', wm.canciones.length, 3)
+  check('top 1 artista: Beto (4, con la escucha sin título)', wm.artistas[0].nombre, 'Beto')
+  check('top 2 artista: Ana', wm.artistas[1].nombre, 'Ana')
+  check('máximo 3 artistas', wm.artistas.length, 3)
+  check('artistas distintos: Ana, Beto, Cleo y Zoe (sin Spotify ni Yago)', wm.artistasDistintos, 4)
+  check('canciones distintas: Uno, Dos, Tres, Cuatro y Cinco', wm.cancionesDistintas, 5)
+  check('variedad redondeada', wm.variedad, 82)
+  check('variedad fuera de rango se acota', W.calcularWrapped(hist, ahora, { variedad: 140 }).variedad, 100)
+  check('sin variedad queda null (la imagen pinta «—»)', W.calcularWrapped(hist, ahora).variedad, null)
+  check('4 sesiones en el mes', wm.sesiones, 4)
+  check('duración media de la sesión: (20 + 10 + 5 + 30) / 4 → 16 min', wm.sesionMediaMin, 16)
+  check('y con formato', wm.sesionMedia, '16 min')
+  const ses = W.calcularSesiones([
+    { played_at: h(5, 10, 0) }, { played_at: h(5, 10, 31) }, { played_at: h(5, 11, 0) }
+  ])
+  check('un hueco de más de 30 min parte la sesión', ses.count, 2)
+  check('misma definición que Inicio (media de 0 y 29 min → 15)', ses.averageMinutes, 15)
+  check('sesión de más de una hora con formato', W.calcularWrapped([
+    { ...escucha(1, 'A', 'B'), played_at: h(1, 10, 0) }, { ...escucha(1, 'C', 'D'), played_at: h(1, 10, 25) },
+    { ...escucha(1, 'E', 'F'), played_at: h(1, 10, 50) }, { ...escucha(1, 'G', 'H'), played_at: h(1, 11, 15) }
+  ], ahora).sesionMedia, '1 h 15 min')
+  const wv = W.calcularWrapped([], ahora)
+  check('vacío: sin NaN y con marca', JSON.stringify([wv.vacio, wv.tiempo, wv.artistasDistintos, wv.cancionesDistintas, wv.variedad, wv.sesiones, wv.sesionMedia]), '[true,"0 min",0,0,null,0,null]')
+  check('vacío: listas vacías', wv.canciones.length + wv.artistas.length, 0)
+  check('sólo los datos pedidos (ni hora favorita ni racha)', ['horaFavorita', 'mejorRacha', 'escuchas', 'periodo'].some(k => k in wm), false)
   check('formato de duración con horas', W.formatearDuracion(3 * 3600000 + 5 * 60000), '3 h 5 min')
   check('formato de duración exacta', W.formatearDuracion(2 * 3600000), '2 h')
 
   // ── Wrapped: dibujo (contexto simulado) y recorte con measureText ─────────
   console.log('\nWrapped: imagen')
-  const { recortarTexto, dibujarWrapped, WRAPPED_ANCHO, WRAPPED_ALTO } = await import('../src/lib/wrappedImagen.js')
+  const { recortarTexto, dibujarWrapped, WRAPPED_ANCHO, WRAPPED_ALTO, BLOQUES, M: MARGEN, CW: ANCHO_UTIL } = await import('../src/lib/wrappedImagen.js')
   const ctxMedida = { measureText: t => ({ width: String(t).length * 10 }) }
   check('texto corto no se recorta', recortarTexto(ctxMedida, 'Hola', 100), 'Hola')
   const largo = recortarTexto(ctxMedida, 'Un título larguísimo que no cabe en la tarjeta', 150)
   check('texto largo termina en puntos suspensivos', largo.endsWith('…'), true)
   check('texto largo mide como mucho el máximo', largo.length * 10 <= 150, true)
   check('hueco nulo da cadena vacía', recortarTexto(ctxMedida, 'Hola', 0), '')
+
+  // Geometría: los bloques van en orden, sin pisarse, y acaban antes del pie.
+  const orden = ['tiempo', 'canciones', 'artistas', 'rejilla']
+  check('los bloques no se pisan', orden.every((k, i) => i === 0 || BLOQUES[orden[i - 1]].y + BLOQUES[orden[i - 1]].h <= BLOQUES[k].y), true)
+  check('la rejilla acaba antes del pie', BLOQUES.rejilla.y + BLOQUES.rejilla.h < BLOQUES.pie.y - 30, true)
+  check('el pie cabe en el lienzo', BLOQUES.pie.y < WRAPPED_ALTO - 20, true)
+
+  // Contexto falso que mide según el tamaño de la fuente (0,6 × px por letra)
+  // y apunta cada texto con su caja horizontal.
   globalThis.Path2D = class { constructor (d) { this.d = d } }
-  const dibujados = []
   const grad = { addColorStop () {} }
-  const ctxFalso = new Proxy({}, {
-    get: (o, k) => {
-      if (k === 'measureText') return t => ({ width: String(t).length * 14 })
-      if (k === 'fillText') return (t, x) => dibujados.push({ t, x, align: o.textAlign })
-      if (k === 'createLinearGradient' || k === 'createRadialGradient') return () => grad
-      if (k in o) return o[k]
-      return () => {}
-    },
-    set: (o, k, v) => { o[k] = v; return true }
-  })
-  const lienzoFalso = { getContext: () => ctxFalso }
+  function lienzoDePrueba () {
+    const dibujados = []
+    const pxDe = f => Number((/(\d+)px/.exec(f || '') || [])[1] || 10)
+    const ctx = new Proxy({}, {
+      get: (o, k) => {
+        if (k === 'measureText') return t => ({ width: String(t).length * pxDe(o.font) * 0.6 })
+        if (k === 'fillText') {
+          return (t, x, y) => {
+            const w = String(t).length * pxDe(o.font) * 0.6
+            const x0 = o.textAlign === 'center' ? x - w / 2 : (o.textAlign === 'right' ? x - w : x)
+            dibujados.push({ t: String(t), x0, x1: x0 + w, y })
+          }
+        }
+        if (k === 'createLinearGradient' || k === 'createRadialGradient') return () => grad
+        if (k in o) return o[k]
+        return () => {}
+      },
+      set: (o, k, v) => { o[k] = v; return true }
+    })
+    return { lienzo: { getContext: () => ctx }, dibujados }
+  }
+  const dentro = d => d.x0 >= MARGEN - 0.5 && d.x1 <= MARGEN + ANCHO_UTIL + 0.5 && d.y > 0 && d.y < WRAPPED_ALTO
+
+  const normal = lienzoDePrueba()
+  dibujarWrapped(normal.lienzo, wm)
+  check('lienzo de 1080 × 1920', `${normal.lienzo.width}x${normal.lienzo.height}`, `${WRAPPED_ANCHO}x${WRAPPED_ALTO}`)
+  check('datos normales: todo texto dentro del ancho útil', normal.dibujados.every(dentro), true)
+  for (const t of ['TIEMPO DE ESCUCHA', '27 min', 'Top 3 canciones', 'Top 3 artistas', 'Uno', 'Beto', '4', '5', '82 %', '16 min', 'SESIÓN MEDIA']) {
+    check(`se dibuja «${t}»`, normal.dibujados.some(d => d.t === t), true)
+  }
+  check('nada de racha ni hora favorita', normal.dibujados.some(d => /RACHA|HORA FAVORITA/.test(d.t)), false)
+  check('sin emoji en la imagen', normal.dibujados.some(d => /\p{Extended_Pictographic}/u.test(d.t)), false)
+
   const largoTit = 'Título extraordinariamente largo '.repeat(8)
-  dibujarWrapped(lienzoFalso, W.calcularWrapped([
-    { ...escucha(1, largoTit, 'Artista con un nombre también larguísimo '.repeat(6)), played_at: h(1, 10) }
-  ], 'week', ahora, { variedad: 90 }))
-  check('lienzo de 1080 × 1920', `${lienzoFalso.width}x${lienzoFalso.height}`, `${WRAPPED_ANCHO}x${WRAPPED_ALTO}`)
-  check('ningún texto dibujado supera el ancho de la tarjeta', dibujados.every(d => d.t.length * 14 <= 952), true)
-  check('el título largo se recortó con puntos suspensivos', dibujados.some(d => d.t.startsWith('Título extra') && d.t.endsWith('…')), true)
-  dibujarWrapped(lienzoFalso, W.calcularWrapped([], 'month', ahora))
-  check('sin datos también se dibuja', dibujados.some(d => d.t === 'Aún sin escuchas en este periodo'), true)
+  const largoArt = 'Artista con un nombre también larguísimo '.repeat(6)
+  const enorme = lienzoDePrueba()
+  const datosLargos = W.calcularWrapped([1, 2, 3].map(i => (
+    { ...escucha(1, largoTit + i, largoArt + i), played_at: h(1, 10, i) }
+  )), ahora, { variedad: 100 })
+  datosLargos.tiempo = '1234 h 59 min'
+  datosLargos.sesionMedia = '23 h 59 min'
+  dibujarWrapped(enorme.lienzo, datosLargos)
+  check('títulos larguísimos: todo texto dentro del ancho útil', enorme.dibujados.every(dentro), true)
+  check('el título largo se recortó con puntos suspensivos', enorme.dibujados.some(d => d.t.startsWith('Título extra') && d.t.endsWith('…')), true)
+  check('el artista largo también', enorme.dibujados.some(d => d.t.startsWith('Artista con') && d.t.endsWith('…')), true)
+  check('las cifras largas se dibujan enteras (encogen, no se cortan)', enorme.dibujados.some(d => d.t === '1234 h 59 min') && enorme.dibujados.some(d => d.t === '23 h 59 min'), true)
+  // Las cuatro celdas: cada texto se queda en su mitad de la rejilla.
+  const mitad = (ANCHO_UTIL - 24) / 2
+  const enRejilla = enorme.dibujados.filter(d => d.y > BLOQUES.rejilla.y && d.y < BLOQUES.rejilla.y + BLOQUES.rejilla.h)
+  check('en la rejilla cada texto cabe en su celda', enRejilla.length > 0 && enRejilla.every(d =>
+    (d.x0 >= MARGEN && d.x1 <= MARGEN + mitad) || (d.x0 >= MARGEN + mitad + 24 && d.x1 <= MARGEN + ANCHO_UTIL)), true)
+
+  const vacio = lienzoDePrueba()
+  dibujarWrapped(vacio.lienzo, W.calcularWrapped([], ahora))
+  check('sin datos también se dibuja', vacio.dibujados.filter(d => d.t === 'Aún sin escuchas este mes').length, 2)
+  check('sin datos: variedad «—» con su pista', vacio.dibujados.some(d => d.t === '—') && vacio.dibujados.some(d => d.t === 'aún sin datos'), true)
+  check('sin datos: sesión media «—» con su pista', vacio.dibujados.some(d => d.t === 'sin sesiones'), true)
+  check('sin datos: todo dentro', vacio.dibujados.every(dentro), true)
+
+  const parcial = lienzoDePrueba()
+  dibujarWrapped(parcial.lienzo, W.calcularWrapped(hist, ahora))
+  check('datos parciales (sin variedad): «—» y el resto con cifras', parcial.dibujados.some(d => d.t === '—') && parcial.dibujados.some(d => d.t === '27 min'), true)
 
   // ── Compartir / guardar ───────────────────────────────────────────────────
   console.log('\nCompartir imagen')

@@ -8,6 +8,7 @@ import {
   REGISTER_NEW_SONG_PROGRESS_RATIO,
   REGISTER_LISTEN_TIME_PROGRESS_RATIO
 } from '@/config/appThresholds'
+import { calcularSesiones } from '@/lib/wrapped'
 
 /**
  * Reloj compartido. `computed(() => new Date())` no tiene dependencias reactivas,
@@ -212,32 +213,7 @@ export function useAnalytics () {
     return { count: incomplete, tracked, rate, unmeasured }
   })
 
-  /**
-   * Agrupa escuchas en sesiones: un hueco de más de 30 minutos empieza una nueva.
-   * Se extrajo del `computed` para poder aplicarlo a distintas ventanas de tiempo.
-   */
-  function calcularSesiones (lista) {
-    const sorted = [...lista].sort((a, b) => new Date(a.played_at) - new Date(b.played_at))
-    const durations = []
-    let start = null
-    let end = null
-
-    for (const item of sorted) {
-      const t = new Date(item.played_at)
-      if (!start) { start = t; end = t; continue }
-      if ((t - end) / 60000 > 30) {
-        durations.push((end - start) / 60000)
-        start = t; end = t
-      } else {
-        end = t
-      }
-    }
-    if (start) durations.push((end - start) / 60000)
-
-    const avg = durations.length ? durations.reduce((a, b) => a + b, 0) / durations.length : 0
-    return { count: durations.length, averageMinutes: Math.round(avg) }
-  }
-
+  // Sesiones: la definición compartida con el Wrapped (`lib/wrapped.js`).
   const sessions = computed(() => calcularSesiones(events.value))
 
   /** Sesiones del último año: es la ventana que muestran los paneles de Inicio. */

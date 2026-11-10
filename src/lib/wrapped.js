@@ -3,10 +3,17 @@
  * poder probarlos con historiales sintéticos).
  *
  * Definiciones (las mismas en la pantalla y en la imagen para compartir):
- *  - Periodos: ventanas móviles, como el resto de carteles de la app
- *    («semana» = últimos 7 días). Semana 7 d · Mes 30 d · Año 365 d.
- *  - Se descartan anuncios y emisiones de Spotify (`esExcluida`).
+ *  - El Wrapped es SÓLO mensual: «mes» = últimos 30 días (ventana móvil que
+ *    acaba ahora), el mismo criterio que la variedad mensual de Inicio
+ *    (`last30Events` + `useDuplicateStats().month`), para que las cifras
+ *    coincidan. No es el mes natural en curso.
+ *  - Se descartan anuncios y emisiones de Spotify (`esExcluida`) del tiempo,
+ *    los tops y los recuentos de artistas y canciones.
  *  - Tiempo escuchado: suma de `ms_played`, o de `duration_ms` si aquél falta.
+ *  - Sesión: la de la app (`calcularSesiones`, la usa también Inicio): un
+ *    hueco de más de 30 min entre dos escuchas empieza otra; dura desde la
+ *    primera escucha hasta la última. Se mide con todas las escuchas de la
+ *    ventana, como en Inicio.
  *  - Este dispositivo = fuente `notification` / `notification_background` (o sin
  *    fuente). Otros dispositivos = `spotify_api`.
  */
@@ -14,11 +21,11 @@
 const MS_DIA = 86400000
 const MS_HORA = 3600000
 
-export const PERIODOS = [
-  { clave: 'week', etiqueta: 'Esta semana', dias: 7, titulo: 'Tu semana en música', rango: 'Últimos 7 días' },
-  { clave: 'month', etiqueta: 'Este mes', dias: 30, titulo: 'Tu mes en música', rango: 'Últimos 30 días' },
-  { clave: 'year', etiqueta: 'Este año', dias: 365, titulo: 'Tu año en música', rango: 'Últimos 365 días' }
-]
+/** Días de la ventana del Wrapped (y de la variedad mensual de Inicio). */
+export const DIAS_WRAPPED = 30
+
+/** Hueco que separa dos sesiones de escucha, en minutos. */
+export const MINUTOS_ENTRE_SESIONES = 30
 
 /** Días de la ventana del cartel «Este dispositivo vs otros». */
 export const DIAS_DISPOSITIVOS = 30
@@ -145,6 +152,33 @@ export function formatearDuracion (ms) {
   return m ? `${h} h ${m} min` : `${h} h`
 }
 
+/**
+ * Agrupa escuchas en sesiones: un hueco de más de 30 minutos empieza una nueva,
+ * y cada sesión dura de su primera escucha a la última. Es LA definición de
+ * sesión de la app (Inicio la usa con el último año; el Wrapped, con el mes).
+ */
+export function calcularSesiones (lista) {
+  const tiempos = (lista || [])
+    .map(e => new Date(e?.played_at).getTime())
+    .filter(Number.isFinite)
+    .sort((a, b) => a - b)
+  const durations = []
+  let start = null
+  let end = null
+  for (const t of tiempos) {
+    if (start === null) { start = t; end = t; continue }
+    if ((t - end) / 60000 > MINUTOS_ENTRE_SESIONES) {
+      durations.push((end - start) / 60000)
+      start = t; end = t
+    } else {
+      end = t
+    }
+  }
+  if (start !== null) durations.push((end - start) / 60000)
+  const avg = durations.length ? durations.reduce((a, b) => a + b, 0) / durations.length : 0
+  return { count: durations.length, averageMinutes: Math.round(avg) }
+}
+
 function top (eventos, claveDe, etiquetaDe, n) {
   const mapa = new Map()
   for (const e of eventos) {
@@ -165,40 +199,41 @@ function top (eventos, claveDe, etiquetaDe, n) {
     .map(({ ultima, ...resto }) => resto)
 }
 
+/** Clave de canción (título + artista normalizados), vacía si no hay título. */
+function claveCancion (e) {
+  const t = normalizarTexto(e?.track)
+  return t ? `${t}\x00${normalizarTexto(e?.artist)}` : ''
+}
+
+/** «11 oct – 10 nov» de la ventana que acaba en `ahoraMs`. */
+export function rangoFechas (ahoraMs, dias = DIAS_WRAPPED) {
+  const f = ms => new Date(ms).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }).replace('.', '')
+  return `${f(ahoraMs - (dias - 1) * MS_DIA)} – ${f(ahoraMs)}`
+}
+
 /**
- * Datos del Wrapped de un periodo. `variedad` (0-100 o null) llega calculada
- * desde fuera porque depende de las duplicadas, que no viven en el historial.
+ * Datos del Wrapped mensual (últimos 30 días). `variedad` (0-100 o null) llega
+ * calculada desde fuera —con la misma fórmula y ventana que Inicio— porque
+ * depende de las duplicadas, que no viven en el historial.
+ *
+ * Devuelve exactamente lo que enseña la imagen: tiempo de escucha, top 3
+ * canciones, top 3 artistas, nº de artistas y de canciones distintas, % de
+ * variedad y duración media de la sesión.
  */
-export function calcularWrapped (eventos, clave = 'week', ahoraMs = Date.now(), { variedad = null } = {}) {
-  const periodo = PERIODOS.find(p => p.clave === clave) || PERIODOS[0]
-  const corte = ahoraMs - periodo.dias * MS_DIA
-  const lista = (eventos || []).filter(e => {
+export function calcularWrapped (eventos, ahoraMs = Date.now(), { variedad = null } = {}) {
+  const corte = ahoraMs - DIAS_WRAPPED * MS_DIA
+  const ventana = (eventos || []).filter(e => {
     const t = new Date(e?.played_at).getTime()
-    return Number.isFinite(t) && t >= corte && t <= ahoraMs + MS_HORA && !esExcluida(e)
+    return Number.isFinite(t) && t >= corte && t <= ahoraMs + MS_HORA
   })
+  const lista = ventana.filter(e => !esExcluida(e))
 
   let totalMs = 0
-  const msPorHora = new Array(24).fill(0)
-  const cuentaPorHora = new Array(24).fill(0)
-  for (const e of lista) {
-    const ms = msDeEvento(e)
-    const hora = new Date(e.played_at).getHours()
-    totalMs += ms
-    msPorHora[hora] += ms
-    cuentaPorHora[hora] += 1
-  }
-
-  let horaFavorita = null
-  if (lista.length) {
-    const pesos = totalMs > 0 ? msPorHora : cuentaPorHora
-    let mejor = 0
-    for (let h = 1; h < 24; h++) if (pesos[h] > pesos[mejor]) mejor = h
-    horaFavorita = { hora: mejor, etiqueta: `${String(mejor).padStart(2, '0')}:00` }
-  }
+  for (const e of lista) totalMs += msDeEvento(e)
 
   const canciones = top(
     lista,
-    e => (normalizarTexto(e.track) ? `${normalizarTexto(e.track)}\x00${normalizarTexto(e.artist)}` : ''),
+    claveCancion,
     e => ({ titulo: String(e.track).trim(), artista: String(e.artist ?? '').trim() }),
     3
   )
@@ -209,25 +244,26 @@ export function calcularWrapped (eventos, clave = 'week', ahoraMs = Date.now(), 
     3
   )
 
-  // Mejor racha DENTRO del periodo elegido (la imagen lo rotula «En este periodo»).
-  // En «Este año» coincide con el cartel de Estadísticas, que usa 365 días.
-  const racha = calcularRacha(lista, ahoraMs, periodo.dias)
+  const artistasDistintos = new Set(lista.map(e => normalizarTexto(e?.artist)).filter(Boolean)).size
+  const cancionesDistintas = new Set(lista.map(claveCancion).filter(Boolean)).size
+
+  const ses = calcularSesiones(ventana)
   const v = Number.isFinite(variedad) ? Math.max(0, Math.min(100, Math.round(variedad))) : null
 
   return {
-    periodo: periodo.clave,
-    etiqueta: periodo.etiqueta,
-    titulo: periodo.titulo,
-    rango: periodo.rango,
+    titulo: 'Tu mes en música',
+    rango: 'Últimos 30 días',
+    fechas: rangoFechas(ahoraMs),
     vacio: lista.length === 0,
-    escuchas: lista.length,
     totalMs,
     tiempo: formatearDuracion(totalMs),
-    cancionesDistintas: new Set(lista.map(e => `${normalizarTexto(e.track)}\x00${normalizarTexto(e.artist)}`)).size,
     canciones,
     artistas,
-    horaFavorita,
-    mejorRacha: racha.best,
-    variedad: v
+    artistasDistintos,
+    cancionesDistintas,
+    variedad: v,
+    sesiones: ses.count,
+    sesionMediaMin: ses.count ? ses.averageMinutes : null,
+    sesionMedia: ses.count ? formatearDuracion(ses.averageMinutes * 60000) : null
   }
 }

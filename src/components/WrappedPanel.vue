@@ -5,8 +5,8 @@
       as="button"
       compacta
       color-tesela
-      :titulo="abierto ? 'Tu Wrapped' : 'Crea tu Wrapped'"
-      detalle="Una imagen vertical con tus números del periodo, lista para compartir en otras apps."
+      :titulo="abierto ? 'Tu Wrapped del mes' : 'Crea tu Wrapped del mes'"
+      detalle="Tus números de los últimos 30 días en una imagen vertical, lista para compartir."
       class="w-full"
       :aria-expanded="abierto"
       data-wrapped-toggle
@@ -24,17 +24,6 @@
     </OpcionFila>
 
     <div v-if="abierto" class="mt-4">
-      <div class="sk-segment mb-4">
-        <button
-          v-for="p in PERIODOS"
-          :key="p.clave"
-          type="button"
-          class="sk-segment-item"
-          :class="periodo === p.clave ? 'sk-segment-item-active' : ''"
-          @click="periodo = p.clave"
-        >{{ p.etiqueta }}</button>
-      </div>
-
       <!-- Vista previa: la propia imagen que se compartirá, 9:16. -->
       <div class="mx-auto w-full max-w-[300px]">
         <div class="relative aspect-[9/16] w-full overflow-hidden rounded-card bg-black/40">
@@ -72,24 +61,29 @@
 /**
  * Wrapped: imagen vertical (1080 × 1920) para compartir. Los números salen de
  * `lib/wrapped.js`, el dibujo de `lib/wrappedImagen.js` y el reparto de
- * «compartir / guardar» de `lib/compartirImagen.js`. Periodos: ventanas
- * móviles de 7, 30 y 365 días, como el resto de la app.
+ * «compartir / guardar» de `lib/compartirImagen.js`.
+ *
+ * Sólo mensual: los últimos 30 días, la misma ventana que la variedad mensual
+ * de Inicio. La variedad se calcula EXACTAMENTE como allí (escuchas de
+ * `last30Events` + duplicadas del mes de `useDuplicateStats`), así que ambas
+ * cifras coinciden; sin datos del motor queda en null y la imagen pinta «—».
  */
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import OpcionFila from '@/components/OpcionFila.vue'
 import StatIcon from '@/components/StatIcon.vue'
 import { useEventStore } from '@/stores/events'
+import { useAnalytics } from '@/composables/useAnalytics'
 import { useDuplicateStats } from '@/composables/useDuplicateStats'
 import { calcularVariedad } from '@/lib/inicioStats'
-import { PERIODOS, calcularWrapped } from '@/lib/wrapped'
+import { calcularWrapped } from '@/lib/wrapped'
 import { generarWrappedPng } from '@/lib/wrappedImagen'
 import { compartirPng, guardarPng } from '@/lib/compartirImagen'
 
 const { events } = useEventStore()
+const { last30Events } = useAnalytics()
 const dup = useDuplicateStats()
 
 const abierto = ref(false)
-const periodo = ref('week')
 const blob = ref(null)
 const vistaUrl = ref('')
 const error = ref('')
@@ -97,16 +91,10 @@ const aviso = ref('')
 const ocupado = ref(false)
 let ticket = 0
 
-/** Variedad sólo para semana y mes, que son los tramos que cuenta el motor. */
-const variedad = computed(() => {
-  if (!dup.hasData.value) return null
-  const dias = PERIODOS.find(p => p.clave === periodo.value)?.dias
-  const desde = Date.now() - dias * 86400000
-  const escuchas = events.value.filter(e => new Date(e.played_at).getTime() >= desde).length
-  if (periodo.value === 'week') return calcularVariedad(escuchas, dup.weekDuplicates.value, dup.weekSkipped.value)
-  if (periodo.value === 'month') return calcularVariedad(escuchas, dup.monthDuplicates.value, dup.monthSkipped.value)
-  return null
-})
+/** Variedad mensual: la misma cuenta que el cartel de Inicio (DuplicateKpiCards). */
+const variedad = computed(() => dup.hasData.value
+  ? calcularVariedad(last30Events.value.length, dup.monthDuplicates.value, dup.monthSkipped.value)
+  : null)
 
 function alternar () {
   abierto.value = !abierto.value
@@ -121,7 +109,7 @@ async function generar () {
   error.value = ''
   aviso.value = ''
   try {
-    const datos = calcularWrapped(events.value, periodo.value, Date.now(), { variedad: variedad.value })
+    const datos = calcularWrapped(events.value, Date.now(), { variedad: variedad.value })
     const png = await generarWrappedPng(datos)
     if (mio !== ticket) return
     if (vistaUrl.value) URL.revokeObjectURL(vistaUrl.value)
@@ -134,12 +122,13 @@ async function generar () {
   }
 }
 
-watch(periodo, () => { if (abierto.value) generar() })
+// Si llegan escuchas o datos del motor con la vista previa abierta, se redibuja.
+watch([() => events.value.length, variedad], () => { if (abierto.value) generar() })
 
 function nombreArchivo () {
   const d = new Date()
   const f = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`
-  return `skippify-wrapped-${periodo.value}-${f}.png`
+  return `skippify-wrapped-mes-${f}.png`
 }
 
 function textoResultado (r) {
@@ -153,7 +142,7 @@ async function compartir () {
   ocupado.value = true
   aviso.value = ''
   try {
-    const etiqueta = PERIODOS.find(p => p.clave === periodo.value)?.titulo || 'Mi Wrapped'
+    const etiqueta = 'Tu mes en música'
     aviso.value = textoResultado(await compartirPng(blob.value, nombreArchivo(), { titulo: etiqueta, texto: `${etiqueta} · Skippify` }))
   } catch {
     aviso.value = 'No se pudo compartir la imagen.'

@@ -20,7 +20,7 @@ import { computed } from 'vue'
 import { STAT_ICONOS } from '@/lib/statIconos'
 
 const props = defineProps({
-  /** 'cancion' | 'artista' | 'reloj' | 'racha' | 'variedad' | 'movil' | 'otros' | 'wrapped' | 'compartir' | 'descargar' */
+  /** 'cancion' | 'artista' | 'reloj' | 'racha' | 'variedad' | 'sesion' | 'movil' | 'otros' | 'wrapped' | 'compartir' | 'descargar' */
   name: { type: String, required: true }
 })
 
