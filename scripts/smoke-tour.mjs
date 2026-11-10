@@ -275,7 +275,9 @@ async function main () {
   check('son cuatro pasos', htmlG.includes('1 / 4') && MACROS_GUIDE_STEPS === 4 && (htmlG.match(/class="[^"]*gi-dot[ "]/g) || []).length === MACROS_GUIDE_STEPS)
   check('la clave es la v2 (el contenido cambió: se vuelve a ver)', MACROS_GUIDE_KEY === 'skippify.macros-guide.v2')
   check('los puntos son tarjetas de opción compactas', htmlG.includes('h-10 w-10 rounded-xl') && htmlG.includes('Tú decides cuándo'))
-  check('el primero es la ejecución manual', htmlG.includes('Origen: ejecución manual') && htmlG.includes('mg-tap'))
+  check('el primero es la ejecución manual', htmlG.includes('Macro sugerida: ejecución manual') && htmlG.includes('mg-tap'))
+  check('y deja claro que es una sugerencia, no algo ya configurado',
+    htmlG.includes('Una sugerencia') && htmlG.includes('Aún no la tienes configurada') && htmlG.includes('Macro sugerida · créala tú'))
 
   g.next()
   const htmlCopiar = await pintarG()
@@ -290,7 +292,7 @@ async function main () {
   g.next()
   const htmlBoton = await pintarG()
   check('el cuarto aplica la macro al botón de los auriculares',
-    htmlBoton.includes('botón de los auriculares') && htmlBoton.includes('Guardar lo que suena') && htmlBoton.includes('Aviso sonoro'))
+    htmlBoton.includes('botón de los auriculares') && htmlBoton.includes('Guardar lo que suena') && htmlBoton.includes('Aviso sonoro') && htmlBoton.includes('Macro sugerida'))
   check('sin aviso flotante que se solape con las tarjetas (ya no hay mg-toast)', !htmlBoton.includes('mg-toast'))
   check('y en el último «Siguiente» pasa a «Entendido»', htmlBoton.includes('Entendido'))
   g.next()

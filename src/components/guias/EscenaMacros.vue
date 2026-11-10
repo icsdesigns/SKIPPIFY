@@ -2,8 +2,14 @@
   <!-- Esquemas animados de la guía de Macros, uno por paso (prop `paso`).
        Los tres primeros enseñan la MISMA macro de ejemplo —ejecución manual →
        copiar → Tus me gusta— con la pieza de ese paso resaltada; el cuarto la
-       aplica al botón de los auriculares. -->
+       aplica al botón de los auriculares. Todas llevan arriba la etiqueta
+       «Macro sugerida»: es un ejemplo que se puede crear, no algo que el
+       usuario ya tenga configurado. -->
   <div v-if="paso !== 'boton'" class="mg-stage">
+    <span class="mg-chip mg-chip-sugerida">
+      <MacroIcon name="novedades" class="mg-chip-icon-fijo" />
+      Macro sugerida · créala tú
+    </span>
     <div class="mg-row">
       <div class="mg-card mg-card-1" :class="{ 'mg-hot': paso === 'manual' }">
         <span class="mg-card-n">A</span>
@@ -55,6 +61,10 @@
   <!-- 4 · Aplicarla al botón de los auriculares. Nada flota sobre el resto: el
        «hecho» y el tono van en el flujo, debajo de la tarjeta. -->
   <div v-else class="mg-stage mg-stage-boton">
+    <span class="mg-chip mg-chip-sugerida">
+      <MacroIcon name="novedades" class="mg-chip-icon-fijo" />
+      Macro sugerida · créala tú
+    </span>
     <div class="mg-line">
       <div class="mg-hold">
         <span class="mg-ring" />
@@ -335,6 +345,20 @@ defineProps({
   border-radius: 9999px;
   font-size: 11px;
   font-weight: 700;
+}
+
+/* Etiqueta fija de la sugerencia: no se anima, se lee desde el primer
+   fotograma. Violeta, el color de las macros de ejemplo. */
+.mg-chip-sugerida {
+  max-width: 100%;
+  background: rgba(167, 139, 250, 0.18);
+  color: #ddd6fe;
+  white-space: nowrap;
+}
+.mg-chip-icon-fijo {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
 }
 
 .mg-chip-sound {

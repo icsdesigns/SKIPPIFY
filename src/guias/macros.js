@@ -1,7 +1,9 @@
 /**
  * Guía animada de la pestaña Macros, en cuatro pasos que montan una misma macro
- * de ejemplo: ejecución manual → copiar → Tus me gusta, y después la aplican al
- * botón de función de los auriculares. Las escenas animadas están en
+ * SUGERIDA —un ejemplo que el usuario puede crear, no algo que ya tenga—:
+ * ejecución manual → copiar → Tus me gusta, y después la aplican al botón de
+ * función de los auriculares. Lo dicen el título del primer paso, su primer
+ * punto y la etiqueta «Macro sugerida» de cada escena. Las escenas animadas están en
  * `components/guias/EscenaMacros.vue`.
  *
  * Clave de localStorage: `.v2`. El contenido cambió por completo (la v1 enseñaba
@@ -24,10 +26,11 @@ export const guiaMacros = crearGuia({
   pasos: [
     {
       id: 'manual',
-      titulo: 'Origen: ejecución manual',
+      titulo: 'Macro sugerida: ejecución manual',
       escena: EscenaMacros,
       escenaProps: { paso: 'manual' },
       puntos: [
+        { icono: 'macro:novedades', titulo: 'Una sugerencia', detalle: 'Es una macro de ejemplo que puedes crear tú. Aún no la tienes configurada.', tono: 'violet' },
         { icono: 'macro:manual', titulo: 'Tú decides cuándo', detalle: 'Actúa sobre la canción que suena, sólo cuando tú lo pides.' },
         { icono: 'ajuste:play', titulo: 'Nunca se lanza sola', detalle: 'Se ejecuta con «Ejecutar» o con el botón de los auriculares.' },
         { icono: 'ajuste:ojo', titulo: 'Pruébala antes', detalle: 'La vista previa te dice qué haría, sin tocar nada.', tono: 'sky' }
