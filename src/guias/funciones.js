@@ -1,7 +1,7 @@
 /**
  * Guía animada de la pestaña Funciones, en seis pasos: cómo decide el salto de
  * duplicadas, los tres modos, la calibración, el silenciamiento de anuncios, el
- * temporizador y la vista rápida de los paneles plegados. Las escenas animadas
+ * temporizador y cómo se pliegan y despliegan los paneles. Las escenas animadas
  * están en `components/guias/EscenaFunciones.vue`.
  */
 import { crearGuia } from '@/composables/crearGuia'
@@ -73,14 +73,14 @@ export const guiaFunciones = crearGuia({
       ]
     },
     {
-      id: 'rapido',
-      titulo: 'Ajustes rápidos',
+      id: 'paneles',
+      titulo: 'Paneles plegables',
       escena: EscenaFunciones,
-      escenaProps: { paso: 'rapido' },
+      escenaProps: { paso: 'paneles' },
       puntos: [
-        { icono: 'ajuste:ajustes', titulo: 'Sin abrir el panel', detalle: 'Con cada función plegada ves su estado y sus ajustes más usados.' },
-        { icono: 'ajuste:play', titulo: 'Un toque basta', detalle: 'Cambia de modo, activa los anuncios o arranca el temporizador desde ahí.' },
-        { icono: 'ajuste:tour', titulo: 'El resto, al desplegar', detalle: 'Toca el título de la función para ver todas sus opciones.' }
+        { icono: 'ajuste:ojo', titulo: 'Su estado, de un vistazo', detalle: 'Plegada, cada función enseña su nombre y su estado: el modo, los anuncios o el tiempo que queda.' },
+        { icono: 'ajuste:tour', titulo: 'Toca para desplegar', detalle: 'Toca la cabecera para ver todas sus opciones; vuelve a tocarla para plegarla.' },
+        { icono: 'ajuste:comprobado', titulo: 'Sólo uno abierto', detalle: 'Al abrir una función se pliega la que tenías abierta, para no perderte.' }
       ]
     }
   ]

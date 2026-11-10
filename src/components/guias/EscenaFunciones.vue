@@ -95,19 +95,28 @@
     </div>
   </div>
 
-  <!-- 6 · Vista rápida de los paneles plegados -->
+  <!-- 6 · Paneles plegables: plegado, sólo la cabecera con su estado; al
+       tocar uno se despliega con todas sus opciones. -->
   <div v-else class="fg-stage">
     <div class="fg-row fg-rise-1">
-      <span class="fg-grow"><span class="fg-title">Salto de duplicadas</span></span>
-      <span class="fg-pill">Casual</span>
+      <span class="fg-tile fg-tile-sm fg-tile-brand"><FeatureIcon name="salto" class="h-4 w-4" /></span>
+      <span class="fg-grow"><span class="fg-title fg-trunc">Salto de duplicadas</span><span class="fg-pill">Casual</span></span>
+      <span class="fg-chev">›</span>
     </div>
-    <div class="fg-row fg-rise-2">
-      <span class="fg-grow"><span class="fg-title">Anuncios</span></span>
-      <span class="fg-switch"><i /></span>
+    <div class="fg-panel fg-rise-2">
+      <div class="fg-row fg-row-open">
+        <span class="fg-tile fg-tile-sm fg-tile-sky"><FeatureIcon name="luna" class="h-4 w-4" /></span>
+        <span class="fg-grow"><span class="fg-title fg-trunc">Temporizador</span><span class="fg-pill">Desactivado</span></span>
+        <span class="fg-chev fg-chev-open">›</span>
+      </div>
+      <div class="fg-cuerpo">
+        <span class="fg-eyebrow">Todas sus opciones</span>
+        <span class="fg-words"><i>15 min</i><i>30 min</i><i>1 h</i><i>hh:mm</i></span>
+      </div>
     </div>
-    <div class="fg-row fg-rise-3">
-      <span class="fg-grow"><span class="fg-title">Temporizador</span></span>
-      <span class="fg-pill fg-pill-press">30 min</span>
+    <div class="fg-chip fg-pop-late">
+      <AjusteIcon name="comprobado" class="h-4 w-4" />
+      Sólo uno abierto
     </div>
   </div>
 </template>
@@ -118,7 +127,7 @@ import FeatureIcon from '@/components/FeatureIcon.vue'
 
 /**
  * Escena de cada paso de la guía de Funciones: 'duplicadas', 'modos',
- * 'calibracion', 'anuncios', 'temporizador' o 'rapido'. Sólo CSS, en bucle de
+ * 'calibracion', 'anuncios', 'temporizador' o 'paneles'. Sólo CSS, en bucle de
  * `--ciclo` (lo fija GuiaInteractiva). El estilo base es el estado FINAL; los
  * keyframes dibujan cómo se llega. Todo va en flujo normal (nada absoluto
  * encima de otras piezas), para que a 320 px no se solape ni se corte.
@@ -315,35 +324,39 @@ defineProps({
 .fg-ad { animation: fg-ad var(--ciclo) ease infinite; }
 .fg-back { animation: fg-back var(--ciclo) ease infinite; }
 
-/* Vista rápida */
-.fg-pill {
+/* Paneles plegables */
+.fg-trunc { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fg-tile-sm { width: 28px; height: 28px; border-radius: 8px; }
+.fg-tile-brand { background: rgba(30, 215, 96, 0.2); color: #7ff0a8; }
+.fg-chev {
   flex-shrink: 0;
-  padding: 3px 12px;
+  font-size: 15px;
+  line-height: 1;
+  color: #8a8a8a;
+}
+.fg-chev-open { transform: rotate(90deg); animation: fg-chev var(--ciclo) ease infinite; }
+.fg-panel {
+  overflow: hidden;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.07);
+}
+.fg-panel .fg-row { background: transparent; }
+.fg-cuerpo {
+  display: block;
+  padding: 8px 12px 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  animation: fg-cuerpo var(--ciclo) ease infinite;
+}
+.fg-pill {
+  display: inline-block;
+  margin-top: 3px;
+  flex-shrink: 0;
+  padding: 1px 8px;
   border-radius: 12px;
   border: 1px solid rgba(255, 255, 255, 0.12);
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 700;
   color: #e5e5e5;
-}
-.fg-pill-press { border-color: #1ed760; background: rgba(30, 215, 96, 0.14); animation: fg-press var(--ciclo) ease infinite; }
-
-.fg-switch {
-  display: flex;
-  width: 36px;
-  height: 20px;
-  flex-shrink: 0;
-  align-items: center;
-  justify-content: flex-end;
-  padding: 0 3px;
-  border-radius: 9999px;
-  background: #1ed760;
-  animation: fg-switch var(--ciclo) ease infinite;
-}
-.fg-switch i {
-  width: 14px;
-  height: 14px;
-  border-radius: 9999px;
-  background: #fff;
 }
 
 /* Entradas escalonadas */
@@ -422,19 +435,19 @@ defineProps({
   76%, 92% { opacity: 1; transform: none; }
   100% { opacity: 0; }
 }
-@keyframes fg-press {
-  0%, 52% { transform: scale(1); }
-  58% { transform: scale(0.92); filter: brightness(0.85); }
-  66%, 100% { transform: scale(1); filter: none; }
+@keyframes fg-chev {
+  0%, 30% { transform: none; }
+  38%, 100% { transform: rotate(90deg); }
 }
-@keyframes fg-switch {
-  0%, 34% { background: rgba(255, 255, 255, 0.18); justify-content: flex-start; }
-  42%, 100% { background: #1ed760; justify-content: flex-end; }
+@keyframes fg-cuerpo {
+  0%, 34% { opacity: 0; transform: translateY(-4px); }
+  44%, 92% { opacity: 1; transform: none; }
+  100% { opacity: 0; }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .fg-rise-1, .fg-rise-2, .fg-rise-3, .fg-skip, .fg-fill, .fg-step, .fg-pop,
-  .fg-pop-late, .fg-bars i, .fg-ad, .fg-pill-press, .fg-switch {
+  .fg-pop-late, .fg-bars i, .fg-ad, .fg-chev-open, .fg-cuerpo {
     animation: none !important;
   }
 

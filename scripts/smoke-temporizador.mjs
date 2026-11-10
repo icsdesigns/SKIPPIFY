@@ -47,11 +47,19 @@ async function main () {
   check('los presets son opciones elegibles, no un segmentado aparte', parado.includes('sk-option') && !parado.includes('sk-segment'))
   check('la hora prevista es una tarjeta de opción', parado.includes('Se parará hacia las'))
 
-  const { default: SleepTimerRapido } = await import('../src/components/SleepTimerRapido.vue')
-  const pintarRapido = () => renderToString(createSSRApp({ render: () => h(SleepTimerRapido) }))
-  const rapidoParado = await pintarRapido()
-  check('la vista rápida ofrece 15 min, 30 min y 1 h', rapidoParado.includes('15 min') && rapidoParado.includes('30 min') && rapidoParado.includes('>1 h<'))
-  check('y el sonido de aviso', rapidoParado.includes('Sonido de aviso'))
+  // Plegado, el panel de Funciones es sólo su cabecera: sin vista rápida que
+  // repita los controles del panel desplegado.
+  const { default: FeaturePanel } = await import('../src/components/FeaturePanel.vue')
+  const plegado = await renderToString(createSSRApp({
+    render: () => h(FeaturePanel, { title: 'Temporizador', subtitle: 'Pausa la música' }, {
+      estado: () => h('span', 'Desactivado'),
+      resumen: () => h('p', 'VISTA-RAPIDA'),
+      default: () => h(SleepTimerSettings)
+    })
+  }))
+  check('plegado enseña la cabecera con su estado', plegado.includes('Temporizador') && plegado.includes('Desactivado') && plegado.includes('aria-expanded="false"'))
+  check('y no pinta ninguna vista rápida aparte', !plegado.includes('VISTA-RAPIDA'))
+  check('el contenido completo queda inerte hasta desplegarlo', /inert[^>]*>[\s\S]*Iniciar temporizador/.test(plegado))
 
   const { state } = useSleepTimer()
   state.phase = 'counting'
@@ -60,7 +68,6 @@ async function main () {
   const enMarcha = await pintar()
   check('en marcha enseña la cuenta atrás', enMarcha.includes('Quedan 30:00'))
   check('el lector anuncia la fase, no cada segundo', /aria-live="polite"[^>]*>Temporizador en marcha</.test(enMarcha) && !/aria-live="polite"[^>]*>[^<]*Quedan/.test(enMarcha))
-  check('y la vista rápida pasa a enseñar el estado', (await pintarRapido()).includes('Quedan 30:00'))
   check('en marcha se puede cancelar y alargar', enMarcha.includes('Cancelar') && enMarcha.includes('+15 min'))
 
   state.phase = 'waiting'

@@ -4,24 +4,20 @@
        una función nueva basta con otro <FeaturePanel> en esta lista. Sólo uno
        está desplegado a la vez: abrir otro pliega el anterior.
 
-       Diseño: con los paneles plegados no son tres franjas finas con el resto
-       de la pantalla vacía, sino tres teselas con una vista rápida (resumen
-       slot) para lo que más se toca: elegir modo, encender los anuncios,
-       arrancar el temporizador. En una columna (móvil y tablet con barra
-       lateral) se apilan; desde lg forman una rejilla de 2 y, desde xl, de 3.
-       El panel desplegado ocupa todo el ancho y los demás se reparten debajo
-       (grid-flow-dense rellena los huecos sin reordenar el DOM). -->
-  <!-- Guía interactiva: flotante; fuera de la rejilla para que su animación de
-       entrada no se mezcle con la de las teselas. -->
+       Diseño: igual que Ajustes y Macros. Plegado, cada panel es sólo su
+       cabecera (icono, nombre, resumen y estado); desplegado, enseña todas sus
+       opciones. Nada se repite entre las dos vistas. Una sola columna a
+       cualquier ancho: así, al abrir uno, los demás sólo bajan, sin saltar de
+       columna ni dejar huecos. -->
+  <!-- Guía interactiva: flotante; fuera de la lista para que su animación de
+       entrada no se mezcle con la de los paneles. -->
   <GuiaInteractiva :guia="guiaFunciones" />
 
-  <div class="sk-stagger grid items-stretch gap-3 lg:grid-flow-dense lg:grid-cols-6">
+  <div class="sk-stagger space-y-3">
 
     <!-- ══ 1 · Salto de duplicadas ═══════════════════════════════════════════ -->
     <FeaturePanel
       panel-id="duplicadas"
-      estado-abajo
-      :class="claseTesela('duplicadas')"
       icon-class="bg-brand-400/[0.18]"
       title="Salto de duplicadas"
       subtitle="Cuánto tiempo tiene que pasar para volver a oír la misma canción"
@@ -31,46 +27,6 @@
       </template>
       <template #estado>
         <span class="sk-chip sk-chip-accent">{{ resumenActivo }}</span>
-      </template>
-
-      <!-- Vista rápida (panel plegado): los tres modos y la calibración. -->
-      <template #resumen>
-        <p class="sk-eyebrow">Modo de escucha</p>
-        <div class="mt-2 grid gap-2">
-          <OpcionFila
-            v-for="modo in modos"
-            :key="modo.id"
-            as="button"
-            compacta
-            :titulo="modo.title"
-            :detalle="detalleRapido(modo)"
-            :activo="features.listeningMode === modo.id"
-            @click="elegirModoRapido(modo)"
-          >
-            <template #icono><AjusteIcon :name="modo.icon" class="h-6 w-6" /></template>
-            <template #fin>
-              <MacroIcon
-                v-if="modo.id === 'custom'"
-                name="siguiente"
-                class="h-4 w-4 shrink-0 text-slate-400"
-              />
-              <span
-                v-else
-                class="flex h-4 w-4 shrink-0 items-center justify-center rounded-full border transition-colors"
-                :class="features.listeningMode === modo.id ? 'border-brand-400/60 text-brand-400' : 'border-white/15'"
-                aria-hidden="true"
-              >
-                <span v-if="features.listeningMode === modo.id" class="h-1.5 w-1.5 rounded-full bg-current" />
-              </span>
-            </template>
-          </OpcionFila>
-        </div>
-        <div class="mt-auto pt-3">
-          <button type="button" class="sk-btn sk-btn-ghost sk-btn-sm" @click="abrirCalibracion">
-            <AjusteIcon name="calibrar" class="h-4 w-4" />
-            Calibrar el salto
-          </button>
-        </div>
       </template>
 
       <!-- ── Elección de familia: predefinidos o personalizado ─────────────── -->
@@ -141,6 +97,7 @@
       <div data-tour="calibration-cta" class="mt-5 border-t border-white/[0.07] pt-5">
         <OpcionFila
           as="button"
+          class="w-full"
           tono="violet"
           titulo="Calibrar el salto"
           detalle="¿Salta lo que no toca o deja pasar duplicadas? Una prueba guiada lo ajusta."
@@ -157,8 +114,6 @@
     <!-- ══ 2 · Silenciamiento de anuncios ════════════════════════════════════ -->
     <FeaturePanel
       panel-id="anuncios"
-      estado-abajo
-      :class="claseTesela('anuncios')"
       icon-class="bg-amber-400/[0.18]"
       title="Silenciamiento de anuncios"
       subtitle="Experimental: solo tiene efecto en cuentas gratuitas de Spotify"
@@ -170,48 +125,6 @@
         <span class="sk-chip" :class="features.silenceAds ? 'sk-chip-accent' : ''">
           {{ features.silenceAds ? 'Activado' : 'Desactivado' }}
         </span>
-      </template>
-
-      <!-- Vista rápida (panel plegado): el interruptor y las palabras clave. -->
-      <template #resumen>
-        <p class="sk-eyebrow">Anuncios</p>
-        <OpcionFila
-          class="mt-2"
-          plana
-          compacta
-          tono="amber"
-          :activo="features.silenceAds"
-          titulo="Silenciar anuncios"
-          :detalle="features.silenceAds ? 'Baja el volumen mientras dura un anuncio.' : 'Los anuncios suenan con normalidad.'"
-        >
-          <template #icono><FeatureIcon name="silencio" class="h-6 w-6" /></template>
-          <template #fin>
-            <button
-              role="switch"
-              :aria-checked="features.silenceAds"
-              aria-label="Silenciar anuncios"
-              class="sk-switch shrink-0"
-              :class="features.silenceAds ? 'border-transparent bg-brand-400' : 'border-transparent bg-white/[0.18]'"
-              @click="features.silenceAds = !features.silenceAds"
-            >
-              <span class="sk-switch-knob" :class="features.silenceAds ? 'translate-x-6' : 'translate-x-1'" />
-            </button>
-          </template>
-        </OpcionFila>
-        <p class="sk-eyebrow mt-4">Palabras clave detectadas</p>
-        <div class="mt-2 flex flex-wrap gap-1.5">
-          <span v-for="kw in palabrasRapidas" :key="kw" class="sk-chip">{{ kw }}</span>
-          <span v-if="palabrasOcultas" class="sk-chip">+{{ palabrasOcultas }}</span>
-        </div>
-        <p class="mt-3 text-[11px] leading-relaxed text-slate-500">
-          Solo tiene efecto en cuentas gratuitas de Spotify. Puedes editar las palabras aunque esté apagado.
-        </p>
-        <div class="mt-auto pt-3">
-          <button type="button" class="sk-btn sk-btn-ghost sk-btn-sm" @click="grupo = 'anuncios'">
-            <AjusteIcon name="etiqueta" class="h-4 w-4" />
-            Gestionar palabras
-          </button>
-        </div>
       </template>
 
       <OpcionFila
@@ -270,8 +183,6 @@
     <!-- ══ 3 · Temporizador ══════════════════════════════════════════════════ -->
     <FeaturePanel
       panel-id="temporizador"
-      estado-abajo
-      :class="claseTesela('temporizador')"
       icon-class="bg-sky-400/[0.18]"
       title="Temporizador"
       subtitle="Pausa la música al acabar la canción cuando se agote el tiempo"
@@ -281,11 +192,6 @@
       </template>
       <template #estado>
         <span class="sk-chip" :class="temporizador.activo.value ? 'sk-chip-accent' : ''">{{ resumenTemporizador }}</span>
-      </template>
-
-      <!-- Vista rápida (panel plegado): tres duraciones o el estado en marcha. -->
-      <template #resumen>
-        <SleepTimerRapido />
       </template>
 
       <SleepTimerSettings />
@@ -314,7 +220,6 @@ import AjusteIcon from '@/components/AjusteIcon.vue'
 import MacroIcon from '@/components/MacroIcon.vue'
 import OpcionFila from '@/components/OpcionFila.vue'
 import SleepTimerSettings from '@/components/SleepTimerSettings.vue'
-import SleepTimerRapido from '@/components/SleepTimerRapido.vue'
 import GuiaInteractiva from '@/components/GuiaInteractiva.vue'
 import { guiaFunciones } from '@/guias'
 import { useTour } from '@/composables/useTour'
@@ -337,18 +242,6 @@ onMounted(() => {
 const grupo = ref(null)
 provide('grupoPaneles', grupo)
 
-/**
- * Sitio de cada panel en la rejilla de seis columnas (desde lg). Plegados: dos
- * teselas arriba y el temporizador a lo ancho (en xl, tres de dos columnas).
- * Con uno abierto, ése ocupa la fila entera y los otros dos se reparten
- * la mitad cada uno. En una columna (móvil) esto no se aplica.
- */
-function claseTesela (id) {
-  if (grupo.value === id) return 'lg:col-span-6'
-  if (grupo.value) return 'lg:col-span-3'
-  return id === 'temporizador' ? 'lg:col-span-6 xl:col-span-2' : 'lg:col-span-3 xl:col-span-2'
-}
-
 /** Lo que enseña la cabecera del temporizador con el panel plegado. */
 const resumenTemporizador = computed(() => {
   const { state } = temporizador
@@ -360,9 +253,6 @@ const resumenTemporizador = computed(() => {
 
 const newKeyword = ref('')
 
-/** Palabras clave que enseña la vista rápida; el resto se cuenta en «+N». */
-const palabrasRapidas = computed(() => (features.silenceAdsKeywords || []).slice(0, 5))
-const palabrasOcultas = computed(() => Math.max(0, (features.silenceAdsKeywords || []).length - 5))
 const requiredKeywords = ['publicidad', 'anuncio', 'anuncios']
 
 const modos = [
@@ -407,24 +297,6 @@ const resumenActivo = computed(() => {
   const opt = intervalOptions.find(o => o.value === features.skipDuplicatesInterval)
   return opt ? `Personalizado · ${opt.label}` : 'Personalizado'
 })
-
-/** Texto corto de cada modo en la vista rápida (la larga está en el panel). */
-function detalleRapido (modo) {
-  if (modo.id === 'discovery') return 'Salto de duplicadas de 1 año.'
-  if (modo.id === 'casual') return 'Sin salto de duplicadas.'
-  const opt = intervalOptions.find(o => o.value === features.skipDuplicatesInterval)
-  return features.listeningMode === 'custom' && opt ? `Cada ${opt.label}.` : 'De 1 semana a 6 meses.'
-}
-
-/** Desde la vista rápida: Personalizado abre el panel para elegir la frecuencia. */
-function elegirModoRapido (modo) {
-  if (modo.id === 'custom') {
-    panelPersonalizado.value = true
-    grupo.value = 'duplicadas'
-    return
-  }
-  setListeningMode(modo.id)
-}
 
 /**
  * Descubrimiento y Casual se aplican al pulsarlos. Personalizado no: primero

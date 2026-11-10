@@ -17,19 +17,13 @@
       ><slot name="icono">{{ icon }}</slot></span>
       <span class="min-w-0 flex-1">
         <span class="block truncate text-sm font-bold text-white">{{ title }}</span>
-        <!-- Con estadoAbajo (paneles en tesela) el resumen sube a dos líneas
-             en vez de truncarse a una, porque el estado no le quita sitio. -->
-        <span
-          v-if="subtitle"
-          class="hidden text-[11px] text-slate-500"
-          :class="estadoAbajo ? 'sm:line-clamp-2' : 'truncate sm:block'"
-        >{{ subtitle }}</span>
+        <span v-if="subtitle" class="hidden truncate text-[11px] text-slate-500 sm:block">{{ subtitle }}</span>
         <!-- En móvil el resumen no cabe junto al estado: el estado ocupa su línea. -->
-        <span v-if="$slots.estado" class="mt-1 flex" :class="estadoAbajo ? '' : 'sm:hidden'">
+        <span v-if="$slots.estado" class="mt-1 flex sm:hidden">
           <slot name="estado" />
         </span>
       </span>
-      <span v-if="$slots.estado && !estadoAbajo" class="hidden shrink-0 sm:inline-flex">
+      <span v-if="$slots.estado" class="hidden shrink-0 sm:inline-flex">
         <slot name="estado" />
       </span>
       <span
@@ -38,16 +32,6 @@
         aria-hidden="true"
       >›</span>
     </button>
-
-    <!-- Vista rápida: con el panel plegado, lo esencial de la función a mano
-         (elegir modo, encender, empezar) sin tener que desplegarla. Al abrir el
-         panel desaparece, porque el contenido completo ya lo incluye. -->
-    <div
-      v-if="$slots.resumen && !abierto"
-      class="flex flex-1 flex-col border-t border-white/[0.07] px-4 pb-4 pt-3"
-    >
-      <slot name="resumen" />
-    </div>
 
     <!-- Cuerpo: la rejilla 0fr → 1fr anima la altura real del contenido, sin
          el tope fijo de max-height que recortaba los paneles largos. Plegado
@@ -97,10 +81,7 @@ const props = defineProps({
   defaultOpen: { type: Boolean, default: false },
   /** Identificador dentro del grupo (acordeón); así la vista sabe cuál está
    *  abierto y puede abrir uno por código. Sin él se usa uno interno. */
-  panelId: { type: String, default: '' },
-  /** El estado va siempre bajo el título, no a la derecha: para paneles que
-   *  hacen de tesela en una rejilla y no tienen ancho de sobra. */
-  estadoAbajo: { type: Boolean, default: false }
+  panelId: { type: String, default: '' }
 })
 
 const idBase = `panel-${useId()}`

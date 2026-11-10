@@ -1,7 +1,6 @@
 <template>
   <!-- Temporizador en marcha: una tarjeta de opción con lo que queda y, debajo,
-       los botones de siempre. Es la misma pieza en el panel y en la vista
-       rápida del panel plegado (prop `compacta`). El aviso de lectura
+       los botones de siempre. El aviso de lectura
        anuncia sólo los cambios de fase, no cada segundo de la cuenta atrás:
        el texto visible no es una región viva y el aviso va aparte, oculto. -->
   <div>
@@ -10,14 +9,14 @@
       plana
       color-tesela
       tono="sky"
-      :compacta="compacta"
       :titulo="titulo"
       :detalle="detalle"
     >
       <template #icono>
         <AjusteIcon
           :name="timer.phase === 'counting' ? 'reloj' : 'pausa'"
-          :class="[compacta ? 'h-6 w-6' : 'h-8 w-8', timer.phase === 'counting' ? '' : 'animate-pulse']"
+          class="h-8 w-8"
+          :class="timer.phase === 'counting' ? '' : 'animate-pulse'"
         />
       </template>
     </OpcionFila>
@@ -43,10 +42,6 @@ import { computed } from 'vue'
 import AjusteIcon from '@/components/AjusteIcon.vue'
 import OpcionFila from '@/components/OpcionFila.vue'
 import { useSleepTimer, formatoCuenta, horaDeReloj } from '@/composables/useSleepTimer'
-
-defineProps({
-  compacta: { type: Boolean, default: false }
-})
 
 const { state: timer, restanteMs, alargar, cancelar } = useSleepTimer()
 

@@ -324,8 +324,8 @@ async function main () {
     setup: () => ({ guia: guiaFunciones }),
     template: '<GuiaInteractiva :guia="guia" />'
   }))
-  const titulosF = ['Salto de duplicadas', 'Elige un modo de escucha', 'Calibra el salto', 'Silencia los anuncios', 'Temporizador', 'Ajustes rápidos']
-  const clavesEscena = ['fg-skip', 'Descubrimiento', 'Prueba guiada', 'Anuncio detectado', 'Música pausada', 'Anuncios']
+  const titulosF = ['Salto de duplicadas', 'Elige un modo de escucha', 'Calibra el salto', 'Silencia los anuncios', 'Temporizador', 'Paneles plegables']
+  const clavesEscena = ['fg-skip', 'Descubrimiento', 'Prueba guiada', 'Anuncio detectado', 'Música pausada', 'Sólo uno abierto']
   for (let i = 0; i < titulosF.length; i++) {
     gf.goTo(i)
     const h = await pintarF()
