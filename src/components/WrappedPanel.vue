@@ -24,8 +24,10 @@
     </OpcionFila>
 
     <div v-if="abierto" class="mt-4">
-      <!-- Vista previa: la propia imagen que se compartirá, 9:16. -->
-      <div class="mx-auto w-full max-w-[300px]">
+      <!-- Vista previa: la propia imagen que se compartirá, 9:16. Imagen,
+           botones y aviso comparten ancho (320 px como mucho) y van separados
+           por el mismo hueco (mt-4), dentro del relleno p-5 de la tarjeta. -->
+      <div class="mx-auto w-full max-w-[320px]">
         <div class="relative aspect-[9/16] w-full overflow-hidden rounded-card bg-black/40">
           <img
             v-if="vistaUrl"
@@ -42,17 +44,17 @@
         </div>
       </div>
 
-      <div class="mt-4 flex flex-wrap justify-center gap-2">
-        <button type="button" class="sk-btn sk-btn-primary" :disabled="!blob || ocupado" data-wrapped-compartir @click="compartir">
+      <div class="mx-auto mt-4 grid w-full max-w-[320px] gap-2">
+        <button type="button" class="sk-btn sk-btn-primary w-full justify-center" :disabled="!blob || ocupado" data-wrapped-compartir @click="compartir">
           <StatIcon name="compartir" class="h-4 w-4" />
           Compartir
         </button>
-        <button type="button" class="sk-btn sk-btn-ghost" :disabled="!blob || ocupado" data-wrapped-guardar @click="guardar">
+        <button type="button" class="sk-btn sk-btn-ghost w-full justify-center" :disabled="!blob || ocupado" data-wrapped-guardar @click="guardar">
           <StatIcon name="descargar" class="h-4 w-4" />
           Guardar imagen
         </button>
       </div>
-      <p v-if="aviso" class="sk-stat-hint mt-3 text-center [overflow-wrap:anywhere]" role="status">{{ aviso }}</p>
+      <p v-if="aviso" class="sk-stat-hint mx-auto mt-4 max-w-[320px] text-center [overflow-wrap:anywhere]" role="status">{{ aviso }}</p>
     </div>
   </section>
 </template>
