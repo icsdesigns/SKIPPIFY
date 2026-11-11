@@ -127,6 +127,20 @@ function sumar (desdeDiasAtras, hastaDiasAtras) {
   return { duplicates, skipped }
 }
 
+/** Suma de los días con sello en [desdeMs, hastaMs) (marcas de tiempo absolutas). */
+function sumarEntre (desdeMs, hastaMs) {
+  let duplicates = 0
+  let skipped = 0
+  for (const dia of state.days) {
+    const t = selloAFecha(dia.day)
+    if (t >= desdeMs && t < hastaMs) {
+      duplicates += Number(dia.duplicates) || 0
+      skipped += Number(dia.skipped) || 0
+    }
+  }
+  return { duplicates, skipped }
+}
+
 export function useDuplicateStats () {
   // El tramo se abre en «hace 7 días» y se cierra en mañana, para que el día en
   // curso entre completo aunque su sello sea de hoy al mediodía.
@@ -147,6 +161,7 @@ export function useDuplicateStats () {
   return {
     state,
     refresh,
+    entre: sumarEntre,
     week,
     previousWeek,
     month,

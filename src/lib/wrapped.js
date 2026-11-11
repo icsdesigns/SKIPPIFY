@@ -3,10 +3,10 @@
  * poder probarlos con historiales sintéticos).
  *
  * Definiciones (las mismas en la pantalla y en la imagen para compartir):
- *  - El Wrapped es SÓLO mensual: «mes» = últimos 30 días (ventana móvil que
- *    acaba ahora), el mismo criterio que la variedad mensual de Inicio
- *    (`last30Events` + `useDuplicateStats().month`), para que las cifras
- *    coincidan. No es el mes natural en curso.
+ *  - El Wrapped es SÓLO mensual y enseña el ÚLTIMO MES: el mes natural completo
+ *    anterior al primer día de referencia (el día 1 del mes que empieza o acaba
+ *    de empezar). Se desbloquea desde 7 días antes hasta 7 días después de ese
+ *    día 1 (ambos incluidos); fuera de esa ventana está bloqueado.
  *  - Se descartan anuncios y emisiones de Spotify (`esExcluida`) del tiempo,
  *    los tops y los recuentos de artistas y canciones.
  *  - Tiempo escuchado: suma de `ms_played`, o de `duration_ms` si aquél falta.
@@ -21,8 +21,63 @@
 const MS_DIA = 86400000
 const MS_HORA = 3600000
 
-/** Días de la ventana del Wrapped (y de la variedad mensual de Inicio). */
-export const DIAS_WRAPPED = 30
+/** Días antes del día 1 en que se desbloquea el Wrapped. */
+export const DIAS_ANTES_WRAPPED = 7
+
+/** Días después del día 1 hasta los que sigue desbloqueado (el último, incluido). */
+export const DIAS_DESPUES_WRAPPED = 7
+
+const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre']
+
+/** Medianoche local del día `dia` del mes `mes` (admite desbordes: día 0, mes 12…). */
+function medianoche (anio, mes, dia) {
+  return new Date(anio, mes, dia).getTime()
+}
+
+/**
+ * Ventana de desbloqueo del Wrapped para el instante `ahoraMs`.
+ *
+ *  - `disponible`: hoy cae entre 7 días antes y 7 días después (ambos incluidos)
+ *    de un día 1.
+ *  - `desde` / `hasta`: el mes natural que enseña, de su día 1 a las 00:00 (incluido)
+ *    al día 1 de referencia a las 00:00 (excluido). Si está bloqueado, es el
+ *    último mes natural ya terminado.
+ *  - `abre` / `cierra`: cuándo se desbloquea y se vuelve a bloquear la ventana
+ *    actual (si está disponible) o la próxima (si no). `cierra` es excluyente.
+ */
+export function ventanaWrapped (ahoraMs = Date.now()) {
+  const hoy = new Date(ahoraMs)
+  const a = hoy.getFullYear()
+  const m = hoy.getMonth()
+  // Días 1 candidatos: el de este mes (cubre sus 7 primeros días) y el del
+  // siguiente (cubre los 7 últimos de este).
+  for (const ref of [medianoche(a, m, 1), medianoche(a, m + 1, 1)]) {
+    const r = new Date(ref)
+    const abre = medianoche(r.getFullYear(), r.getMonth(), 1 - DIAS_ANTES_WRAPPED)
+    const cierra = medianoche(r.getFullYear(), r.getMonth(), 1 + DIAS_DESPUES_WRAPPED + 1)
+    if (ahoraMs >= abre && ahoraMs < cierra) {
+      return { disponible: true, desde: medianoche(r.getFullYear(), r.getMonth() - 1, 1), hasta: ref, abre, cierra }
+    }
+  }
+  const s = new Date(medianoche(a, m + 1, 1))
+  return {
+    disponible: false,
+    desde: medianoche(a, m - 1, 1),
+    hasta: medianoche(a, m, 1),
+    abre: medianoche(s.getFullYear(), s.getMonth(), 1 - DIAS_ANTES_WRAPPED),
+    cierra: medianoche(s.getFullYear(), s.getMonth(), 1 + DIAS_DESPUES_WRAPPED + 1)
+  }
+}
+
+/** «25 nov», «8 dic». */
+export function fechaCorta (ms) {
+  return new Date(ms).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }).replace('.', '')
+}
+
+/** Periodo en que está desbloqueado: «del 25 nov al 8 dic». */
+export function textoVentana (v) {
+  return `del ${fechaCorta(v.abre)} al ${fechaCorta(v.cierra - MS_HORA * 12)}`
+}
 
 /** Hueco que separa dos sesiones de escucha, en minutos. */
 export const MINUTOS_ENTRE_SESIONES = 30
@@ -205,28 +260,35 @@ function claveCancion (e) {
   return t ? `${t}\x00${normalizarTexto(e?.artist)}` : ''
 }
 
-/** «11 oct – 10 nov» de la ventana que acaba en `ahoraMs`. */
-export function rangoFechas (ahoraMs, dias = DIAS_WRAPPED) {
-  const f = ms => new Date(ms).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }).replace('.', '')
-  return `${f(ahoraMs - (dias - 1) * MS_DIA)} – ${f(ahoraMs)}`
+/** «1 oct – 31 oct» del mes natural [desde, hasta). */
+export function rangoFechas (desdeMs, hastaMs) {
+  return `${fechaCorta(desdeMs)} – ${fechaCorta(hastaMs - MS_HORA * 12)}`
+}
+
+/** «Octubre de 2026». */
+export function nombreMes (desdeMs) {
+  const d = new Date(desdeMs + MS_HORA * 12)
+  const mes = MESES[d.getMonth()]
+  return `${mes.charAt(0).toUpperCase()}${mes.slice(1)} de ${d.getFullYear()}`
 }
 
 /**
- * Datos del Wrapped mensual (últimos 30 días). `variedad` (0-100 o null) llega
- * calculada desde fuera —con la misma fórmula y ventana que Inicio— porque
- * depende de las duplicadas, que no viven en el historial.
+ * Datos del Wrapped mensual: SÓLO el último mes natural (ver `ventanaWrapped`).
+ * `variedad` (0-100 o null) llega calculada desde fuera —con la misma fórmula
+ * que Inicio— porque depende de las duplicadas, que no viven en el historial.
+ * `ventana` ({ desde, hasta }) fija el mes a mano; por defecto sale de `ahoraMs`.
  *
  * Devuelve exactamente lo que enseña la imagen: tiempo de escucha, top 3
  * canciones, top 3 artistas, nº de artistas y de canciones distintas, % de
  * variedad y duración media de la sesión.
  */
-export function calcularWrapped (eventos, ahoraMs = Date.now(), { variedad = null } = {}) {
-  const corte = ahoraMs - DIAS_WRAPPED * MS_DIA
-  const ventana = (eventos || []).filter(e => {
+export function calcularWrapped (eventos, ahoraMs = Date.now(), { variedad = null, ventana = null } = {}) {
+  const { desde, hasta } = ventana || ventanaWrapped(ahoraMs)
+  const ventanaEventos = (eventos || []).filter(e => {
     const t = new Date(e?.played_at).getTime()
-    return Number.isFinite(t) && t >= corte && t <= ahoraMs + MS_HORA
+    return Number.isFinite(t) && t >= desde && t < hasta
   })
-  const lista = ventana.filter(e => !esExcluida(e))
+  const lista = ventanaEventos.filter(e => !esExcluida(e))
 
   let totalMs = 0
   for (const e of lista) totalMs += msDeEvento(e)
@@ -247,13 +309,16 @@ export function calcularWrapped (eventos, ahoraMs = Date.now(), { variedad = nul
   const artistasDistintos = new Set(lista.map(e => normalizarTexto(e?.artist)).filter(Boolean)).size
   const cancionesDistintas = new Set(lista.map(claveCancion).filter(Boolean)).size
 
-  const ses = calcularSesiones(ventana)
+  const ses = calcularSesiones(ventanaEventos)
   const v = Number.isFinite(variedad) ? Math.max(0, Math.min(100, Math.round(variedad))) : null
 
   return {
     titulo: 'Tu mes en música',
-    rango: 'Últimos 30 días',
-    fechas: rangoFechas(ahoraMs),
+    rango: 'Último mes',
+    mes: nombreMes(desde),
+    fechas: rangoFechas(desde, hasta),
+    desde,
+    hasta,
     vacio: lista.length === 0,
     totalMs,
     tiempo: formatearDuracion(totalMs),

@@ -5,16 +5,23 @@
       as="button"
       compacta
       color-tesela
-      :titulo="abierto ? 'Tu Wrapped del mes' : 'Crea tu Wrapped del mes'"
-      detalle="Tus números de los últimos 30 días en una imagen vertical, lista para compartir."
+      :titulo="ventana.disponible && !abierto ? 'Crea tu Wrapped del mes' : 'Tu Wrapped del mes'"
+      :detalle="ventana.disponible
+        ? `Tus números de ${mesNombre} en una imagen vertical, lista para compartir.`
+        : `Se desbloquea ${textoVentana(ventana)}, con los números del último mes.`"
       class="w-full"
+      :class="ventana.disponible ? '' : 'opacity-60'"
+      :disabled="!ventana.disponible"
       :aria-expanded="abierto"
+      :data-wrapped-bloqueado="ventana.disponible ? null : ''"
       data-wrapped-toggle
       @click="alternar"
     >
       <template #icono><StatIcon name="wrapped" class="h-5 w-5" /></template>
       <template #fin>
+        <svg v-if="!ventana.disponible" class="h-4 w-4 shrink-0 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2" /><path d="M8 11V8a4 4 0 0 1 8 0v3" /></svg>
         <svg
+          v-else
           class="h-4 w-4 shrink-0 text-slate-400 transition-transform duration-200"
           :class="abierto ? 'rotate-180' : ''"
           viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
@@ -23,7 +30,7 @@
       </template>
     </OpcionFila>
 
-    <div v-if="abierto" class="mt-4">
+    <div v-if="abierto && ventana.disponible" class="mt-4">
       <!-- Vista previa: la propia imagen que se compartirá, 9:16. Imagen,
            botones y aviso comparten ancho (320 px como mucho) y van separados
            por el mismo hueco (mt-4), dentro del relleno p-5 de la tarjeta. -->
@@ -65,10 +72,11 @@
  * `lib/wrapped.js`, el dibujo de `lib/wrappedImagen.js` y el reparto de
  * «compartir / guardar» de `lib/compartirImagen.js`.
  *
- * Sólo mensual: los últimos 30 días, la misma ventana que la variedad mensual
- * de Inicio. La variedad se calcula EXACTAMENTE como allí (escuchas de
- * `last30Events` + duplicadas del mes de `useDuplicateStats`), así que ambas
- * cifras coinciden; sin datos del motor queda en null y la imagen pinta «—».
+ * Sólo mensual y sólo del último mes natural: está desbloqueado desde 7 días
+ * antes hasta 7 días después del día 1 de cada mes (`ventanaWrapped`); fuera de
+ * ese periodo la tarjeta aparece bloqueada con la fecha de apertura. La variedad
+ * usa la misma fórmula que Inicio, pero con las escuchas y las duplicadas de ese
+ * mes; sin datos del motor queda en null y la imagen pinta «—».
  */
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import OpcionFila from '@/components/OpcionFila.vue'
@@ -77,12 +85,12 @@ import { useEventStore } from '@/stores/events'
 import { useAnalytics } from '@/composables/useAnalytics'
 import { useDuplicateStats } from '@/composables/useDuplicateStats'
 import { calcularVariedad } from '@/lib/inicioStats'
-import { calcularWrapped } from '@/lib/wrapped'
+import { calcularWrapped, ventanaWrapped, textoVentana, nombreMes } from '@/lib/wrapped'
 import { generarWrappedPng } from '@/lib/wrappedImagen'
 import { compartirPng, guardarPng } from '@/lib/compartirImagen'
 
 const { events } = useEventStore()
-const { last30Events } = useAnalytics()
+const { nowTick } = useAnalytics()
 const dup = useDuplicateStats()
 
 const abierto = ref(false)
@@ -93,12 +101,24 @@ const aviso = ref('')
 const ocupado = ref(false)
 let ticket = 0
 
-/** Variedad mensual: la misma cuenta que el cartel de Inicio (DuplicateKpiCards). */
-const variedad = computed(() => dup.hasData.value
-  ? calcularVariedad(last30Events.value.length, dup.monthDuplicates.value, dup.monthSkipped.value)
-  : null)
+/** Ventana de desbloqueo y mes que enseña (se recalcula con el reloj de la app). */
+const ventana = computed(() => ventanaWrapped(nowTick.value))
+const mesNombre = computed(() => nombreMes(ventana.value.desde).toLowerCase())
+
+/** Variedad del mes: la cuenta de Inicio (DuplicateKpiCards) sobre ese mes natural. */
+const variedad = computed(() => {
+  if (!dup.hasData.value) return null
+  const { desde, hasta } = ventana.value
+  const escuchas = events.value.filter(e => {
+    const t = new Date(e?.played_at).getTime()
+    return t >= desde && t < hasta
+  }).length
+  const { duplicates, skipped } = dup.entre(desde, hasta)
+  return calcularVariedad(escuchas, duplicates, skipped)
+})
 
 function alternar () {
+  if (!ventana.value.disponible) return
   abierto.value = !abierto.value
   if (abierto.value) {
     dup.refresh()
@@ -111,7 +131,7 @@ async function generar () {
   error.value = ''
   aviso.value = ''
   try {
-    const datos = calcularWrapped(events.value, Date.now(), { variedad: variedad.value })
+    const datos = calcularWrapped(events.value, Date.now(), { variedad: variedad.value, ventana: ventana.value })
     const png = await generarWrappedPng(datos)
     if (mio !== ticket) return
     if (vistaUrl.value) URL.revokeObjectURL(vistaUrl.value)
@@ -125,11 +145,13 @@ async function generar () {
 }
 
 // Si llegan escuchas o datos del motor con la vista previa abierta, se redibuja.
-watch([() => events.value.length, variedad], () => { if (abierto.value) generar() })
+watch([() => events.value.length, variedad], () => { if (abierto.value && ventana.value.disponible) generar() })
+// Si la ventana se cierra con el panel abierto (cambio de día), se pliega.
+watch(() => ventana.value.disponible, ok => { if (!ok) abierto.value = false })
 
 function nombreArchivo () {
-  const d = new Date()
-  const f = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`
+  const d = new Date(ventana.value.desde)
+  const f = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}`
   return `skippify-wrapped-mes-${f}.png`
 }
 

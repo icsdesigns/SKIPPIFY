@@ -209,10 +209,10 @@ async function main () {
   check('anuncios no cuentan', W.repartoDispositivos([{ ...conFuente(1, 'notification'), track: 'Anuncio' }], ahora).total, 0)
 
   // ── Wrapped: cálculos (sólo mensual, últimos 30 días) ─────────────────
-  console.log('\nWrapped: cálculos (mes = últimos 30 días)')
-  const h = (dias, hora, min = 0) => {
-    const d = new Date(ahora - dias * DIA); d.setHours(hora, min, 0, 0); return d.toISOString()
-  }
+  console.log('\nWrapped: cálculos (último mes natural)')
+  // «Hoy» es el 5 nov 2026: el último mes es octubre. h(n) = n días antes del 1 nov.
+  const ahoraW = new Date(2026, 10, 5, 12).getTime()
+  const h = (dias, hora, min = 0) => new Date(2026, 10, 1 - dias, hora, min).toISOString()
   const hist = [
     // Día 1: sesión de 20 min (21:00, 21:10, 21:20)
     { ...escucha(1, 'Uno', 'Ana'), played_at: h(1, 21, 0) }, { ...escucha(1, 'uno', 'ANA'), played_at: h(1, 21, 10) },
@@ -223,16 +223,18 @@ async function main () {
     // Día 3: 21:00 y una escucha sin título a las 21:05 → sesión de 5 min
     { ...escucha(3, 'Tres', 'Beto'), played_at: h(3, 21, 0) },
     { ...escucha(3, '', 'Beto'), played_at: h(3, 21, 5) },
-    // Día 20: dentro del mes; 3:00 y 3:30 (justo 30 min: no parte la sesión)
+    // Día 20 atrás (12 oct): dentro del mes; 3:00 y 3:30 (justo 30 min: no parte la sesión)
     { ...escucha(20, 'Cuatro', 'Cleo'), played_at: h(20, 3, 0) }, { ...escucha(20, 'Cinco', 'Zoe'), played_at: h(20, 3, 30) },
-    // Fuera de los 30 días
-    { ...escucha(31, 'Antigua', 'Yago'), played_at: h(31, 3) }
+    // Fuera del mes (30 sep y 2 nov)
+    { ...escucha(32, 'Antigua', 'Yago'), played_at: h(32, 3) },
+    // Del mes siguiente (2 nov): tampoco cuenta
+    { ...escucha(1, 'Nueva', 'Wanda'), played_at: h(-1, 10) }
   ]
-  const wm = W.calcularWrapped(hist, ahora, { variedad: 82.4 })
-  check('ventana de 30 días', W.DIAS_WRAPPED, 30)
-  check('título y rango mensuales', `${wm.titulo} · ${wm.rango}`, 'Tu mes en música · Últimos 30 días')
-  check('trae las fechas del rango', /^\d{1,2} \S+ – \d{1,2} \S+$/.test(wm.fechas), true)
-  check('tiempo: 9 escuchas × 3 min (sin anuncio ni la de hace 31 días)', wm.tiempo, '27 min')
+  const wm = W.calcularWrapped(hist, ahoraW, { variedad: 82.4 })
+  check('título y rango del último mes', `${wm.titulo} · ${wm.rango}`, 'Tu mes en música · Último mes')
+  check('nombre del mes', wm.mes, 'Octubre de 2026')
+  check('fechas: del 1 al 31 de octubre', wm.fechas, '1 oct – 31 oct')
+  check('tiempo: 9 escuchas × 3 min (sin anuncio ni las de fuera del mes)', wm.tiempo, '27 min')
   check('top 1 canción (agrupa mayúsculas y tildes)', wm.canciones[0].titulo, 'Uno')
   check('top 1 canción con 3 escuchas', wm.canciones[0].count, 3)
   check('top 2 canción', wm.canciones[1].titulo, 'Dos')
@@ -243,8 +245,8 @@ async function main () {
   check('artistas distintos: Ana, Beto, Cleo y Zoe (sin Spotify ni Yago)', wm.artistasDistintos, 4)
   check('canciones distintas: Uno, Dos, Tres, Cuatro y Cinco', wm.cancionesDistintas, 5)
   check('variedad redondeada', wm.variedad, 82)
-  check('variedad fuera de rango se acota', W.calcularWrapped(hist, ahora, { variedad: 140 }).variedad, 100)
-  check('sin variedad queda null (la imagen pinta «—»)', W.calcularWrapped(hist, ahora).variedad, null)
+  check('variedad fuera de rango se acota', W.calcularWrapped(hist, ahoraW, { variedad: 140 }).variedad, 100)
+  check('sin variedad queda null (la imagen pinta «—»)', W.calcularWrapped(hist, ahoraW).variedad, null)
   check('4 sesiones en el mes', wm.sesiones, 4)
   check('duración media de la sesión: (20 + 10 + 5 + 30) / 4 → 16 min', wm.sesionMediaMin, 16)
   check('y con formato', wm.sesionMedia, '16 min')
@@ -256,13 +258,31 @@ async function main () {
   check('sesión de más de una hora con formato', W.calcularWrapped([
     { ...escucha(1, 'A', 'B'), played_at: h(1, 10, 0) }, { ...escucha(1, 'C', 'D'), played_at: h(1, 10, 25) },
     { ...escucha(1, 'E', 'F'), played_at: h(1, 10, 50) }, { ...escucha(1, 'G', 'H'), played_at: h(1, 11, 15) }
-  ], ahora).sesionMedia, '1 h 15 min')
-  const wv = W.calcularWrapped([], ahora)
+  ], ahoraW).sesionMedia, '1 h 15 min')
+  const wv = W.calcularWrapped([], ahoraW)
   check('vacío: sin NaN y con marca', JSON.stringify([wv.vacio, wv.tiempo, wv.artistasDistintos, wv.cancionesDistintas, wv.variedad, wv.sesiones, wv.sesionMedia]), '[true,"0 min",0,0,null,0,null]')
   check('vacío: listas vacías', wv.canciones.length + wv.artistas.length, 0)
   check('sólo los datos pedidos (ni hora favorita ni racha)', ['horaFavorita', 'mejorRacha', 'escuchas', 'periodo'].some(k => k in wm), false)
   check('formato de duración con horas', W.formatearDuracion(3 * 3600000 + 5 * 60000), '3 h 5 min')
   check('formato de duración exacta', W.formatearDuracion(2 * 3600000), '2 h')
+
+  // ── Ventana de desbloqueo: de 7 días antes a 7 días después del día 1 ──
+  console.log('\nWrapped: ventana de desbloqueo')
+  const vw = (a, m, d, hh = 12, mm = 0) => W.ventanaWrapped(new Date(a, m, d, hh, mm).getTime())
+  check('11 nov: bloqueado', vw(2026, 10, 11).disponible, false)
+  check('bloqueado: la próxima apertura es el 24 nov', W.fechaCorta(vw(2026, 10, 11).abre), '24 nov')
+  check('bloqueado: cierra el 9 dic a las 00:00 (el 8 incluido)', W.fechaCorta(vw(2026, 10, 11).cierra), '9 dic')
+  check('texto de la ventana', W.textoVentana(vw(2026, 10, 11)), 'del 24 nov al 8 dic')
+  check('23 nov (8 días antes): bloqueado', vw(2026, 10, 23).disponible, false)
+  check('24 nov a las 00:00 (7 días antes): desbloqueado', vw(2026, 10, 24, 0).disponible, true)
+  check('24 nov: enseña noviembre completo', W.rangoFechas(vw(2026, 10, 24).desde, vw(2026, 10, 24).hasta), '1 nov – 30 nov')
+  check('1 dic: enseña noviembre', W.nombreMes(vw(2026, 11, 1).desde), 'Noviembre de 2026')
+  check('8 dic a las 23:59 (7 días después): desbloqueado', vw(2026, 11, 8, 23, 59).disponible, true)
+  check('9 dic a las 00:00: vuelve a bloquearse', vw(2026, 11, 9, 0).disponible, false)
+  check('al cruzar de año (3 ene) enseña diciembre de 2026', W.nombreMes(vw(2027, 0, 3).desde), 'Diciembre de 2026')
+  check('26 dic ya enseña diciembre', W.nombreMes(vw(2026, 11, 26).desde), 'Diciembre de 2026')
+  check('febrero (28 días): el 22 desbloquea y el 21 no', [vw(2027, 1, 22).disponible, vw(2027, 1, 21).disponible].join(), 'true,false')
+  check('febrero cubre sus 28 días', Math.round((vw(2027, 1, 22).hasta - vw(2027, 1, 22).desde) / DIA), 28)
 
   // ── Wrapped: dibujo (contexto simulado) y recorte con measureText ─────────
   console.log('\nWrapped: imagen')
@@ -388,7 +408,7 @@ async function main () {
   const enorme = lienzoDePrueba()
   const datosLargos = W.calcularWrapped([1, 2, 3].map(i => (
     { ...escucha(1, largoTit + i, largoArt + i), played_at: h(1, 10, i) }
-  )), ahora, { variedad: 100 })
+  )), ahoraW, { variedad: 100 })
   datosLargos.tiempo = '1234 h 59 min'
   datosLargos.sesionMedia = '23 h 59 min'
   datosLargos.artistasDistintos = 123456
@@ -408,7 +428,7 @@ async function main () {
   check('sin datos: sesión media «—» con su pista', vacio.dibujados.some(d => d.t === 'sin sesiones'), true)
 
   const parcial = lienzoDePrueba()
-  const datosParciales = W.calcularWrapped([escucha(1, 'Sola', 'Única'), escucha(2, 'Otra', 'Única')], ahora)
+  const datosParciales = W.calcularWrapped([{ ...escucha(1, 'Sola', 'Única'), played_at: h(1, 10) }, { ...escucha(2, 'Otra', 'Única'), played_at: h(2, 10) }], ahoraW)
   dibujarWrapped(parcial.lienzo, datosParciales, parcial.registro)
   comprobarGeometria('datos parciales (2 canciones, 1 artista, sin variedad)', parcial)
   check('datos parciales: «—» en la variedad y el resto con cifras', parcial.dibujados.some(d => d.t === '—') && parcial.dibujados.some(d => d.t === 'Sola'), true)

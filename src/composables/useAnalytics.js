@@ -292,6 +292,7 @@ export function useAnalytics () {
     todayEvents,
     weekEvents,
     last30Events,
+    nowTick,
     monthEvents
   }
 }
