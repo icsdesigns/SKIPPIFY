@@ -3,6 +3,8 @@
  * poder probarlos con datos sintéticos).
  */
 
+import { esExcluida } from './wrapped.js'
+
 /** Clave comparable de un nombre: sin tildes, sin mayúsculas y sin espacios sobrantes. */
 export function normalizar (texto) {
   return String(texto ?? '')
@@ -41,10 +43,13 @@ function masRepetido (eventos, clave, etiqueta) {
   return resto
 }
 
-/** Canción más escuchada: misma canción + mismo artista (normalizados). */
+/**
+ * Canción más escuchada: misma canción + mismo artista (normalizados). No cuentan
+ * los anuncios ni los avisos de Spotify («A continuación», «Up next» del DJ…).
+ */
 export function cancionTop (eventos) {
   return masRepetido(
-    eventos || [],
+    (eventos || []).filter(e => !esExcluida(e)),
     e => (normalizar(e?.track) ? `${normalizar(e.track)}\x00${normalizar(e.artist)}` : ''),
     e => ({ track: String(e.track), artist: String(e.artist ?? '') })
   )
@@ -53,7 +58,7 @@ export function cancionTop (eventos) {
 /** Artista más escuchado, por nombre normalizado. */
 export function artistaTop (eventos) {
   return masRepetido(
-    eventos || [],
+    (eventos || []).filter(e => !esExcluida(e)),
     e => normalizar(e?.artist),
     e => ({ artist: String(e.artist) })
   )

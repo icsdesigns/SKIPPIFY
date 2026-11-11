@@ -40,7 +40,19 @@ export function normalizarTexto (valor) {
     .trim()
 }
 
-/** Anuncios, locuciones del DJ y emisiones de Spotify no cuentan en los rankings. */
+/**
+ * Títulos que Spotify pone en la notificación cuando NO suena una canción: los
+ * avisos del DJ («A continuación», «Up next»…). Se comparan normalizados y sólo
+ * cuando el título ES eso (o empieza por ello), para no descartar una canción
+ * real que contenga esas palabras.
+ */
+const AVISOS_DE_SPOTIFY = ['a continuacion', 'up next', 'next up', 'coming up next']
+
+function esAvisoDeSpotify (track) {
+  return AVISOS_DE_SPOTIFY.some(a => track === a || track.startsWith(`${a} `))
+}
+
+/** Anuncios, locuciones y avisos del DJ y emisiones de Spotify no cuentan en los rankings. */
 export function esExcluida (evento) {
   const track = normalizarTexto(evento?.track)
   const artist = normalizarTexto(evento?.artist)
@@ -48,8 +60,10 @@ export function esExcluida (evento) {
   if (!combined) return false
   if (combined.includes('publicidad')) return true
   if (combined.includes('anuncio')) return true
+  if (combined.includes('advertisement')) return true
   if (combined.includes('spotify')) return true
-  if (track.includes('dj x') || artist.includes('dj x')) return true
+  if (track.includes('dj x') || artist.includes('dj x') || artist === 'dj') return true
+  if (esAvisoDeSpotify(track)) return true
   return false
 }
 

@@ -155,6 +155,27 @@ async function main () {
     { track: 'B', artist: 'b', played_at: '2026-01-02T10:00:00Z' }
   ]).track, 'B')
 
+  // Avisos de Spotify: ni «A continuación» ni «Up next» del DJ pueden ser la canción de la semana
+  const { esExcluida } = await import('../src/lib/wrapped.js')
+  const avisos = [
+    { track: 'A continuación', artist: 'DJ', played_at: '2026-01-05T10:00:00Z' },
+    { track: 'A continuación', artist: 'DJ', played_at: '2026-01-05T10:05:00Z' },
+    { track: 'Up next', artist: 'Spotify', played_at: '2026-01-05T10:10:00Z' },
+    { track: 'Up Next', artist: 'DJ X', played_at: '2026-01-05T10:15:00Z' },
+    { track: 'Up next', artist: 'Alguien', played_at: '2026-01-05T10:20:00Z' },
+    { track: 'Advertisement', artist: 'Spotify', played_at: '2026-01-05T10:25:00Z' },
+    { track: 'Canción real', artist: 'Ana', played_at: '2026-01-05T11:00:00Z' }
+  ]
+  check('los avisos del DJ y los anuncios están excluidos',
+    avisos.filter(esExcluida).map(e => e.track).join('|'),
+    'A continuación|A continuación|Up next|Up Next|Up next|Advertisement')
+  check('la canción de la semana ignora los avisos de Spotify', cancionTop(avisos).track, 'Canción real')
+  check('el artista de la semana ignora a «DJ»', artistaTop(avisos).artist, 'Ana')
+  check('una canción real parecida sí cuenta', esExcluida({ track: 'Up Where We Belong', artist: 'Banda' }), false)
+  check('el aviso con texto detrás también se excluye', esExcluida({ track: 'A continuación: tu mezcla', artist: 'DJ' }), true)
+  check('«Siguiente» como canción real sí cuenta', esExcluida({ track: 'Siguiente', artist: 'Banda' }), false)
+  check('sólo avisos: no hay canción de la semana', cancionTop(avisos.slice(0, 4)), null)
+
   // ── Variedad y exclusividad (mensual) ─────────────────────────────────────
   console.log('\nVariedad y exclusividad')
   // 20 registradas + 5 saltadas = 25 iniciadas; 10 duplicadas → (25-10)/25 = 60 %
