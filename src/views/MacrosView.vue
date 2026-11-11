@@ -607,11 +607,6 @@
         </ul>
       </FeaturePanel>
 
-      <!-- ══ 3b · Macros de tu grupo ═══════════════════════════════════════════
-           Las que comparten los miembros de tus grupos, para clonarlas con tus
-           propias playlists, y el conmutador para compartir las tuyas. -->
-      <MacrosDeTuGrupo :playlists="playlists" />
-
       <!-- ══ 4 · Botón de los auriculares ════════════════════════════════════ -->
       <!--
         Sólo en la app: quien atiende la pulsación es el servicio nativo, con la
@@ -778,6 +773,11 @@
           </template>
         </div>
       </FeaturePanel>
+
+      <!-- ══ 5 · Macros de tu grupo (bajo el botón de los auriculares) ═══════════════════════════════════════════
+           Las que comparten los miembros de tus grupos, para clonarlas con tus
+           propias playlists, y el conmutador para compartir las tuyas. -->
+      <MacrosDeTuGrupo :playlists="playlists" />
     </template>
 
   </div>
