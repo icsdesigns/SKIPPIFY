@@ -14,9 +14,14 @@
  *    hueco de más de 30 min entre dos escuchas empieza otra; dura desde la
  *    primera escucha hasta la última. Se mide con todas las escuchas de la
  *    ventana, como en Inicio.
+ *  - Descubrimiento del mes: `estadoDescubrimientos` (lib/descubrimientos.js)
+ *    con el historial completo y la misma ventana; null si está bloqueado o
+ *    no hay ninguno.
  *  - Este dispositivo = fuente `notification` / `notification_background` (o sin
  *    fuente). Otros dispositivos = `spotify_api`.
  */
+
+import { estadoDescubrimientos } from '@/lib/descubrimientos'
 
 const MS_DIA = 86400000
 const MS_HORA = 3600000
@@ -232,7 +237,8 @@ export function rangoFechas (ahoraMs, dias = DIAS_WRAPPED) {
  *
  * Devuelve exactamente lo que enseña la imagen: tiempo de escucha, top 3
  * canciones, top 3 artistas, nº de artistas y de canciones distintas, % de
- * variedad y duración media de la sesión.
+ * variedad y duración media de la sesión; y, si lo hay, el descubrimiento de
+ * artista del mes (con todo el historial, porque compara con lo anterior).
  */
 export function calcularWrapped (eventos, ahoraMs = Date.now(), { variedad = null } = {}) {
   const corte = ahoraMs - DIAS_WRAPPED * MS_DIA
@@ -263,6 +269,7 @@ export function calcularWrapped (eventos, ahoraMs = Date.now(), { variedad = nul
 
   const ses = calcularSesiones(ventana)
   const v = Number.isFinite(variedad) ? Math.max(0, Math.min(100, Math.round(variedad))) : null
+  const desc = estadoDescubrimientos(eventos, ahoraMs)
 
   return {
     titulo: 'Tu mes en música',
@@ -278,6 +285,7 @@ export function calcularWrapped (eventos, ahoraMs = Date.now(), { variedad = nul
     variedad: v,
     sesiones: ses.count,
     sesionMediaMin: ses.count ? ses.averageMinutes : null,
-    sesionMedia: ses.count ? formatearDuracion(ses.averageMinutes * 60000) : null
+    sesionMedia: ses.count ? formatearDuracion(ses.averageMinutes * 60000) : null,
+    descubrimiento: desc.desbloqueado ? desc.descubrimiento : null
   }
 }

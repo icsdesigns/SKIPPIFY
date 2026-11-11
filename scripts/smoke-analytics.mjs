@@ -289,7 +289,7 @@ async function main () {
   console.log('\nWrapped: imagen')
   const {
     recortarTexto, dibujarWrapped, WRAPPED_ANCHO, WRAPPED_ALTO, DISPOSICION, PANELES, REJILLA, ALTO_CAP,
-    M: MARGEN, CW: ANCHO_UTIL
+    M: MARGEN, CW: ANCHO_UTIL, DISPOSICION_DESCUBRIMIENTO, PANELES_DESCUBRIMIENTO, disposicionPara
   } = await import('../src/lib/wrappedImagen.js')
   const ctxMedida = { measureText: t => ({ width: String(t).length * 10 }) }
   check('texto corto no se recorta', recortarTexto(ctxMedida, 'Hola', 100), 'Hola')
@@ -356,8 +356,8 @@ async function main () {
   const contiene = (a, d, tol = 0.5) => d.x0 >= a.x0 - tol && d.x1 <= a.x1 + tol && d.y0 >= a.y0 - tol && d.y1 <= a.y1 + tol
   const dentro = d => contiene(util, d)
   /** Cada texto va dentro del área útil y, si cae en un panel, dentro de su interior. */
-  const enSuPanel = d => {
-    const p = paneles.find(q => solapan(caja(q), d, 0))
+  const enSuPanel = (d, lista = paneles) => {
+    const p = lista.find(q => solapan(caja(q), d, 0))
     return p ? contiene(interior(p), d) : dentro(d)
   }
   /** Ningún texto pisa a otro (salvo el número que va dentro de su puesto, que no es texto). */
@@ -367,22 +367,22 @@ async function main () {
    * `relleno` del borde izquierdo y del superior, acaba a `relleno` del inferior
    * y nunca pasa del derecho (las listas y el tiempo llegan justo a él).
    */
-  function rellenos (registro) {
-    return paneles.map(p => {
+  function rellenos (registro, lista = paneles) {
+    return lista.map(p => {
       const cs = registro.filter(r => r.zona === p.nombre)
       const u = cs.reduce((a, r) => ({ x0: Math.min(a.x0, r.x0), y0: Math.min(a.y0, r.y0), x1: Math.max(a.x1, r.x1), y1: Math.max(a.y1, r.y1) }), { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity })
       return { nombre: p.nombre, izq: u.x0 - p.x, arr: u.y0 - p.y, aba: p.y + p.h - u.y1, der: p.x + p.w - u.x1 }
     })
   }
-  function comprobarGeometria (caso, l) {
+  function comprobarGeometria (caso, l, lista = paneles) {
     check(`${caso}: todo texto dentro del área útil`, l.dibujados.every(dentro), true)
-    check(`${caso}: cada texto dentro del interior de su panel`, l.dibujados.every(enSuPanel), true)
+    check(`${caso}: cada texto dentro del interior de su panel`, l.dibujados.every(d => enSuPanel(d, lista)), true)
     check(`${caso}: ningún texto se solapa con otro`, sinSolapes(l.dibujados), true)
-    const r = rellenos(l.registro)
+    const r = rellenos(l.registro, lista)
     const mal = r.filter(x => !(casi(x.izq, RP) && casi(x.arr, RP) && casi(x.aba, RP) && x.der >= RP - 0.01))
     check(`${caso}: mismo relleno interior en todos los paneles${mal.length ? ' ' + JSON.stringify(mal) : ''}`, mal.length, 0)
-    check(`${caso}: tiempo y listas llegan justo al relleno derecho`,
-      r.filter(x => ['tiempo', 'canciones', 'artistas'].includes(x.nombre)).every(x => casi(x.der, RP)), true)
+    check(`${caso}: tiempo, listas y descubrimiento llegan justo al relleno derecho`,
+      r.filter(x => ['tiempo', 'canciones', 'artistas', 'descubrimiento'].includes(x.nombre)).every(x => casi(x.der, RP)), true)
     check(`${caso}: la marca y la pastilla tocan los márgenes laterales`,
       casi(Math.min(...l.registro.filter(x => x.zona === 'cab').map(x => x.x0)), RM) &&
       casi(Math.max(...l.registro.filter(x => x.zona === 'cab').map(x => x.x1)), WRAPPED_ANCHO - RM), true)
@@ -434,6 +434,69 @@ async function main () {
   comprobarGeometria('datos parciales (2 canciones, 1 artista, sin variedad)', parcial)
   check('datos parciales: «—» en la variedad y el resto con cifras', parcial.dibujados.some(d => d.t === '—') && parcial.dibujados.some(d => d.t === 'Sola'), true)
   check('datos parciales: los puestos sin dato siguen numerados', ['1', '2', '3'].every(n => parcial.dibujados.filter(d => d.t === n).length >= 2), true)
+
+  // ── Wrapped con «Descubrimiento del mes» (disposición compacta) ──────────
+  console.log('\nWrapped: descubrimiento del mes')
+  check('sin descubrimiento se usa la disposición de siempre', disposicionPara(wm), DISPOSICION)
+  check('sin descubrimiento no hay panel nuevo', DISPOSICION.descubrimiento, null)
+  check('sin descubrimiento no se dibuja el panel', normal.dibujados.some(d => /Descubrimiento|NUEVO/.test(d.t)), false)
+  const DD = DISPOSICION_DESCUBRIMIENTO
+  const panelesD = PANELES_DESCUBRIMIENTO.map(([nombre, p]) => ({ nombre, ...p }))
+  check('con descubrimiento hay un panel más', panelesD.length, paneles.length + 1)
+  check('margen izquierdo y derecho iguales (compacta)',
+    panelesD.every(p => (p.x >= WRAPPED_ANCHO / 2 || casi(p.x, RM)) && (p.x + p.w <= WRAPPED_ANCHO / 2 || casi(WRAPPED_ANCHO - (p.x + p.w), RM))), true)
+  const filasD = [DD.tiempo, DD.canciones, DD.artistas, DD.descubrimiento, DD.celdas[0], DD.celdas[2]]
+  check('separación vertical igual entre paneles (compacta)',
+    filasD.every((p, i) => i === 0 || casi(p.y - (filasD[i - 1].y + filasD[i - 1].h), RH)), true)
+  const [d0, d1, d2, d3] = DD.celdas
+  check('separación horizontal entre celdas = la vertical (compacta)', casi(d1.x - (d0.x + d0.w), RH) && casi(d3.x - (d2.x + d2.w), RH), true)
+  check('las cuatro celdas miden igual (compacta)', [d1, d2, d3].every(c => casi(c.w, d0.w) && casi(c.h, d0.h)), true)
+  check('las celdas compactas caben (≥ 140 px)', d0.h >= 140, true)
+  check('el panel nuevo ocupa unos 200 px', DD.descubrimiento.h >= 180 && DD.descubrimiento.h <= 240, true)
+  check('marca, título y pie en el mismo sitio (compacta)',
+    casi(DD.cab.y, RM) && casi(DD.pie.y + DD.pie.h, WRAPPED_ALTO - RM) &&
+    casi(DD.tiempo.y - (DD.titulo.y + DD.titulo.h), REJILLA.seccion) && casi(DD.pie.y - (d3.y + d3.h), REJILLA.seccion), true)
+  check('ningún panel solapa a otro (compacta)', panelesD.every((a, i) => panelesD.every((b, j) => i === j || !solapan(caja(a), caja(b)))), true)
+
+  const descNormal = {
+    artista: 'Lumi', cancionesNuevas: 5, cancionesDistintas: 5, escuchas: 23, diasActivos: 6,
+    canciones: [{ titulo: 'Primera luz', escuchas: 8 }, { titulo: 'Norte', escuchas: 6 }, { titulo: 'Marea', escuchas: 4 }]
+  }
+  const conDesc = lienzoDePrueba()
+  const datosDesc = { ...wm, descubrimiento: descNormal }
+  check('con descubrimiento se usa la disposición compacta', disposicionPara(datosDesc), DD)
+  dibujarWrapped(conDesc.lienzo, datosDesc, conDesc.registro)
+  comprobarGeometria('con descubrimiento', conDesc, panelesD)
+  for (const t of ['Descubrimiento del mes', 'NUEVO', 'Lumi', '5 canciones nuevas · 23 escuchas', 'Primera luz', 'Norte', 'Marea', 'Tiempo de escucha', 'en 30 días', 'Top 3 canciones', 'Top 3 artistas', 'Variedad', 'Sesión media', 'Artistas distintos', 'Canciones distintas']) {
+    check(`con descubrimiento se dibuja «${t}»`, conDesc.dibujados.some(d => d.t === t), true)
+  }
+  const mayorD = conDesc.dibujados.reduce((a, d) => (d.y1 - d.y0 > a.y1 - a.y0 ? d : a))
+  check('con descubrimiento la cifra más grande sigue siendo el tiempo', mayorD.t, '27')
+  check('con descubrimiento, sin emoji', conDesc.dibujados.some(d => /\p{Extended_Pictographic}/u.test(d.t)), false)
+  const nombreD = conDesc.dibujados.find(d => d.t === 'Lumi')
+  check('el artista es el texto más grande del panel', conDesc.dibujados
+    .filter(d => contiene(caja(DD.descubrimiento), d))
+    .every(d => d.y1 - d.y0 <= nombreD.y1 - nombreD.y0 + 0.01), true)
+
+  const enormeD = lienzoDePrueba()
+  const largoNombre = 'Orquesta Sinfónica Experimental de Nombres Larguísimos '.repeat(4)
+  dibujarWrapped(enormeD.lienzo, {
+    ...datosLargos,
+    descubrimiento: {
+      artista: largoNombre, cancionesNuevas: 123456, cancionesDistintas: 123456, escuchas: 9876543,
+      canciones: [1, 2, 3].map(i => ({ titulo: `${largoTit} ${i}`, escuchas: 10 - i }))
+    }
+  }, enormeD.registro)
+  comprobarGeometria('con descubrimiento y textos larguísimos', enormeD, panelesD)
+  check('el artista larguísimo se recortó con puntos suspensivos', enormeD.dibujados.some(d => d.t.startsWith('Orquesta') && d.t.endsWith('…')), true)
+  check('las canciones larguísimas del descubrimiento también',
+    enormeD.dibujados.filter(d => contiene(caja(DD.descubrimiento), d) && d.t.startsWith('Título extra') && d.t.endsWith('…')).length, 3)
+  check('con descubrimiento las cifras largas se dibujan enteras',
+    ['1234', '59', '23', '123456', '1234567'].every(t => enormeD.dibujados.some(d => d.t === t)), true)
+
+  const vacioD = lienzoDePrueba()
+  dibujarWrapped(vacioD.lienzo, { ...W.calcularWrapped([], ahora), descubrimiento: { ...descNormal, canciones: [] } }, vacioD.registro)
+  comprobarGeometria('con descubrimiento sin canciones ni datos del mes', vacioD, panelesD)
 
   // ── Compartir / guardar ───────────────────────────────────────────────────
   console.log('\nCompartir imagen')

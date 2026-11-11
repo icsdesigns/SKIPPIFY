@@ -7,12 +7,19 @@
  *
  * Contenido (y nada más): tiempo de escucha, top 3 canciones, top 3 artistas,
  * nº de artistas y de canciones distintas, % de variedad y duración media de la
- * sesión, de los últimos 30 días.
+ * sesión, de los últimos 30 días; y, sólo si lo hay, el descubrimiento de
+ * artista del mes.
  *
  * Jerarquía, de arriba abajo:
  *   marca · título del mes · TIEMPO DE ESCUCHA (cifra protagonista) ·
  *   Top 3 canciones y Top 3 artistas (con barra proporcional a sus escuchas) ·
  *   cuatro cifras en rejilla 2 × 2 (la variedad, con su anillo).
+ *
+ * CON DESCUBRIMIENTO se usa la disposición compacta (`DISPOSICION_DESCUBRIMIENTO`):
+ * el tiempo pasa a una sola fila (rótulo a la izquierda y cifra a la derecha),
+ * las filas de los tops encogen un poco, entra el panel «Descubrimiento del mes»
+ * tras los tops y las cuatro celdas llevan la tesela a la izquierda y la cifra
+ * a su lado. Las constantes de `REJILLA` son las mismas en ambas.
  *
  * ESPACIADO: todo se coloca con las constantes de `REJILLA` (margen exterior,
  * hueco entre paneles, relleno interior, separación entre filas). El contenido
@@ -98,25 +105,57 @@ const T = {
   pie: 22
 }
 
-/** Alto de una fila de canción (título, artista y barra) y de artista. */
-const FILA_CANCION = Math.max(T.puesto, cap(T.cancion) + 14 + cap(T.artistaSub) + 18 + T.barra)
-const FILA_ARTISTA = Math.max(T.puesto, cap(T.artista) + 16 + T.barra)
+/** Tamaños de la disposición compacta (con descubrimiento). */
+const T_COMPACTO = Object.freeze({
+  ...T,
+  titulo: 72,
+  heroe: 110,
+  puesto: 40,
+  cancion: 30,
+  artistaSub: 22,
+  artista: 30,
+  // Panel del descubrimiento
+  descNombre: 58,
+  descDato: 24,
+  descCancion: 22,
+  descIndice: 20,
+  // Celdas compactas
+  celdaRotulo: 22
+})
+
 const ALTO_LISTA = fila => fila * 3 + FILA * 2
 
+/** Alto del cuerpo del panel del descubrimiento (nombre y cifras | canciones). */
+const ALTO_DESC = cap(T_COMPACTO.descNombre) + 16 + cap(T_COMPACTO.descDato)
+
 /**
- * Geometría de la imagen, calculada sólo con `REJILLA` y `T`. Cada panel es
- * `{ x, y, w, h }`; las cuatro celdas de cifras van en `celdas`.
+ * Geometría de la imagen, calculada sólo con `REJILLA` y los tamaños `t`.
+ * Cada panel es `{ x, y, w, h }`; las cuatro celdas de cifras van en `celdas`.
+ * `compacta` = con descubrimiento: tiempo en una fila, tops algo más bajos,
+ * panel `descubrimiento` tras los tops y celdas con la tesela a la izquierda.
  */
-export const DISPOSICION = (() => {
-  const cab = { x: M, y: M, w: CW, h: T.marca }
-  const titulo = { x: M, y: cab.y + cab.h + SECCION, w: CW, h: cap(T.ceja) + 18 + cap(T.titulo) }
+function crearDisposicion (compacta) {
+  const t = compacta ? T_COMPACTO : T
+  // Fila de canción: título, artista y barra; de artista: nombre y barra.
+  const subCancion = compacta ? 12 : 14
+  const filaCancion = Math.max(t.puesto, cap(t.cancion) + subCancion + cap(t.artistaSub) + (compacta ? 14 : 18) + t.barra)
+  const filaArtista = Math.max(t.puesto, cap(t.artista) + (compacta ? 14 : 16) + t.barra)
+  const cab = { x: M, y: M, w: CW, h: t.marca }
+  const titulo = { x: M, y: cab.y + cab.h + SECCION, w: CW, h: cap(t.ceja) + 18 + cap(t.titulo) }
   const panel = (y, h) => ({ x: M, y, w: CW, h })
-  const tiempo = panel(titulo.y + titulo.h + SECCION, PAD + T.tesela + CAB_HUECO + cap(T.heroe) + PAD)
-  const canciones = panel(tiempo.y + tiempo.h + HUECO, PAD + T.tesela + CAB_HUECO + ALTO_LISTA(FILA_CANCION) + PAD)
-  const artistas = panel(canciones.y + canciones.h + HUECO, PAD + T.tesela + CAB_HUECO + ALTO_LISTA(FILA_ARTISTA) + PAD)
+  const altoTiempo = compacta
+    ? PAD + Math.max(t.tesela, cap(t.heroe)) + PAD
+    : PAD + t.tesela + CAB_HUECO + cap(t.heroe) + PAD
+  const tiempo = panel(titulo.y + titulo.h + SECCION, altoTiempo)
+  const canciones = panel(tiempo.y + tiempo.h + HUECO, PAD + t.tesela + CAB_HUECO + ALTO_LISTA(filaCancion) + PAD)
+  const artistas = panel(canciones.y + canciones.h + HUECO, PAD + t.tesela + CAB_HUECO + ALTO_LISTA(filaArtista) + PAD)
+  const descubrimiento = compacta
+    ? panel(artistas.y + artistas.h + HUECO, PAD + t.tesela + CAB_HUECO + ALTO_DESC + PAD)
+    : null
+  const ultimo = descubrimiento || artistas
   // El pie apoya su línea base en el margen inferior; las celdas ocupan lo que queda.
-  const pie = { x: M, y: WRAPPED_ALTO - M - cap(T.pie), w: CW, h: cap(T.pie) }
-  const yCeldas = artistas.y + artistas.h + HUECO
+  const pie = { x: M, y: WRAPPED_ALTO - M - cap(t.pie), w: CW, h: cap(t.pie) }
+  const yCeldas = ultimo.y + ultimo.h + HUECO
   const altoCeldas = pie.y - SECCION - yCeldas
   const hc = (altoCeldas - HUECO) / 2
   const wc = (CW - HUECO) / 2
@@ -126,16 +165,34 @@ export const DISPOSICION = (() => {
     w: wc,
     h: hc
   }))
-  return { cab, titulo, tiempo, canciones, artistas, celdas, pie, filaCancion: FILA_CANCION, filaArtista: FILA_ARTISTA }
-})()
+  return { compacta, t, cab, titulo, tiempo, canciones, artistas, descubrimiento, celdas, pie, filaCancion, filaArtista, subCancion }
+}
+
+/** Disposición normal (sin descubrimiento): el Wrapped de siempre. */
+export const DISPOSICION = crearDisposicion(false)
+/** Disposición compacta, con el panel «Descubrimiento del mes». */
+export const DISPOSICION_DESCUBRIMIENTO = crearDisposicion(true)
+
+/** La disposición que corresponde a unos datos de `calcularWrapped`. */
+export function disposicionPara (datos) {
+  return datos?.descubrimiento ? DISPOSICION_DESCUBRIMIENTO : DISPOSICION
+}
+
+const NOMBRES_CELDAS = ['artistasDistintos', 'cancionesDistintas', 'variedad', 'sesion']
+
+function panelesDe (D) {
+  return [
+    ['tiempo', D.tiempo],
+    ['canciones', D.canciones],
+    ['artistas', D.artistas],
+    ...(D.descubrimiento ? [['descubrimiento', D.descubrimiento]] : []),
+    ...D.celdas.map((c, i) => [NOMBRES_CELDAS[i], c])
+  ]
+}
 
 /** Paneles con nombre, en orden de dibujo (para las pruebas). */
-export const PANELES = [
-  ['tiempo', DISPOSICION.tiempo],
-  ['canciones', DISPOSICION.canciones],
-  ['artistas', DISPOSICION.artistas],
-  ...DISPOSICION.celdas.map((c, i) => [['artistasDistintos', 'cancionesDistintas', 'variedad', 'sesion'][i], c])
-]
+export const PANELES = panelesDe(DISPOSICION)
+export const PANELES_DESCUBRIMIENTO = panelesDe(DISPOSICION_DESCUBRIMIENTO)
 
 function fuente (ctx, peso, px) {
   ctx.font = `${peso} ${px}px ${FUENTE}`
@@ -263,7 +320,7 @@ function crearLienzo (ctx, registro) {
    * a `px` y las unidades al 42 %. Encoge hasta caber en `max`. La línea base
    * va en `y`, así que el borde inferior de la cifra es exactamente `y`.
    */
-  function cifra (zona, valor, x, y, { px, minPx = 28, max, color = C.blanco, colorUnidad = C.gris400 }) {
+  function cifra (zona, valor, x, y, { px, minPx = 28, max, color = C.blanco, colorUnidad = C.gris400, derecha = false }) {
     const partes = String(valor).trim().split(/\s+/).map(t => ({ t, num: /^[\d—–-]/.test(t) }))
     const medir = p => {
       const pu = Math.round(p * 0.42)
@@ -280,21 +337,22 @@ function crearLienzo (ctx, registro) {
     }
     let p = px
     while (p > minPx && medir(p) > max) p -= 2
+    // Con `derecha`, `x` es el borde derecho: la cifra acaba justo ahí.
+    const x0 = derecha ? x - Math.min(max, medir(p)) : x
     medir(p)
-    let cx = x
+    let cx = x0
     partes.forEach((s, i) => {
       if (i) cx += partes[i - 1].num && !s.num ? p * 0.07 : p * 0.2
       const r = texto(zona, s.t, cx, y, s.num
-        ? { peso: 800, px: p, color, ls: -p * 0.03, max: Math.max(0, x + max - cx) }
-        : { peso: 700, px: Math.round(p * 0.42), color: colorUnidad, max: Math.max(0, x + max - cx) })
+        ? { peso: 800, px: p, color, ls: -p * 0.03, max: Math.max(0, x0 + max - cx) }
+        : { peso: 700, px: Math.round(p * 0.42), color: colorUnidad, max: Math.max(0, x0 + max - cx) })
       cx += r.ancho
     })
-    return cx - x
+    return cx - x0
   }
 
   /** Puesto del ranking: cuadrado (canciones) o círculo (artistas). */
-  function puesto (zona, n, x, y, redondo, apagado = false) {
-    const s = T.puesto
+  function puesto (zona, n, x, y, redondo, apagado = false, s = T.puesto) {
     ctx.save()
     if (apagado) ctx.globalAlpha = 0.45
     ctx.fillStyle = n === 1 && !apagado ? C.verde : C.teselaGris
@@ -305,7 +363,7 @@ function crearLienzo (ctx, registro) {
       rect(ctx, x, y, s, s, s * 0.3)
     }
     ctx.fill()
-    const px = 24
+    const px = Math.round(s / 2)
     texto(zona, String(n), x + s / 2, y + s / 2 + cap(px) / 2, { peso: 800, px, color: n === 1 && !apagado ? '#000000' : C.gris300, align: 'center' })
     ctx.restore()
     anota(zona, x, y, x + s, y + s)
@@ -360,14 +418,18 @@ function crearLienzo (ctx, registro) {
   }
 
   /** Pastilla de texto (p. ej. «WRAPPED»), alineada a la derecha en `xDer`. */
+  function anchoPastilla (str) {
+    fuente(ctx, 700, T.pastilla)
+    espaciado(ctx, 3)
+    const w = ctx.measureText(str).width
+    espaciado(ctx, 0)
+    return w + 48
+  }
+
   function pastilla (zona, str, xDer, yCentro) {
     const px = T.pastilla
     const ls = 3
-    fuente(ctx, 700, px)
-    espaciado(ctx, ls)
-    const w = ctx.measureText(str).width
-    espaciado(ctx, 0)
-    const pw = w + 48
+    const pw = anchoPastilla(str)
     const ph = 48
     const y = yCentro - ph / 2
     ctx.fillStyle = 'rgba(30, 215, 96, 0.16)'
@@ -375,6 +437,7 @@ function crearLienzo (ctx, registro) {
     ctx.fill()
     anota(zona, xDer - pw, y, xDer, y + ph)
     texto(zona, str, xDer - pw / 2, yCentro + cap(px) / 2, { peso: 700, px, color: C.verde200, ls, align: 'center' })
+    return pw
   }
 
   /** Anillo de porcentaje (variedad). `pct` null pinta sólo la pista. */
@@ -398,15 +461,15 @@ function crearLienzo (ctx, registro) {
     anota(zona, cx - r, cy - r, cx + r, cy + r)
   }
 
-  return { ctx, texto, tesela, tarjeta, cabecera, cifra, puesto, barra, marcador, sinDatos, marca, pastilla, anillo }
+  return { ctx, texto, icono, tesela, tarjeta, cabecera, cifra, puesto, barra, marcador, sinDatos, marca, pastilla, anchoPastilla, anillo }
 }
 
 /** Lista de un top: filas con puesto, texto y barra proporcional a las escuchas. */
-function dibujarTop (L, zona, p, items, { fila, redondo, linea1, linea2 }) {
+function dibujarTop (L, zona, p, items, { fila, redondo, linea1, linea2, t = T, sub = 14 }) {
   const x = p.x + PAD
   const der = p.x + p.w - PAD
-  const ry = p.y + PAD + T.tesela + CAB_HUECO
-  const tx = x + T.puesto + 24
+  const ry = p.y + PAD + t.tesela + CAB_HUECO
+  const tx = x + t.puesto + 24
   const tw = der - tx
   if (!items.length) {
     L.sinDatos(zona, x, ry, der - x, ALTO_LISTA(fila), 'Aún sin escuchas este mes')
@@ -416,20 +479,21 @@ function dibujarTop (L, zona, p, items, { fila, redondo, linea1, linea2 }) {
   for (let i = 0; i < 3; i++) {
     const y = ry + i * (fila + FILA)
     const it = items[i]
-    const yPuesto = y + (fila - T.puesto) / 2
-    const yBarra = y + fila - T.barra
+    const yPuesto = y + (fila - t.puesto) / 2
+    const yBarra = y + fila - t.barra
     if (!it) {
       // Puesto sin dato (el mes dio para menos de tres): número apagado y
       // marcadores grises en lugar del texto, para que no quede un hueco.
-      L.puesto(zona, i + 1, x, yPuesto, redondo, true)
-      L.marcador(zona, tx, y, Math.min(tw, 300), cap(T.cancion))
-      L.marcador(zona, tx, yBarra, tw * 0.25, T.barra)
+      L.puesto(zona, i + 1, x, yPuesto, redondo, true, t.puesto)
+      L.marcador(zona, tx, y, Math.min(tw, 300), cap(t.cancion))
+      L.marcador(zona, tx, yBarra, tw * 0.25, t.barra)
       continue
     }
-    L.puesto(zona, i + 1, x, yPuesto, redondo)
-    const b1 = y + cap(T.cancion)
-    L.texto(zona, linea1(it), tx, b1, { peso: 700, px: T.cancion, max: tw })
-    if (linea2) L.texto(zona, linea2(it), tx, b1 + 14 + cap(T.artistaSub), { peso: 500, px: T.artistaSub, color: C.gris400, max: tw })
+    L.puesto(zona, i + 1, x, yPuesto, redondo, false, t.puesto)
+    const pxLinea1 = linea2 ? t.cancion : t.artista
+    const b1 = y + cap(pxLinea1)
+    L.texto(zona, linea1(it), tx, b1, { peso: 700, px: pxLinea1, max: tw })
+    if (linea2) L.texto(zona, linea2(it), tx, b1 + sub + cap(t.artistaSub), { peso: 500, px: t.artistaSub, color: C.gris400, max: tw })
     L.barra(zona, tx, yBarra, tw, (Number(it.count) || 0) / maximo, VERDES_TOP[i])
   }
 }
@@ -454,6 +518,88 @@ function dibujarCelda (L, zona, p, { icono: nombreIcono, rotulo, valor, pista, a
 }
 
 /**
+ * Celda compacta (con descubrimiento): tesela a la izquierda y, a su lado, el
+ * rótulo arriba y la cifra abajo; la variedad lleva su anillo a la derecha.
+ */
+function dibujarCeldaCompacta (L, zona, p, { icono: nombreIcono, rotulo, valor, pista, acento, anillo }) {
+  L.tarjeta(p)
+  const t = T_COMPACTO
+  const interior = p.h - PAD * 2
+  const conAnillo = anillo !== undefined
+  const reservaDer = conAnillo ? interior + 24 : 0
+  const x = p.x + PAD
+  const y = p.y + PAD
+  L.tesela(zona, nombreIcono, x, y, t.tesela)
+  const tx = x + t.tesela + 20
+  const max = p.x + p.w - PAD - reservaDer - tx
+  L.texto(zona, rotulo, tx, y + cap(t.celdaRotulo), { peso: 700, px: t.celdaRotulo, color: C.gris300, max, ls: -0.2 })
+  const base = p.y + p.h - PAD
+  const pxMax = Math.max(32, Math.min(64, Math.floor((interior - cap(t.celdaRotulo) - 10) / ALTO_CAP)))
+  const ancho = L.cifra(zona, valor, tx, base, { px: pxMax, max, color: acento ? C.verde : C.blanco })
+  if (pista) {
+    const libre = max - ancho - 16
+    if (libre > 60) L.texto(zona, pista, tx + ancho + 16, base, { peso: 500, px: T.pista, color: C.gris500, max: libre })
+  }
+  if (conAnillo) L.anillo(zona, p.x + p.w - PAD - interior / 2, p.y + p.h / 2, interior / 2, anillo)
+}
+
+/**
+ * Panel «Descubrimiento del mes»: cabecera con la pastilla «NUEVO» y, debajo,
+ * dos columnas: el artista en grande con sus cifras y, separadas por un filete,
+ * sus canciones más escuchadas (hasta tres). Todo se recorta midiendo.
+ */
+function dibujarDescubrimiento (L, p, d) {
+  const ctx = L.ctx
+  const t = T_COMPACTO
+  const zona = 'descubrimiento'
+  L.tarjeta(p)
+  // Mismo velo verde que el tiempo: es la otra tarjeta destacada.
+  ctx.save()
+  rect(ctx, p.x, p.y, p.w, p.h, RADIO)
+  ctx.clip()
+  const v = ctx.createLinearGradient(p.x, 0, p.x + p.w, 0)
+  v.addColorStop(0, 'rgba(30, 215, 96, 0)')
+  v.addColorStop(1, 'rgba(30, 215, 96, 0.14)')
+  ctx.fillStyle = v
+  ctx.fillRect(p.x, p.y, p.w, p.h)
+  ctx.restore()
+
+  const der = p.x + p.w - PAD
+  const pw = L.pastilla(zona, 'NUEVO', der, p.y + PAD + t.tesela / 2)
+  L.cabecera(zona, p, 'descubrimiento', 'Descubrimiento del mes', { maxDer: pw + 24 })
+
+  const x = p.x + PAD
+  const y = p.y + PAD + t.tesela + CAB_HUECO
+  const ancho = p.w - PAD * 2
+  const separacion = 48
+  const wIzq = Math.round((ancho - separacion) * 0.6)
+  const xDer = x + wIzq + separacion
+  const wDer = der - xDer
+
+  // Columna izquierda: el artista (encoge hasta 40 px y luego se recorta) y sus cifras.
+  const nombre = String(d.artista || '').trim() || 'Artista desconocido'
+  const px = ajustarPx(ctx, 800, nombre, t.descNombre, 40, wIzq, q => -q * 0.02)
+  L.texto(zona, nombre, x, y + cap(t.descNombre), { peso: 800, px, ls: -px * 0.02, max: wIzq })
+  const nuevas = Number(d.cancionesNuevas) || 0
+  const escuchas = Number(d.escuchas) || 0
+  const datos = `${nuevas === 1 ? '1 canción nueva' : `${nuevas} canciones nuevas`} · ${escuchas === 1 ? '1 escucha' : `${escuchas} escuchas`}`
+  L.texto(zona, datos, x, y + ALTO_DESC, { peso: 600, px: t.descDato, color: C.gris400, max: wIzq })
+
+  // Filete entre columnas.
+  ctx.fillStyle = C.pista
+  ctx.fillRect(x + wIzq + separacion / 2 - 1, y, 2, ALTO_DESC)
+
+  // Columna derecha: hasta tres canciones, con su puesto.
+  const canciones = (d.canciones || []).slice(0, 3)
+  const paso = (ALTO_DESC - cap(t.descCancion)) / 2
+  canciones.forEach((c, i) => {
+    const base = y + cap(t.descCancion) + i * paso
+    L.texto(zona, String(i + 1), xDer, base, { peso: 800, px: t.descIndice, color: i === 0 ? C.verde : C.gris500 })
+    L.texto(zona, c.titulo, xDer + 32, base, { peso: 600, px: t.descCancion, color: i === 0 ? C.blanco : C.gris300, max: wDer - 32 })
+  })
+}
+
+/**
  * Dibuja el Wrapped en `canvas` (se ajusta a 1080 × 1920). `datos` es el
  * resultado de `calcularWrapped`. `registro` (opcional, para pruebas) recibe
  * la caja de cada elemento dibujado.
@@ -463,7 +609,8 @@ export function dibujarWrapped (canvas, datos, registro = null) {
   canvas.height = WRAPPED_ALTO
   const ctx = canvas.getContext('2d')
   const L = crearLienzo(ctx, registro)
-  const D = DISPOSICION
+  const D = disposicionPara(datos)
+  const t = D.t
 
   // ── Fondo: lienzo de la app con un resplandor verde muy suave ──────────────
   ctx.fillStyle = C.lienzo
@@ -482,8 +629,8 @@ export function dibujarWrapped (canvas, datos, registro = null) {
   // ── Cabecera: la marca de la app y la pastilla «WRAPPED» ──────────────────
   {
     const { x, y, w, h } = D.cab
-    L.marca('cab', x, y, T.marca)
-    L.texto('cab', 'Skippify', x + T.marca + 20, y + h / 2 + cap(T.marcaTexto) / 2, { peso: 800, px: T.marcaTexto, ls: -1 })
+    L.marca('cab', x, y, t.marca)
+    L.texto('cab', 'Skippify', x + t.marca + 20, y + h / 2 + cap(t.marcaTexto) / 2, { peso: 800, px: t.marcaTexto, ls: -1 })
     L.pastilla('cab', 'WRAPPED', x + w, y + h / 2)
   }
 
@@ -491,9 +638,9 @@ export function dibujarWrapped (canvas, datos, registro = null) {
   {
     const { x, y, w } = D.titulo
     const ceja = `${datos.rango}${datos.fechas ? ` · ${datos.fechas}` : ''}`.toUpperCase()
-    L.texto('titulo', ceja, x, y + cap(T.ceja), { peso: 700, px: T.ceja, color: C.verde200, ls: 2.4, max: w })
-    const px = ajustarPx(ctx, 800, datos.titulo, T.titulo, 56, w, p => -p * 0.035)
-    L.texto('titulo', datos.titulo, x, y + cap(T.ceja) + 18 + cap(T.titulo), { peso: 800, px, ls: -px * 0.035, max: w })
+    L.texto('titulo', ceja, x, y + cap(t.ceja), { peso: 700, px: t.ceja, color: C.verde200, ls: 2.4, max: w })
+    const px = ajustarPx(ctx, 800, datos.titulo, t.titulo, 56, w, p => -p * 0.035)
+    L.texto('titulo', datos.titulo, x, y + cap(t.ceja) + 18 + cap(t.titulo), { peso: 800, px, ls: -px * 0.035, max: w })
   }
 
   // ── Tiempo de escucha: la cifra protagonista ──────────────────────────────
@@ -510,16 +657,33 @@ export function dibujarWrapped (canvas, datos, registro = null) {
     ctx.fillStyle = v
     ctx.fillRect(p.x, p.y, p.w, p.h)
     ctx.restore()
-    L.cabecera('tiempo', p, 'reloj', 'Tiempo de escucha', { pista: 'en 30 días' })
-    L.cifra('tiempo', datos.tiempo, p.x + PAD, p.y + p.h - PAD, { px: T.heroe, minPx: 48, max: p.w - PAD * 2, color: C.verde, colorUnidad: C.verde200 })
+    if (D.compacta) {
+      // Una sola fila: tesela y rótulo arriba a la izquierda, la pista abajo y
+      // la cifra a la derecha, apoyada en el relleno inferior.
+      const x = p.x + PAD
+      const y = p.y + PAD
+      L.tesela('tiempo', 'reloj', x, y, t.tesela)
+      const tx = x + t.tesela + 20
+      const rot = L.texto('tiempo', 'Tiempo de escucha', tx, y + t.tesela / 2 + cap(t.rotulo) / 2, { peso: 800, px: t.rotulo, ls: -0.4, max: 420 })
+      const base = p.y + p.h - PAD
+      L.texto('tiempo', 'en 30 días', tx, base, { peso: 600, px: T.pista, color: C.gris500, max: 420 })
+      const der = p.x + p.w - PAD
+      const max = der - (tx + Math.max(rot.ancho, 140) + 40)
+      L.cifra('tiempo', datos.tiempo, der, base, { px: t.heroe, minPx: 40, max, color: C.verde, colorUnidad: C.verde200, derecha: true })
+    } else {
+      L.cabecera('tiempo', p, 'reloj', 'Tiempo de escucha', { pista: 'en 30 días' })
+      L.cifra('tiempo', datos.tiempo, p.x + PAD, p.y + p.h - PAD, { px: t.heroe, minPx: 48, max: p.w - PAD * 2, color: C.verde, colorUnidad: C.verde200 })
+    }
   }
 
   // ── Top 3 canciones (título y, debajo, artista) ───────────────────────────
   L.tarjeta(D.canciones)
   L.cabecera('canciones', D.canciones, 'cancion', 'Top 3 canciones', { pista: 'según escuchas' })
   dibujarTop(L, 'canciones', D.canciones, datos.canciones || [], {
-    fila: FILA_CANCION,
+    fila: D.filaCancion,
     redondo: false,
+    t,
+    sub: D.subCancion,
     linea1: c => c.titulo,
     linea2: c => c.artista || 'Artista desconocido'
   })
@@ -528,10 +692,14 @@ export function dibujarWrapped (canvas, datos, registro = null) {
   L.tarjeta(D.artistas)
   L.cabecera('artistas', D.artistas, 'artista', 'Top 3 artistas', { pista: 'según escuchas' })
   dibujarTop(L, 'artistas', D.artistas, datos.artistas || [], {
-    fila: FILA_ARTISTA,
+    fila: D.filaArtista,
     redondo: true,
+    t,
     linea1: a => a.nombre
   })
+
+  // ── Descubrimiento del mes (sólo si lo hay) ───────────────────────────────
+  if (D.descubrimiento) dibujarDescubrimiento(L, D.descubrimiento, datos.descubrimiento)
 
   // ── Las cuatro cifras ─────────────────────────────────────────────────────
   {
@@ -546,11 +714,12 @@ export function dibujarWrapped (canvas, datos, registro = null) {
         ? { icono: 'sesion', rotulo: 'Sesión media', valor: datos.sesionMedia }
         : { icono: 'sesion', rotulo: 'Sesión media', valor: '—', pista: 'sin sesiones' }
     ]
-    celdas.forEach((c, i) => dibujarCelda(L, PANELES[3 + i][0], D.celdas[i], c))
+    const celda = D.compacta ? dibujarCeldaCompacta : dibujarCelda
+    celdas.forEach((c, i) => celda(L, NOMBRES_CELDAS[i], D.celdas[i], c))
   }
 
   // ── Pie: su línea base apoya en el margen inferior ────────────────────────
-  L.texto('pie', 'Hecho con Skippify', WRAPPED_ANCHO / 2, WRAPPED_ALTO - M, { peso: 600, px: T.pie, color: C.gris600, align: 'center', ls: 1 })
+  L.texto('pie', 'Hecho con Skippify', WRAPPED_ANCHO / 2, WRAPPED_ALTO - M, { peso: 600, px: t.pie, color: C.gris600, align: 'center', ls: 1 })
 
   return canvas
 }
