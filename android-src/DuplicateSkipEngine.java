@@ -1913,10 +1913,15 @@ final class DuplicateSkipEngine {
         return sp == null || sp.getBoolean(PREF_FUNDIDO_MEDIR, true);
     }
 
-    /** «Compartir mi registro de funcionalidad con mis grupos»: activado por defecto. */
+    /**
+     * «Compartir mi registro de funcionalidad con mis grupos»: APAGADO por
+     * defecto. El registro lleva títulos y artistas, así que sólo sale del móvil
+     * si el usuario lo enciende. Quien nunca tocó el ajuste (no hay clave
+     * guardada) pasa a no compartir; quien lo encendió a mano lo conserva.
+     */
     static boolean fundidoCompartir(@Nullable Context ctx) {
         SharedPreferences sp = prefs(ctx);
-        return sp == null || sp.getBoolean(PREF_FUNDIDO_COMPARTIR, true);
+        return sp != null && sp.getBoolean(PREF_FUNDIDO_COMPARTIR, false);
     }
 
     static void setFundidoConfig(@Nullable Context ctx, @Nullable Boolean medir,

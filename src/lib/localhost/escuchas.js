@@ -39,6 +39,27 @@ export async function pasar (bytes, stream) {
   return new Uint8Array(await resp.arrayBuffer())
 }
 
+/** Descomprime gzip sin pasar de `max` bytes: frena una «bomba» de compresión. */
+export async function descomprimirAcotado (bytes, max) {
+  const lector = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip')).getReader()
+  const partes = []
+  let n = 0
+  for (;;) {
+    const { done, value } = await lector.read()
+    if (done) break
+    n += value.length
+    if (n > max) {
+      await lector.cancel().catch(() => {})
+      throw new Error('registro demasiado grande')
+    }
+    partes.push(value)
+  }
+  const out = new Uint8Array(n)
+  let pos = 0
+  for (const p of partes) { out.set(p, pos); pos += p.length }
+  return out
+}
+
 /** Datos del registro para un lote: comprimidos si el motor sabe, en claro si no. */
 export async function encodeEscuchas (persona, lote) {
   const base = { v: VERSION, u: persona }
@@ -51,31 +72,59 @@ export async function encodeEscuchas (persona, lote) {
   return { ...base, l: lote }
 }
 
+/** Escuchas por lote que se aceptan de otro miembro (se publican de 60 en 60). */
+export const MAX_POR_LOTE = 200
+/** Tope del JSON descomprimido de un lote: 200 escuchas caben de sobra en 256 KB. */
+export const MAX_LOTE_BYTES = 256 * 1024
+/** Lotes descomprimidos que se guardan en memoria. */
+const MAX_CACHE = 2000
+/** Longitud máxima de título y artista. */
+export const MAX_TEXTO = 200
+/** Ninguna canción dura más de un día: lo demás es basura o un intento de inflar. */
+const MAX_DURACION_MS = 24 * 3600 * 1000
+
 const cacheDecodificados = new Map()
+
+function recordar (clave, valor) {
+  if (cacheDecodificados.size >= MAX_CACHE) {
+    // Fuera la más antigua (Map conserva el orden de inserción).
+    cacheDecodificados.delete(cacheDecodificados.keys().next().value)
+  }
+  cacheDecodificados.set(clave, valor)
+}
 
 /** Inversa de encodeEscuchas. Devuelve { u, l } o null si el dato no es nuestro. */
 export async function decodeEscuchas (data) {
   if (!data || data.v !== VERSION || typeof data.u !== 'string') return null
-  if (Array.isArray(data.l)) return { u: data.u, l: data.l.filter(esTupla) }
-  if (typeof data.z !== 'string') return null
+  if (Array.isArray(data.l)) return { u: data.u, l: limpiarLote(data.l) }
+  if (typeof data.z !== 'string' || data.z.length > MAX_LOTE_BYTES) return null
   const hit = cacheDecodificados.get(data.z)
   if (hit) return { u: data.u, l: hit }
   try {
-    const crudo = await pasar(deBase64(data.z), new DecompressionStream('gzip'))
+    const crudo = await descomprimirAcotado(deBase64(data.z), MAX_LOTE_BYTES)
     const lote = JSON.parse(new TextDecoder().decode(crudo))
-    const limpio = Array.isArray(lote) ? lote.filter(esTupla) : []
-    cacheDecodificados.set(data.z, limpio)
+    const limpio = limpiarLote(lote)
+    recordar(data.z, limpio)
     return { u: data.u, l: limpio }
   } catch {
     return null
   }
 }
 
-/** Un miembro puede equivocarse o ser de otra versión: lo ilegible se descarta. */
-function esTupla (t) {
+function limpiarLote (lote) {
+  return Array.isArray(lote) ? lote.slice(0, MAX_POR_LOTE).filter(esTupla) : []
+}
+
+const entero = (n, max) => Number.isFinite(n) && n >= 0 && n <= max
+
+/** Un miembro puede equivocarse, ser de otra versión o hacer trampas: lo ilegible se descarta. */
+export function esTupla (t) {
   return Array.isArray(t) && t.length >= 7 &&
-    typeof t[0] === 'string' && Number.isFinite(t[1]) &&
-    Number.isFinite(t[4]) && Number.isFinite(t[5]) && Number.isFinite(t[6])
+    typeof t[0] === 'string' && t[0].length <= 32 &&
+    Number.isFinite(t[1]) && t[1] > 0 &&
+    typeof t[2] === 'string' && t[2].length <= MAX_TEXTO &&
+    typeof t[3] === 'string' && t[3].length <= MAX_TEXTO &&
+    entero(t[4], MAX_DURACION_MS) && entero(t[5], MAX_DURACION_MS) && entero(t[6], MAX_DURACION_MS)
 }
 
 /** Semanas que admite `ventanaSemana` (la pestaña sólo enseña la actual; las otras sirven al aviso semanal). */

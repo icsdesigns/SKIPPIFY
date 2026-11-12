@@ -26,6 +26,8 @@ import { NostrTransport, DEFAULT_RELAYS } from '@/lib/localhost/nostrTransport'
 import { esCodigoExpres, formatearCodigo, generarCodigo, publicarExpres, resolverExpres, EXPRES_TTL_MS } from '@/lib/localhost/expres'
 import { actividadPorPersona, elegirExpulsados, LATIDO_MS, REVISION_MS } from '@/lib/localhost/inactividad'
 import { PERIODOS, DIAS_PUBLICADOS, decodeEscuchas, encodeEscuchas, partirEnLotes, ventanaPeriodo, puntuarSemana } from '@/lib/localhost/escuchas'
+import { proyectarRegistros, limpiarTexto, MAX_NOMBRE_PERSONA, MAX_NOMBRE_GRUPO } from '@/lib/localhost/registros'
+import { relaysSeguros } from '@/lib/localhost/relays'
 import { useMacros } from '@/composables/useMacros'
 import { COLL_MACROS, fusionarGrupos, leerMacrosDelGrupo, macrosCompartibles, planDePublicacion } from '@/lib/macrosCompartidas'
 import {
@@ -39,6 +41,14 @@ const COLL = 'escuchas'
 const COLL_GRUPO = 'grupo'
 const COLL_PERFIL = 'perfil'
 const COLL_PRESENCIA = 'presencia'
+/** Marca firmada de «me voy del grupo»: el admin la ve y expulsa (con cambio de llave). */
+const COLL_SALIDA = 'salida'
+/** Colecciones donde cada miembro tiene registros propios que retira al salir. */
+const COLLS_PROPIAS = [COLL, COLL_PERFIL, COLL_PRESENCIA, COLL_FUNCIONALIDAD, COLL_MACROS]
+/** Escuchas de una persona que se leen como mucho (40 días a ~150 al día). */
+const MAX_ESCUCHAS_PERSONA = 6000
+/** Lo que se espera a los relays al salir antes de borrar la copia local. */
+const SALIDA_ESPERA_MS = 15_000
 const SYNC_INTERVAL_MS = 60_000
 /** Cada cuánto se mira si toca sincronizar (el ritmo real lo decide `tick`). */
 const TICK_MS = 15_000
@@ -216,7 +226,32 @@ function validateName (name) {
   return true
 }
 
-/** Abre (o reutiliza) el grupo del kit asociado a una ranura. */
+// ── Vista de las colecciones (autoría por firma, borrados del autor) ────────
+//
+// Ver lib/localhost/registros.js. Se recalcula tras cada sincronización y cada
+// escritura propia; mientras no exista se usa la del kit (con su `author`).
+
+const vistas = new WeakMap()
+
+async function actualizarVista (rt) {
+  try {
+    const eventos = await rt.storage.getEvents({})
+    vistas.set(rt.group, proyectarRegistros(eventos, rt.group.membershipView()))
+  } catch { /* sin vista: se sigue con la del kit */ }
+}
+
+/** Registros vivos de una colección: [{ id, data, author, persona, hlc }]. */
+function itemsDe (group, coll) {
+  const vista = vistas.get(group)
+  if (vista) return vista.get(coll) || []
+  let ms = null
+  try { ms = group.membershipView() } catch { ms = null }
+  return group.records(coll).items()
+    .filter(i => !i.removed)
+    .map(i => ({ id: i.id, data: i.data, author: i.author, persona: ms?.personOf(i.author), hlc: i.hlc }))
+    .filter(i => i.persona)
+}
+
 /** Cierra los grupos abiertos: la próxima vez se leen de nuevo de IndexedDB. */
 function liberarRuntimes () {
   for (const rt of runtimes.values()) {
@@ -236,6 +271,7 @@ async function openRuntime (groupId) {
   const transport = new NostrTransport(() => (meta.relays?.length ? meta.relays : DEFAULT_RELAYS))
   const group = await kit.LocalHost.openGroup({ storage, transport })
   const rt = { kit, storage, transport, group }
+  await actualizarVista(rt)
   runtimes.set(groupId, rt)
   statuses[groupId] = estadoDe(group)
   return rt
@@ -255,14 +291,15 @@ function estadoDe (group) {
  * —grupos de versiones anteriores— se queda la más antigua, como antes.
  */
 function nombreDelGrupo (group) {
-  const items = group.records(COLL_GRUPO).items().filter(i => !i.removed && typeof i.data?.nombre === 'string')
+  const items = itemsDe(group, COLL_GRUPO)
+    .map(i => ({ ...i, nombre: limpiarTexto(i.data?.nombre, MAX_NOMBRE_GRUPO) }))
+    .filter(i => i.nombre)
   if (!items.length) return ''
   const porHlc = (a, b) => (a.hlc < b.hlc ? -1 : a.hlc > b.hlc ? 1 : 0)
-  // El autor de una anotación es el dispositivo, no la persona.
-  const admins = new Set(group.members().filter(m => !m.removed && m.admin).flatMap(m => [m.person, ...(m.devices || [])]))
-  const deAdmin = items.filter(i => admins.has(i.author)).sort(porHlc)
-  if (deAdmin.length) return deAdmin[deAdmin.length - 1].data.nombre
-  return items.sort(porHlc)[0].data.nombre
+  const admins = new Set(group.members().filter(m => !m.removed && m.admin).map(m => m.person))
+  const deAdmin = items.filter(i => admins.has(i.persona)).sort(porHlc)
+  if (deAdmin.length) return deAdmin[deAdmin.length - 1].nombre
+  return items.sort(porHlc)[0].nombre
 }
 
 /**
@@ -272,12 +309,16 @@ function nombreDelGrupo (group) {
  */
 function nombresDe (group) {
   const porPersona = new Map()
-  for (const item of group.records(COLL_PERFIL).items()) {
-    if (item.removed || typeof item.data?.u !== 'string' || typeof item.data?.nombre !== 'string') continue
-    const previo = porPersona.get(item.data.u)
-    if (!previo || item.hlc > previo.hlc) porPersona.set(item.data.u, { hlc: item.hlc, nombre: item.data.nombre })
+  // La persona sale de la firma, no del campo `u`: nadie puede ponerle nombre a otro.
+  for (const item of itemsDe(group, COLL_PERFIL)) {
+    const nombre = limpiarTexto(item.data?.nombre, MAX_NOMBRE_PERSONA)
+    if (!nombre) continue
+    const previo = porPersona.get(item.persona)
+    if (!previo || item.hlc > previo.hlc) porPersona.set(item.persona, { hlc: item.hlc, nombre })
   }
-  return new Map(group.members().filter(m => !m.removed).map(m => [m.person, porPersona.get(m.person)?.nombre || m.name || '']))
+  return new Map(group.members().filter(m => !m.removed).map(m => [
+    m.person, porPersona.get(m.person)?.nombre || limpiarTexto(m.name, MAX_NOMBRE_PERSONA) || ''
+  ]))
 }
 
 /** Si el nombre anotado no coincide con el que tengo, lo anoto (una sola vez por cambio). */
@@ -337,7 +378,9 @@ async function createGroup ({ displayName, groupName } = {}) {
     }]
     state.value.activeGroupId = slot
     saveState()
-    runtimes.set(slot, { kit, storage, transport, group })
+    const rt = { kit, storage, transport, group }
+    await actualizarVista(rt)
+    runtimes.set(slot, rt)
     refreshMembers(slot, group)
     message.value = 'Grupo creado. Genera una invitación para tus amigos.'
     startWatch()
@@ -387,7 +430,8 @@ async function joinGroup ({ inviteCode, displayName } = {}) {
       error.value = 'Ya perteneces a ese grupo.'
       return null
     }
-    const relays = invite.relays?.length ? invite.relays : DEFAULT_RELAYS
+    // Los relays los elige quien hizo la invitación: sólo se aceptan los seguros.
+    const relays = relaysSeguros(invite.relays, DEFAULT_RELAYS)
     const storage = new IdbStorage(slot)
     const transport = new NostrTransport(() => relays)
     const group = await kit.LocalHost.joinGroup({ storage, transport }, code, name)
@@ -410,10 +454,38 @@ async function joinGroup ({ inviteCode, displayName } = {}) {
   }
 }
 
-/** Salir = olvidar la copia local. Los demás siguen viéndote hasta que un admin te expulse. */
+/**
+ * Antes de irse: retira lo propio (escuchas, nombre, registro, macros…), deja
+ * una marca firmada de salida para que un admin te expulse y cambie la llave,
+ * y lo publica. Si no hay red en SALIDA_ESPERA_MS, se sale igual: los registros
+ * se quedan en los demás móviles hasta que un admin te expulse.
+ */
+async function retirarAlSalir (rt) {
+  const { group } = rt
+  if (group.status !== 'ready' || !group.canSeal() || group.removedInOwnView()) return false
+  const yo = group.me.person
+  for (const coll of COLLS_PROPIAS) {
+    for (const item of itemsDe(group, coll)) {
+      if (item.persona === yo) await group.records(coll).remove(item.id)
+    }
+  }
+  await group.records(COLL_SALIDA).add({ t: Date.now() })
+  await group.sync()
+  return true
+}
+
+/** Salir: retira lo propio del grupo (si se puede) y olvida la copia local. */
 async function leaveGroup (groupId) {
   clearStatus()
-  const rt = runtimes.get(groupId)
+  let rt = runtimes.get(groupId)
+  let retirado = false
+  try {
+    rt = rt || await openRuntime(groupId)
+    retirado = await Promise.race([
+      retirarAlSalir(rt),
+      new Promise(resolve => setTimeout(() => resolve(false), SALIDA_ESPERA_MS))
+    ])
+  } catch { /* sin red o sin llave: se sale igual */ }
   try { rt?.storage.close() } catch { /* nada */ }
   runtimes.delete(groupId)
   await deleteSlot(groupId)
@@ -424,7 +496,9 @@ async function leaveGroup (groupId) {
   delete semanas[groupId]
   delete statuses[groupId]
   saveState()
-  message.value = 'Has salido del grupo. Para volver a entrar necesitas otra invitación.'
+  message.value = retirado
+    ? 'Has salido del grupo y se han retirado tus datos. Para volver a entrar necesitas otra invitación.'
+    : 'Has salido del grupo. Tus datos se retirarán cuando un administrador te expulse. Para volver necesitas otra invitación.'
   return true
 }
 
@@ -438,6 +512,7 @@ async function expulsarMiembro (uid, groupId = state.value.activeGroupId) {
     const { group } = await openRuntime(groupId)
     const nombre = nombresDe(group).get(uid) || 'Miembro'
     await group.removePerson(uid)
+    await actualizarVista(runtimes.get(groupId))
     refreshMembers(groupId, group)
     acelerar()
     message.value = `${nombre} ya no está en el grupo.`
@@ -467,6 +542,7 @@ async function renombrarGrupo (nuevo, groupId = state.value.activeGroupId) {
       return false
     }
     await group.records(COLL_GRUPO).add({ nombre })
+    await actualizarVista(runtimes.get(groupId))
     refreshMembers(groupId, group)
     acelerar()
     message.value = 'Nombre del grupo cambiado.'
@@ -554,7 +630,7 @@ async function linkDevice ({ code, displayName } = {}) {
       error.value = 'El código de vinculación no es válido.'
       return null
     }
-    const relays = link.relays?.length ? link.relays : DEFAULT_RELAYS
+    const relays = relaysSeguros(link.relays, DEFAULT_RELAYS)
     const storage = new IdbStorage(slot)
     const transport = new NostrTransport(() => relays)
     const group = await kit.LocalHost.linkDevice({ storage, transport }, limpio, name)
@@ -689,17 +765,24 @@ function escuchasNativas (person, ahora) {
 async function leerEscuchas (group) {
   const porPersona = new Map()
   const vistos = new Set()
-  for (const item of group.records(COLL).items()) {
-    if (item.removed || !item.data) continue
+  // De la más reciente a la más antigua: si alguien pasa del tope, se queda lo último.
+  const items = [...itemsDe(group, COLL)].reverse()
+  for (const item of items) {
+    if (!item.data) continue
+    // La persona es la que FIRMÓ el lote; el campo `u` del contenido no cuenta.
+    const persona = item.persona
+    const lista = porPersona.get(persona) || []
+    if (lista.length >= MAX_ESCUCHAS_PERSONA) continue
     const lote = await decodeEscuchas(item.data)
     if (!lote) continue
     for (const tupla of lote.l) {
-      const key = `${lote.u}|${tupla[0]}`
+      const key = `${persona}|${tupla[0]}`
       if (vistos.has(key)) continue
       vistos.add(key)
-      if (!porPersona.has(lote.u)) porPersona.set(lote.u, [])
-      porPersona.get(lote.u).push(tupla)
+      lista.push(tupla)
+      if (lista.length >= MAX_ESCUCHAS_PERSONA) break
     }
+    if (lista.length) porPersona.set(persona, lista)
   }
   return porPersona
 }
@@ -755,14 +838,9 @@ function guardarEstadoSubida (estado) {
 
 /** Registros de la colección con la persona sacada de la firma del evento, no del contenido. */
 function entradasFuncionalidad (group) {
-  const vista = group.membershipView()
-  const out = []
-  for (const item of group.records(COLL_FUNCIONALIDAD).items()) {
-    if (item.removed || !item.data) continue
-    const persona = vista.personOf(item.author)
-    if (persona) out.push({ id: item.id, persona, hlc: item.hlc, data: item.data })
-  }
-  return out
+  return itemsDe(group, COLL_FUNCIONALIDAD)
+    .filter(i => i.data)
+    .map(i => ({ id: i.id, persona: i.persona, hlc: i.hlc, data: i.data }))
 }
 
 function refrescarFuncionalidad (groupId, group, nombres = nombresDe(group)) {
@@ -851,14 +929,9 @@ async function publicarFuncionalidad (groupId) {
 // sincronización. La persona autora sale de la firma del evento.
 
 function entradasMacros (group) {
-  const vista = group.membershipView()
-  const out = []
-  for (const item of group.records(COLL_MACROS).items()) {
-    if (item.removed || !item.data) continue
-    const persona = vista.personOf(item.author)
-    if (persona) out.push({ id: item.id, persona, hlc: item.hlc, data: item.data })
-  }
-  return out
+  return itemsDe(group, COLL_MACROS)
+    .filter(i => i.data)
+    .map(i => ({ id: i.id, persona: i.persona, hlc: i.hlc, data: i.data }))
 }
 
 function refrescarMacrosGrupo (groupId, group, nombres = nombresDe(group)) {
@@ -1012,8 +1085,8 @@ async function loadSemanas (groupId = state.value.activeGroupId) {
 async function latidoDePresencia (group, ahora) {
   const yo = group.me.person
   let ultimo = 0
-  for (const item of group.records(COLL_PRESENCIA).items()) {
-    if (!item.removed && item.data?.u === yo && Number.isFinite(item.data.t)) ultimo = Math.max(ultimo, item.data.t)
+  for (const item of itemsDe(group, COLL_PRESENCIA)) {
+    if (item.persona === yo && Number.isFinite(item.data?.t)) ultimo = Math.max(ultimo, item.data.t)
   }
   if (ahora - ultimo < LATIDO_MS) return
   await group.records(COLL_PRESENCIA).add({ u: yo, t: ahora })
@@ -1038,7 +1111,9 @@ async function revisarInactivos (groupId, rt, report, ahora) {
   const eventos = await rt.storage.getEvents({})
   const actividad = actividadPorPersona(eventos, d => group.membershipView().personOf(d), ahora)
   const nombres = nombresDe(group)
-  const lista = elegirExpulsados({ miembros: group.members(), actividad, ahora, yo: group.me.person })
+  // Quien firmó su salida se expulsa ya: así se cambia la llave y deja de leer.
+  const salidos = new Set(itemsDe(group, COLL_SALIDA).map(i => i.persona))
+  const lista = elegirExpulsados({ miembros: group.members(), actividad, ahora, yo: group.me.person, salidos })
   const hechas = []
   for (const persona of lista) {
     try {
@@ -1071,12 +1146,14 @@ async function syncGroup (groupId, { silent = true } = {}) {
   }
   try {
     const report = await rt.group.sync()
+    await actualizarVista(rt)
     if (rt.group.status === 'ready' && !rt.group.removedInOwnView()) {
       await asegurarPerfil(rt.group)
       await publicarEscuchas(groupId)
       publicarFuncionalidadEnSegundoPlano(groupId)
       try { await publicarMacros(groupId) } catch { /* se reintenta en la siguiente sincronización */ }
       try { await mantenimiento(groupId, rt, report) } catch { /* se reintenta en la siguiente */ }
+      await actualizarVista(rt)
     }
     refreshMembers(groupId, rt.group)
     lastSyncByGroup[groupId] = Date.now()
@@ -1206,6 +1283,7 @@ export async function backgroundTick () {
     try {
       const rt = await openRuntime(g.groupId)
       const report = await rt.group.sync()
+      await actualizarVista(rt)
       if (rt.group.removedInOwnView()) continue
       if (rt.group.status !== 'ready') rapido = true
       else {

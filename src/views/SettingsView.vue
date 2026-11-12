@@ -252,9 +252,9 @@
           </template>
         </OpcionFila>
         <p class="px-1 text-[11px] leading-relaxed text-slate-500">
-          «Compartir mi registro de funcionalidad con mis grupos»: contiene los títulos y artistas de las
-          canciones que escuchas y lo ven los miembros que tengan la clave de descarga. Desactívalo y se retira
-          de tus grupos; la versión de tu app se sigue mostrando.
+          Apagado por defecto. Si lo activas, todos los miembros de tus grupos podrán ver y descargar los
+          títulos, artistas y horas de lo que escuchas. Desactívalo y se retira de tus grupos; la versión de
+          tu app se sigue mostrando.
         </p>
       </div>
     </FeaturePanel>

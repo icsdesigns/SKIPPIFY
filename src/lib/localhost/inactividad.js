@@ -59,15 +59,22 @@ export function actividadPorPersona (eventos, personaDe, ahora) {
  * Sólo actúa el primer administrador que sigue activo, para que dos
  * administradores no escriban la misma expulsión a la vez; todos calculan lo
  * mismo con los mismos datos. Y por seguridad no expulsa nunca a «todos los
- * demás» en un grupo de más de dos: si todo el mundo parece inactivo, lo más
- * probable es que sea esta vista la que va atrasada.
+ * demás» por inactividad en un grupo de más de dos: si todo el mundo parece
+ * inactivo, lo más probable es que sea esta vista la que va atrasada.
+ *
+ * `salidos`: personas que firmaron su salida del grupo (colección `salida`).
+ * Se expulsan siempre, sin esperar a los 30 días.
  */
-export function elegirExpulsados ({ miembros, actividad, ahora, yo, limite = INACTIVIDAD_MS }) {
+export function elegirExpulsados ({ miembros, actividad, ahora, yo, limite = INACTIVIDAD_MS, salidos = new Set() }) {
   const vivos = miembros.filter(m => !m.removed)
   const callado = (m) => ahora - (actividad.get(m.person) || 0) >= limite
-  const ejecutor = vivos.find(m => m.admin && !callado(m))
+  const seFue = (m) => salidos.has(m.person)
+  const ejecutor = vivos.find(m => m.admin && !callado(m) && !seFue(m))
   if (!ejecutor || ejecutor.person !== yo) return []
-  const candidatos = vivos.filter(m => m.person !== yo && callado(m))
-  if (vivos.length > 2 && candidatos.length === vivos.length - 1) return []
-  return candidatos.map(m => m.person)
+  // Quien firmó su salida se va siempre: lo ha pedido él, no depende de la vista.
+  const idos = vivos.filter(m => m.person !== yo && seFue(m)).map(m => m.person)
+  const candidatos = vivos.filter(m => m.person !== yo && !seFue(m) && callado(m))
+  const quedan = vivos.length - idos.length
+  if (quedan > 2 && candidatos.length === quedan - 1) return idos
+  return [...idos, ...candidatos.map(m => m.person)]
 }

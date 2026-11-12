@@ -11,6 +11,7 @@
  * del kit es conectar, sincronizar y desconectar.
  */
 import { finalizeEvent, generateSecretKey } from 'nostr-tools/pure'
+import { relaysSeguros } from './relays.js'
 
 /** Rango «regular» de Nostr (los relays lo almacenan). */
 export const LH_KIND = 4247
@@ -127,7 +128,9 @@ export class NostrTransport {
    * @param {{ WebSocket?: typeof WebSocket }} [opts]
    */
   constructor (getRelays, opts = {}) {
-    this.getRelays = getRelays
+    // Sólo relays `wss://` con dominio público, venga la lista de donde venga
+    // (invitación, `relays.set` de un admin o ajustes antiguos): ver relays.js.
+    this.getRelays = () => relaysSeguros(getRelays(), DEFAULT_RELAYS)
     this.WS = opts.WebSocket || globalThis.WebSocket
   }
 

@@ -19,33 +19,34 @@
     </p>
 
     <!--
-      La clave es una puerta DE INTERFAZ, no seguridad: el valor está escrito en
-      este mismo fichero y los registros ya viajan dentro del grupo, así que
-      cualquiera con acceso al código o a los datos del grupo se la salta. Solo
-      evita que se descargue un registro ajeno por un toque sin querer. No cifra
-      nada y no debe presentarse como protección.
+      Descarga en dos toques: el primero explica qué contiene el fichero y el
+      segundo lo guarda. No protege nada (el registro ya está en el grupo); sólo
+      evita descargar el de otro miembro por un toque sin querer.
     -->
-    <div v-if="filas > 0" class="mt-2.5 flex items-center gap-2">
-      <input
-        v-model.trim="clave"
-        type="text"
-        inputmode="numeric"
-        autocomplete="off"
-        class="sk-input min-w-0 flex-1"
-        placeholder="Clave de descarga"
-        :aria-label="`Clave de descarga del registro de ${registro.nombre}`"
-        data-clave-registros
-        @input="error = ''"
-      >
-      <button
-        type="button"
-        class="sk-btn sk-btn-primary sk-btn-sm shrink-0"
-        :disabled="ocupado"
-        :data-descargar="registro.id"
-        @click="pedir"
-      >
-        {{ ocupado ? 'Descargando…' : 'Descargar' }}
-      </button>
+    <div v-if="filas > 0" class="mt-2.5">
+      <p v-if="confirmando" class="mb-2 text-[11px] leading-relaxed text-amber-200" data-confirmar-descarga>
+        Contiene los títulos, artistas y horas de lo que ha escuchado {{ registro.nombre }}. Guárdalo sólo si lo necesitas para revisar un fallo.
+      </p>
+      <div class="flex items-center gap-2">
+        <button
+          v-if="confirmando"
+          type="button"
+          class="sk-btn sk-btn-sm min-w-0 flex-1"
+          :disabled="ocupado"
+          @click="confirmando = false"
+        >
+          Cancelar
+        </button>
+        <button
+          type="button"
+          class="sk-btn sk-btn-primary sk-btn-sm min-w-0 flex-1"
+          :disabled="ocupado"
+          :data-descargar="registro.id"
+          @click="pedir"
+        >
+          {{ ocupado ? 'Descargando…' : (confirmando ? 'Sí, descargar' : 'Descargar registro') }}
+        </button>
+      </div>
     </div>
     <p v-if="error" class="mt-2 text-[11px] text-rose-200" role="alert">{{ error }}</p>
     <p v-else-if="mensaje" class="mt-2 break-words text-[11px] font-semibold text-brand-400">{{ mensaje }}</p>
@@ -56,16 +57,13 @@
 /**
  * «Registro de funcionalidad» de UN miembro, dentro de su ficha: la versión de
  * su app, cuándo subió su registro por última vez, cuántas filas tiene y la
- * descarga como JSON tras escribir la clave. Se abre con el icono de
+ * descarga como JSON tras confirmarla. Se abre con el icono de
  * información de la ficha.
  *
  * Es solo presentación: la descarga la hace quien lo monta (`descargar`).
  */
 import { computed, ref } from 'vue'
 import GrupoIcono from './GrupoIcono.js'
-
-/** Puerta de interfaz (ver el comentario de la plantilla): NO es seguridad. */
-const CLAVE_DESCARGA = '1234'
 
 const props = defineProps({
   /** { id, nombre, yo, version, subidoEn, filas, total } o null si aún no se sabe nada. */
@@ -74,7 +72,7 @@ const props = defineProps({
   descargar: { type: Function, required: true }
 })
 
-const clave = ref('')
+const confirmando = ref(false)
 const error = ref('')
 const mensaje = ref('')
 const ocupado = ref(false)
@@ -90,10 +88,11 @@ function cuando (ms) {
 async function pedir () {
   error.value = ''
   mensaje.value = ''
-  if (clave.value !== CLAVE_DESCARGA) {
-    error.value = 'Clave incorrecta.'
+  if (!confirmando.value) {
+    confirmando.value = true
     return
   }
+  confirmando.value = false
   ocupado.value = true
   try {
     const ruta = await props.descargar(props.registro.id)

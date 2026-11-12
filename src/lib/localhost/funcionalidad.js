@@ -28,7 +28,7 @@
  * sino de la firma del evento (quien llama pasa `persona`), para que un miembro
  * no pueda hacerse pasar por otro.
  */
-import { aBase64, deBase64, pasar } from './escuchas.js'
+import { aBase64, deBase64, descomprimirAcotado, pasar } from './escuchas.js'
 
 export const COLL_FUNCIONALIDAD = 'funcionalidad'
 const VERSION = 1
@@ -137,27 +137,6 @@ export async function empaquetarRegistro ({ filas, sesiones, total }, ahora = Da
     if (piezas.length <= MAX_TROZOS || lista.length <= 50) return { piezas, filas: lista.length }
     lista = lista.slice(Math.ceil(lista.length * 0.25))
   }
-}
-
-/** Descomprime gzip sin pasar de `max` bytes: lo que subió otro miembro no es de fiar. */
-async function descomprimirAcotado (bytes, max) {
-  const lector = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip')).getReader()
-  const partes = []
-  let n = 0
-  for (;;) {
-    const { done, value } = await lector.read()
-    if (done) break
-    n += value.length
-    if (n > max) {
-      await lector.cancel().catch(() => {})
-      throw new Error('registro demasiado grande')
-    }
-    partes.push(value)
-  }
-  const out = new Uint8Array(n)
-  let pos = 0
-  for (const p of partes) { out.set(p, pos); pos += p.length }
-  return out
 }
 
 /** Inversa de empaquetarRegistro: { filas, sesiones, total, generado } o null si no se puede leer. */

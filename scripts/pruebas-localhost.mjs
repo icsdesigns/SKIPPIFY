@@ -17,6 +17,9 @@ import {
   decodeEscuchas, encodeEscuchas, partirEnLotes, puntuarSemana, ventanaSemana, ventanaMes, ventanaPeriodo, tuplaAEvento, PERIODOS, DIAS_PUBLICADOS
 } from '../src/lib/localhost/escuchas.js'
 import { scoreMember, esNoMusical } from '../src/lib/puntuacion.js'
+import { proyectarRegistros, limpiarTexto } from '../src/lib/localhost/registros.js'
+import { relayValido, relaysSeguros, MAX_RELAYS } from '../src/lib/localhost/relays.js'
+import { esTupla, MAX_POR_LOTE, aBase64, pasar } from '../src/lib/localhost/escuchas.js'
 import { comunConMiembro, escuchaComun, extrasNuevos, ordenarPorTiempo, perfilHorario, diaCorto } from '../src/lib/gruposExtras.js'
 
 let fallos = 0
@@ -282,6 +285,96 @@ titulo('Periodos de la pestaña: semana y mes')
   const mes = puntuarSemana('u', 'U', lista, m)
   check('la semana sólo cuenta lo de esta semana (lun 9 en adelante)', sem.totalTracks === 2, String(sem.totalTracks))
   check('el mes cuenta todo desde el día 1', mes.totalTracks === 4, String(mes.totalTracks))
+}
+
+// ── Seguridad de los grupos (auditoría de la v4.8) ───────────────────────────
+titulo('Un miembro no puede hacerse pasar por otro ni borrar lo ajeno')
+{
+  for (let i = 0; i < 3; i += 1) { await ana.sync(); await luis.sync() }
+  await ana.records('perfil').add({ u: ana.me.person, nombre: 'Ana' })
+  const nombreAna = ana.records('grupo').items()[0]?.id
+  // Luis firma un perfil y un lote de escuchas diciendo que son de Ana…
+  await luis.records('perfil').add({ u: ana.me.person, nombre: 'Ana la tramposa' })
+  await luis.records('escuchas').add(await encodeEscuchas(ana.me.person, [['falsa', Date.now() - 3_600_000, 'X', 'Y', 200_000, 200_000, 200_000]]))
+  // …y retira el nombre del grupo que puso Ana, que es la administradora.
+  await luis.records('grupo').remove(nombreAna)
+  // Y borra su propio registro de perfil después de crear otro: eso sí vale.
+  const propio = await luis.records('perfil').add({ u: luis.me.person, nombre: 'Luis' })
+  await luis.records('perfil').remove(propio)
+  for (let i = 0; i < 3; i += 1) { await luis.sync(); await ana.sync() }
+
+  const eventos = await new IdbStorage('ana').getEvents({})
+  const vista = proyectarRegistros(eventos, ana.membershipView())
+  const perfiles = vista.get('perfil') || []
+  const deLuis = perfiles.filter(p => p.persona === luis.me.person)
+  check('el perfil firmado por Luis cuenta como de Luis, diga lo que diga `u`',
+    deLuis.some(p => p.data.nombre === 'Ana la tramposa') && !perfiles.some(p => p.persona === ana.me.person && p.data.nombre === 'Ana la tramposa'))
+  const loteFalso = []
+  for (const i of vista.get('escuchas') || []) {
+    const d = await decodeEscuchas(i.data)
+    if (d?.l.some(x => x[0] === 'falsa')) loteFalso.push(i)
+  }
+  check('el lote de escuchas firmado por Luis es de Luis', loteFalso.length === 1 && loteFalso[0].persona === luis.me.person)
+  check('el borrado del nombre del grupo por un no admin se ignora', (vista.get('grupo') || []).some(i => i.id === nombreAna))
+  check('el kit, por sí solo, sí lo habría borrado', !ana.records('grupo').items().some(i => i.id === nombreAna))
+  check('cada uno puede borrar lo suyo', !perfiles.some(p => p.id === propio))
+
+  // Un admin sí puede retirar registros de otro.
+  const deLuisId = deLuis[0].id
+  await ana.records('perfil').remove(deLuisId)
+  const vista2 = proyectarRegistros(await new IdbStorage('ana').getEvents({}), ana.membershipView())
+  check('un administrador puede retirar lo de otro', !(vista2.get('perfil') || []).some(p => p.id === deLuisId))
+}
+
+titulo('Lo que publica otro miembro se acota')
+{
+  const t = (over = {}) => Object.assign(['e', Date.now(), 'Tema', 'Artista', 200_000, 180_000, 180_000], over)
+  check('una escucha normal vale', esTupla(t()))
+  check('un título enorme no', !esTupla(t({ 2: 'x'.repeat(201) })))
+  check('un artista que no es texto no', !esTupla(t({ 3: 42 })))
+  check('una duración de más de un día no', !esTupla(t({ 4: 2 * 86_400_000 })))
+  check('minutos negativos no', !esTupla(t({ 5: -1 })))
+  const muchas = Array.from({ length: MAX_POR_LOTE + 50 }, (_, i) => [`e${i}`, Date.now(), 'T', 'A', 1000, 1000, 1000])
+  const enClaro = await decodeEscuchas({ v: 1, u: 'x', l: muchas })
+  check('un lote se corta en MAX_POR_LOTE', enClaro.l.length === MAX_POR_LOTE, String(enClaro.l.length))
+  // Bomba gzip: 4 MB de ceros comprimidos en unos pocos KB.
+  const bomba = await pasar(new Uint8Array(4 * 1024 * 1024), new CompressionStream('gzip'))
+  check('la bomba gzip se descarta sin descomprimirla entera', (await decodeEscuchas({ v: 1, u: 'x', z: aBase64(bomba) })) === null)
+  check('los nombres pierden controles y se recortan',
+    limpiarTexto('  Ana\u202e\u0007  la\nmejor  ' + 'x'.repeat(40), 24) === ('Ana la mejor ' + 'x'.repeat(40)).slice(0, 24))
+}
+
+titulo('Relays: sólo wss:// con dominio público')
+{
+  check('wss con dominio vale', relayValido('wss://relay.damus.io'))
+  check('ws:// sin cifrar no', !relayValido('ws://relay.damus.io'))
+  check('localhost no', !relayValido('wss://localhost'))
+  check('una IP no', !relayValido('wss://192.168.1.10'))
+  check('IPv6 no', !relayValido('wss://[::1]'))
+  check('un puerto raro no', !relayValido('wss://relay.example.com:8080'))
+  check('con usuario y contraseña no', !relayValido('wss://a:b@relay.example.com'))
+  check('una red interna no', !relayValido('wss://nas.local'))
+  const def = ['wss://por.defecto']
+  check('si no queda ninguno, los de siempre', relaysSeguros(['ws://x', 'http://y'], def).join() === def.join())
+  const largos = Array.from({ length: 20 }, (_, i) => `wss://r${i}.example.com`)
+  check('como mucho MAX_RELAYS', relaysSeguros(largos, def).length === MAX_RELAYS)
+  check('sin duplicados', relaysSeguros(['wss://a.example.com', 'wss://a.example.com/'], def).length === 1)
+}
+
+titulo('Salir del grupo: quien firma su salida se expulsa')
+{
+  const ahora = Date.parse('2026-11-12T10:00:00Z')
+  const miembros = [
+    { person: 'admin', admin: true, removed: false },
+    { person: 'b', admin: false, removed: false },
+    { person: 'c', admin: false, removed: false }
+  ]
+  const actividad = new Map([['admin', ahora], ['b', ahora], ['c', ahora]])
+  check('nadie se va sin pedirlo', elegirExpulsados({ miembros, actividad, ahora, yo: 'admin' }).length === 0)
+  check('quien firmó su salida se expulsa ya',
+    elegirExpulsados({ miembros, actividad, ahora, yo: 'admin', salidos: new Set(['b']) }).join() === 'b')
+  check('sólo lo hace el administrador',
+    elegirExpulsados({ miembros, actividad, ahora, yo: 'c', salidos: new Set(['b']) }).length === 0)
 }
 
 console.log(`\n${total - fallos}/${total} comprobaciones correctas`)

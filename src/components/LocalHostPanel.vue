@@ -76,9 +76,22 @@
           <input v-model.trim="displayName" class="sk-input mt-1.5" maxlength="24" placeholder="Nombre de usuario (mín. 3 caracteres)">
         </label>
 
+        <!-- Aviso de privacidad: qué ven los demás antes de crear o entrar. -->
+        <div class="mt-3 rounded-md bg-white/[0.05] px-3 py-3" data-aviso-grupos>
+          <p class="text-[11px] leading-relaxed text-slate-300">
+            En un grupo, todos los miembros ven tu nombre y lo que escuchas de los últimos 40 días: título,
+            artista, hora y duración. Viaja cifrado de extremo a extremo por relays públicos de Nostr, que no
+            pueden leerlo pero sí ven la IP de tu móvil. Al salir se retira lo tuyo del grupo.
+          </p>
+          <label class="mt-2.5 flex items-start gap-2 text-[11px] font-semibold text-white">
+            <input v-model="aceptaAviso" type="checkbox" class="mt-0.5 h-4 w-4 shrink-0 accent-[#1ed760]" data-acepto-grupos>
+            <span>Entendido, quiero compartirlo con el grupo</span>
+          </label>
+        </div>
+
         <template v-if="accion === 'crear'">
           <input v-model.trim="groupNameInput" class="sk-input mt-3" maxlength="32" placeholder="Nombre del grupo (opcional)">
-          <button class="sk-btn sk-btn-primary sk-btn-sm mt-3 w-full" :disabled="!canUseName || busy" @click="onCreate">
+          <button class="sk-btn sk-btn-primary sk-btn-sm mt-3 w-full" :disabled="!canUseName || !aceptaAviso || busy" @click="onCreate">
             Crear grupo
           </button>
           <p class="mt-2 text-[11px] text-slate-500">Serás el administrador: sólo tú podrás invitar y expulsar.</p>
@@ -93,7 +106,7 @@
             autocomplete="off"
             spellcheck="false"
           >
-          <button class="sk-btn sk-btn-primary sk-btn-sm mt-3 w-full" :disabled="!canUseName || !codigoInput || busy" @click="onJoin">
+          <button class="sk-btn sk-btn-primary sk-btn-sm mt-3 w-full" :disabled="!canUseName || !aceptaAviso || !codigoInput || busy" @click="onJoin">
             Unirme al grupo
           </button>
           <p class="mt-2 text-[11px] text-slate-500">El código lo genera el administrador del grupo y vale 1 hora.</p>
@@ -165,6 +178,15 @@ const codigoInput = ref('')
 const expres = ref(null)
 const invitingExpres = ref(false)
 const accion = ref('crear')
+
+/** Aceptación del aviso de privacidad de los grupos: se pide una vez por móvil. */
+const AVISO_KEY = 'skippify-grupos-aviso-aceptado'
+const aceptaAviso = ref((() => {
+  try { return localStorage.getItem(AVISO_KEY) === '1' } catch { return false }
+})())
+watch(aceptaAviso, (v) => {
+  try { localStorage.setItem(AVISO_KEY, v ? '1' : '0') } catch { /* sólo la preferencia */ }
+})
 
 const opciones = [
   { id: 'crear', icon: 'plus', title: 'Crear grupo', description: 'Abres uno nuevo y eres su administrador.' },

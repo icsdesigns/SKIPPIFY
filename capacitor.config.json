@@ -3,7 +3,7 @@
   "appName": "Skippify",
   "webDir": "dist",
   "android": {
-    "allowMixedContent": true
+    "allowMixedContent": false
   },
   "plugins": {
     "LocalNotifications": {
