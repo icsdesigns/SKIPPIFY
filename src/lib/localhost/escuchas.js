@@ -7,10 +7,9 @@
  * determinista, así que publicar dos veces la misma escucha no la cuenta dos
  * veces: al leer se deduplica por (persona, eid).
  *
- * La puntuación es la misma que la de Firebase (`firebase/functions/scoring.js`),
- * importada tal cual: ambos modos dan las mismas cifras con los mismos datos.
+ * La puntuación vive en `lib/puntuacion.js`.
  */
-import { scoreMember } from '../../../firebase/functions/scoring.js'
+import { scoreMember } from '../puntuacion.js'
 
 /** Un evento firmado cabe en una nota de 32 KB: lotes lejos de ese tope. */
 const ESCUCHAS_POR_LOTE = 60
@@ -92,7 +91,7 @@ export const PERIODOS = ['semana', 'mes']
 export const DIAS_PUBLICADOS = 40
 
 /**
- * Ventana semanal, lunes a lunes en UTC, como la función programada de Firebase.
+ * Ventana semanal, lunes a lunes en UTC, como el resto del ranking.
  *   · 'actual': desde el lunes de esta semana hasta ahora;
  *   · 'pasada': la última semana natural cerrada;
  *   · 'hace2': la anterior a esa.

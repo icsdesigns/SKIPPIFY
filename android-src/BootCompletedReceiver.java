@@ -34,8 +34,10 @@ public class BootCompletedReceiver extends BroadcastReceiver {
         }
 
         // El domingo a las 15:00 (o un reintento): avisar del ranking semanal.
-        if (LigaResultados.ACTION_ALARMA.equals(action)) {
-            LigaResultados.alSonar(context, goAsync());
+        // Alarma del ranking de la antigua Comunidad con servidor: ya no existe.
+        // Si quedó una programada de una versión anterior, se limpia y nada más.
+        if (LogCrudo.ACCION_RANKING_ANTIGUA.equals(action)) {
+            LogCrudo.limpiarRestos(context);
             return;
         }
 
@@ -68,12 +70,6 @@ public class BootCompletedReceiver extends BroadcastReceiver {
         SkippifyForegroundService.start(appContext, ACTION_WATCHDOG.equals(action));
         // Un temporizador puesto antes de reiniciar o de actualizar sigue vivo.
         SleepTimer.resume(appContext);
-        // Las alarmas no sobreviven a un reinicio: la del ranking se repone.
-        try {
-            LigaResultados.programar(appContext);
-        } catch (Throwable ignored) {
-        }
-
         // Y las de los grupos: el aviso de los domingos y el latido de la
         // sincronización (si hay grupos; si no, no hacen nada).
         try {

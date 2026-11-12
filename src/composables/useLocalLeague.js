@@ -1,17 +1,18 @@
 /**
  * useLocalLeague — Comunidad sin base de datos (modo LocalHost).
  *
- * Alternativa a useLeague.js (Firebase), que no se toca. Aquí cada grupo vive
+ * Es el único modo de grupos: Skippify no tiene servidor propio (el antiguo
+ * modo con Firebase se desconectó por completo en la v4.8). Cada grupo vive
  * en los propios móviles: el kit `localhost-core` guarda una copia completa del
  * grupo en IndexedDB y la sincroniza cifrada por relays públicos de Nostr.
  * No hay cuenta, ni servidor propio, ni Cloud Function.
  *
- * Diferencias con el modo Firebase que conviene tener presentes:
+ * Lo que conviene tener presente:
  *   · El ranking lo calcula cada móvil con las escuchas que ha recibido (misma
- *     puntuación: firebase/functions/scoring.js), así que es «provisional»
+ *     puntuación: lib/puntuacion.js), así que es «provisional»
  *     hasta que todos los miembros han sincronizado.
- *   · Las escuchas se publican desde JS, al abrir la app o al volver a ella: no
- *     hay subida con la app cerrada (eso es LigaBackground, sólo de Firebase).
+ *   · Las escuchas se publican desde JS: con la app abierta, o con ella cerrada
+ *     desde el WebView del servicio en segundo plano (bg.html).
  *   · El registro es de sólo añadir: una escucha se publica cuando ya terminó,
  *     con sus cifras definitivas, y no se corrige después.
  *
@@ -664,7 +665,7 @@ function eventosDeAlmacen () {
 
 /**
  * Escuchas captadas con la app cerrada, que sólo el código nativo ve (log
- * crudo del listener, ya troceado como hace la subida a Firebase). Sólo existe
+ * crudo del listener, ya troceado por EscuchasLog.java). Sólo existe
  * en el WebView del servicio, que recibe el puente `SkippifyLh`.
  */
 function escuchasNativas (person, ahora) {

@@ -67,9 +67,9 @@ final class RegistroEscuchas {
         }
     }
 
-    /** Eventos de los últimos días, en el formato que trocea EscuchasNube. */
-    static List<EscuchasNube.Crudo> leer(Context ctx) {
-        List<EscuchasNube.Crudo> out = new ArrayList<EscuchasNube.Crudo>();
+    /** Eventos de los últimos días, en el formato que trocea EscuchasLog. */
+    static List<EscuchasLog.Crudo> leer(Context ctx) {
+        List<EscuchasLog.Crudo> out = new ArrayList<EscuchasLog.Crudo>();
         if (ctx == null) return out;
         long desde = System.currentTimeMillis() - VENTANA_MS;
         synchronized (LOCK) {
@@ -80,7 +80,7 @@ final class RegistroEscuchas {
                 String line;
                 int leidas = 0;
                 while ((line = reader.readLine()) != null && ++leidas <= MAX_LINEAS) {
-                    EscuchasNube.Crudo c = crudo(line);
+                    EscuchasLog.Crudo c = crudo(line);
                     if (c != null && c.t >= desde) out.add(c);
                 }
             } catch (Throwable ignored) {
@@ -97,7 +97,7 @@ final class RegistroEscuchas {
                 new InputStreamReader(new FileInputStream(f), StandardCharsets.UTF_8))) {
             String line;
             while ((line = reader.readLine()) != null) {
-                EscuchasNube.Crudo c = crudo(line);
+                EscuchasLog.Crudo c = crudo(line);
                 if (c != null && c.t >= desde) quedan.append(line.trim()).append('\n');
             }
         } catch (Throwable t) {
@@ -115,7 +115,7 @@ final class RegistroEscuchas {
         }
     }
 
-    private static EscuchasNube.Crudo crudo(String line) {
+    private static EscuchasLog.Crudo crudo(String line) {
         if (line == null) return null;
         line = line.trim();
         if (line.isEmpty()) return null;
@@ -124,7 +124,7 @@ final class RegistroEscuchas {
             String playedAt = o.optString("played_at", "");
             long t = SpotifyNotificationListener.fromIso8601Ms(playedAt);
             if (t <= 0) return null;
-            return new EscuchasNube.Crudo(t, playedAt,
+            return new EscuchasLog.Crudo(t, playedAt,
                     o.optString("event", ""),
                     o.optString("track", ""),
                     o.optString("artist", ""),

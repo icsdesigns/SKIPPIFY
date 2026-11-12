@@ -9,14 +9,14 @@ import java.util.TimeZone;
 /**
  * Las cifras del widget «Tu mes»: medias diarias de los últimos 30 días.
  *
- * Sin importaciones de Android, como {@link EscuchasNube}: se prueba con javac
+ * Sin importaciones de Android, como {@link EscuchasLog}: se prueba con javac
  * a secas. Quien llama le pasa el registro de escuchas ya leído, el histórico
  * diario de duplicadas y la hora; aquí sólo se cuenta.
  *
  * Las medias se dividen entre los días de los que hay datos, no entre 30 a
  * ciegas: el registro propio del widget nació con la v4.2.5 guardando sólo 8
  * días, así que durante el primer mes la ventana real es más corta. Las
- * escuchas se trocean con {@link EscuchasNube#trocear} para que «escuchas»
+ * escuchas se trocean con {@link EscuchasLog#trocear} para que «escuchas»
  * signifique lo mismo aquí que en Comunidad.
  */
 public final class MesWidgetDatos {
@@ -94,7 +94,7 @@ public final class MesWidgetDatos {
      * @param historialDiario `AAAAMMDD:duplicadas:saltadas` separado por `;`,
      *                       incluido el día en curso (DuplicateSkipEngine.dailyHistory)
      */
-    static Resumen calcular(List<EscuchasNube.Crudo> registro, String historialDiario,
+    static Resumen calcular(List<EscuchasLog.Crudo> registro, String historialDiario,
                             long ahora, TimeZone zona) {
         Resumen r = new Resumen();
         long desde = inicioVentana(ahora, zona);
@@ -102,21 +102,21 @@ public final class MesWidgetDatos {
         // El primer evento guardado marca desde cuándo hay datos: antes de él
         // no es que no se escuchara nada, es que no se apuntaba.
         long primero = Long.MAX_VALUE;
-        for (EscuchasNube.Crudo c : registro) {
+        for (EscuchasLog.Crudo c : registro) {
             if (c.t >= desde && c.t <= ahora) primero = Math.min(primero, c.t);
         }
         r.diasEscucha = primero == Long.MAX_VALUE ? 1 : Math.max(1, diasIncluidos(primero, ahora, zona));
 
         // La canción que sigue sonando no tiene cierre en el registro: se cierra
         // «ahora» para que el widget no vaya una canción por detrás.
-        List<EscuchasNube.Crudo> conCierre = new ArrayList<EscuchasNube.Crudo>(registro);
-        conCierre.add(new EscuchasNube.Crudo(ahora, "", "stopped", "", "", 0L, true));
+        List<EscuchasLog.Crudo> conCierre = new ArrayList<EscuchasLog.Crudo>(registro);
+        conCierre.add(new EscuchasLog.Crudo(ahora, "", "stopped", "", "", 0L, true));
 
-        for (EscuchasNube.Escucha e : EscuchasNube.trocear(conCierre)) {
+        for (EscuchasLog.Escucha e : EscuchasLog.trocear(conCierre)) {
             if (e.playedAtMs < desde || e.playedAtMs > ahora) continue;
             if (e.durationMs <= 0 || e.msPlayed <= 0) continue;
             double ratio = (double) e.msPlayed / (double) e.durationMs;
-            if (ratio < EscuchasNube.MIN_REGISTRO) continue;
+            if (ratio < EscuchasLog.MIN_REGISTRO) continue;
             r.escuchas++;
             r.msEscuchados += Math.min(e.msPlayed, e.durationMs);
         }

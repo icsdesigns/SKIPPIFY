@@ -22,11 +22,6 @@ DOCUMENTACION.md
 APK_AUTOMATION.md
 AUTOACTUALIZACION.md
 
-# Emuladores de Firebase
-firebase-debug.log
-firestore-debug.log
-ui-debug.log
-firebase/.firebase/
 
 # Worktrees de git: siempre dentro del repo, nunca como carpetas hermanas
 .worktrees/

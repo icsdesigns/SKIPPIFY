@@ -24,15 +24,12 @@ const FUENTES = [
   // El temporizador de escucha aparta igual su decisión en una clase sin Android.
   join(raiz, 'android-src', 'SleepTimerDecision.java'),
   join(raiz, 'scripts', 'native-tests', 'PruebasTemporizador.java'),
-  // Y la subida de escuchas de Comunidad: la parte que decide, sin Android.
-  join(raiz, 'android-src', 'EscuchasNube.java'),
-  join(raiz, 'scripts', 'native-tests', 'PruebasLiga.java'),
+  // El troceado del log crudo en escuchas, sin Android.
+  join(raiz, 'android-src', 'EscuchasLog.java'),
+  join(raiz, 'scripts', 'native-tests', 'PruebasEscuchasLog.java'),
   // Las medias del widget «Tu mes», que se apoyan en el mismo troceado.
   join(raiz, 'android-src', 'MesWidgetDatos.java'),
   join(raiz, 'scripts', 'native-tests', 'PruebasWidgetMes.java'),
-  // Las horas del aviso del ranking del domingo a las 15:00.
-  join(raiz, 'android-src', 'ResultadosLiga.java'),
-  join(raiz, 'scripts', 'native-tests', 'PruebasResultados.java'),
   // Las escuchas leídas de la API de Spotify: umbrales y duplicados.
   join(raiz, 'android-src', 'EscuchasApi.java'),
   join(raiz, 'scripts', 'native-tests', 'PruebasEscuchasApi.java'),
@@ -80,9 +77,8 @@ try {
   execFileSync('javac', ['-nowarn', '-d', salida, ...FUENTES], { stdio: 'inherit' })
   execFileSync('java', ['-Dfile.encoding=UTF-8', '-cp', salida, 'com.skippify.app.PruebasMacros'], { stdio: 'inherit' })
   execFileSync('java', ['-Dfile.encoding=UTF-8', '-cp', salida, 'com.skippify.app.PruebasTemporizador'], { stdio: 'inherit' })
-  execFileSync('java', ['-Dfile.encoding=UTF-8', '-cp', salida, 'com.skippify.app.PruebasLiga'], { stdio: 'inherit' })
+  execFileSync('java', ['-Dfile.encoding=UTF-8', '-cp', salida, 'com.skippify.app.PruebasEscuchasLog'], { stdio: 'inherit' })
   execFileSync('java', ['-Dfile.encoding=UTF-8', '-cp', salida, 'com.skippify.app.PruebasWidgetMes'], { stdio: 'inherit' })
-  execFileSync('java', ['-Dfile.encoding=UTF-8', '-cp', salida, 'com.skippify.app.PruebasResultados'], { stdio: 'inherit' })
   execFileSync('java', ['-Dfile.encoding=UTF-8', '-cp', salida, 'com.skippify.app.PruebasEscuchasApi'], { stdio: 'inherit' })
   execFileSync('java', ['-Dfile.encoding=UTF-8', '-cp', salida, 'com.skippify.app.PruebasFundido'], { stdio: 'inherit' })
   execFileSync('java', ['-Dfile.encoding=UTF-8', '-cp', salida, 'com.skippify.app.PruebasGrupos'], { stdio: 'inherit' })

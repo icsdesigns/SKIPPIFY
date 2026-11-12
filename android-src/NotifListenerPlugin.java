@@ -69,7 +69,7 @@ public class NotifListenerPlugin extends Plugin
     /**
      * Sin actividad no hay JS que reciba nada. Soltar el listener hace que el log
      * marque lo que llega a partir de aquí como captado con la app cerrada, que
-     * es lo que LigaBackground sube por su cuenta.
+     * lo publica en los grupos el WebView del servicio.
      */
     @Override
     protected void handleOnDestroy() {
@@ -595,40 +595,6 @@ public class NotifListenerPlugin extends Plugin
     public void clearSpotifySession(PluginCall call) {
         MacroBackground.borrarSesion(getContext());
         call.resolve();
-    }
-
-    /**
-     * Antes guardaba la sesión anónima de Firebase y los grupos de Comunidad para
-     * subir escuchas con la app cerrada. Los grupos con servidor están
-     * deshabilitados: esta llamada sólo borra lo que hubiera guardado y apaga la
-     * alarma del ranking. Se conserva por si una versión anterior de la web la
-     * invoca; los datos de Firebase no se tocan.
-     */
-    @PluginMethod
-    public void setLeagueSync(PluginCall call) {
-        LigaBackground.borrar(getContext());
-        try {
-            LigaResultados.apagar(getContext());
-        } catch (Throwable ignored) {
-        }
-        call.resolve(aJS(LigaBackground.estado(getContext())));
-    }
-
-    /**
-     * La app ya enseña la semana de un grupo. El aviso lo da el servicio, que es
-     * quien lleva la cuenta de lo avisado: si ya sonó a las 15:00, no se repite.
-     */
-    @PluginMethod
-    public void notifyLeagueResult(PluginCall call) {
-        boolean mostrado = LigaResultados.avisar(
-                getContext(),
-                call.getString("groupId", ""),
-                call.getString("groupName", ""),
-                call.getString("revealAt", "")
-        );
-        JSObject r = new JSObject();
-        r.put("shown", mostrado);
-        call.resolve(r);
     }
 
     /** La app sincroniza aquí sus macros cada vez que cambian. */

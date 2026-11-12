@@ -124,34 +124,6 @@ jobs:
           Aviso "Keystore verificado correctamente."
           "SKIPPIFY_KEYSTORE_FILE=$path" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
-      # La Comunidad se apaga sola si el bundle sale sin las VITE_FIREBASE_*, y
-      # sin este paso el fallo era mudo: la APK se compilaba, se publicaba y el
-      # aviso «La comunidad no está configurada» sólo aparecía en el móvil. Pasó
-      # en la b36, al sacar .env.local del repositorio.
-      - name: Comprobar la configuración de Firebase
-        shell: pwsh
-        run: |
-          $envFile = ".env.production"
-          if (-not (Test-Path $envFile)) {
-            Write-Host "::error::Falta $envFile; la APK saldría sin Comunidad."
-            exit 1
-          }
-          $contenido = Get-Content $envFile -Raw
-          $faltan = @()
-          foreach ($clave in @(
-            "VITE_FIREBASE_API_KEY",
-            "VITE_FIREBASE_AUTH_DOMAIN",
-            "VITE_FIREBASE_PROJECT_ID",
-            "VITE_FIREBASE_APP_ID"
-          )) {
-            if ($contenido -notmatch "(?m)^$clave=\S+") { $faltan += $clave }
-          }
-          if ($faltan.Count -gt 0) {
-            Write-Host "::error::Sin valor en $envFile : $($faltan -join ', ')"
-            exit 1
-          }
-          Write-Host "::notice::Configuracion de Firebase presente en $envFile."
-
       - name: Compilar APK firmada
         shell: pwsh
         env:

@@ -7,7 +7,7 @@ import java.util.List;
  * Pruebas de las escuchas leídas de la API de Spotify: que pasen por los mismos
  * umbrales que las de la notificación aunque la API no diga cuánto se escuchó,
  * y que la misma escucha no se anote dos veces.
- * Corre con javac/java a secas, como PruebasLiga.
+ * Corre con javac/java a secas, como PruebasEscuchasLog.
  */
 public final class PruebasEscuchasApi {
 

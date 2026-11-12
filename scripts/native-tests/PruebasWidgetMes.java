@@ -17,8 +17,8 @@ public final class PruebasWidgetMes {
         return java.time.Instant.parse(iso).toEpochMilli();
     }
 
-    static EscuchasNube.Crudo ev(String iso, String event, String track, String artist, long dur) {
-        return new EscuchasNube.Crudo(ms(iso), iso, event, track, artist, dur, false);
+    static EscuchasLog.Crudo ev(String iso, String event, String track, String artist, long dur) {
+        return new EscuchasLog.Crudo(ms(iso), iso, event, track, artist, dur, false);
     }
 
     public static void main(String[] args) {
@@ -33,7 +33,7 @@ public final class PruebasWidgetMes {
         check("el cambio de hora de octubre no descuadra los días",
                 MesWidgetDatos.diasIncluidos(ms("2026-10-20T10:00:00Z"), ms("2026-10-30T10:00:00Z"), madrid), 11);
 
-        List<EscuchasNube.Crudo> log = new ArrayList<EscuchasNube.Crudo>();
+        List<EscuchasLog.Crudo> log = new ArrayList<EscuchasLog.Crudo>();
         // Martes 22: primer día del registro (el de 8 días de la v4.2.5).
         // Dos de Rosalía, una saltada a los 5 s y otra vez Rosalía.
         log.add(ev("2026-09-22T08:00:00Z", "playing", "Despechá", "Rosalía", 160000));
@@ -62,7 +62,7 @@ public final class PruebasWidgetMes {
         check("pero lo de agosto no suma", conAntiguas.saltadas, 3);
         check("y las escuchas siguen con sus 8 días", conAntiguas.diasEscucha, 8);
 
-        List<EscuchasNube.Crudo> mesEntero = new ArrayList<EscuchasNube.Crudo>(log);
+        List<EscuchasLog.Crudo> mesEntero = new ArrayList<EscuchasLog.Crudo>(log);
         // Domingo 30 de agosto a las 23:00 en Madrid: fuera. Lunes 31 a las 10:00: dentro.
         mesEntero.add(ev("2026-08-30T21:00:00Z", "playing", "Fuera", "Nadie", 100000));
         mesEntero.add(ev("2026-08-30T21:01:40Z", "stopped", "", "", 0));
@@ -75,7 +75,7 @@ public final class PruebasWidgetMes {
                 mesEntero, historial, ms("2026-12-01T10:00:00Z"), madrid).diasEscucha <= 30, true);
 
         MesWidgetDatos.Resumen vacio = MesWidgetDatos.calcular(
-                new ArrayList<EscuchasNube.Crudo>(), "", ahora, madrid);
+                new ArrayList<EscuchasLog.Crudo>(), "", ahora, madrid);
         check("sin datos, cero escuchas", vacio.escuchas, 0);
         check("y un día para no dividir entre cero", vacio.diasEscucha, 1);
         check("media cero", vacio.escuchasDia, 0.0);

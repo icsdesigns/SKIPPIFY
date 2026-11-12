@@ -7,4 +7,5 @@ cualquier cambio del núcleo debe pasar de nuevo los tests y el simulador del ki
 
 La app lo carga bajo demanda desde `src/composables/useLocalLeague.js`. Para revertir
 todo el modo sin servidor basta volver a la etiqueta `pre-localhost-v4.2.6`
-(o a la rama `backup/pre-localhost-v4.2.6`): el sistema Firebase no se ha tocado.
+(o a la rama `backup/pre-localhost-v4.2.6`). Desde la v4.8 el modo con Firebase ya no
+existe en la app: volver a esa etiqueta lo recuperaría con su servidor antiguo.

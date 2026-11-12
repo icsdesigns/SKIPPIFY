@@ -461,7 +461,7 @@ public final class LocalHostBackground {
 
         /**
          * Escuchas captadas con la app cerrada, ya troceadas y con los umbrales
-         * de siempre (las mismas que sube LigaBackground a Firebase). El log no
+         * de siempre (las mismas que cuenta el widget). El log no
          * se vacía: eso sigue siendo cosa de la app al abrirse. JS les pone el
          * ID y las publica en el grupo, así las estadísticas siguen al día.
          */
@@ -469,10 +469,10 @@ public final class LocalHostBackground {
             try {
                 Context c = app;
                 if (c == null) return "[]";
-                java.util.List<EscuchasNube.Escucha> lista =
-                        EscuchasNube.paraSubir(EscuchasNube.trocear(LigaBackground.leerLog(c)));
+                java.util.List<EscuchasLog.Escucha> lista =
+                        EscuchasLog.paraSubir(EscuchasLog.trocear(LogCrudo.leerLog(c)));
                 JSONArray a = new JSONArray();
-                for (EscuchasNube.Escucha e : lista) {
+                for (EscuchasLog.Escucha e : lista) {
                     JSONObject o = new JSONObject();
                     o.put("playedAt", e.playedAt);
                     o.put("playedAtMs", e.playedAtMs);

@@ -1049,7 +1049,7 @@ public class SpotifyNotificationListener extends NotificationListenerService
             obj.put("played_at", toIso8601(snap.capturedAtEpochMs));
             obj.put("source", source == null ? "notification" : source);
             // ¿Había una app viva recibiendo esto en directo? Lo que sí la tenía
-            // lo registra JS y lo sube él; LigaBackground sólo sube el resto.
+            // lo registra JS; el WebView del servicio sólo publica el resto.
             obj.put("js", sListener != null);
 
             appendJsonLine(getApplicationContext(), obj);
@@ -1068,7 +1068,7 @@ public class SpotifyNotificationListener extends NotificationListenerService
     /**
      * Anota en el log crudo un evento que no viene de la notificación (las
      * escuchas leídas de la API de Spotify). Pasa por los mismos sitios que los
-     * demás: lo drena la app, lo sube LigaBackground y lo cuenta el widget.
+     * demás: lo drena la app, lo publica el servicio en los grupos y lo cuenta el widget.
      */
     static void registrarEventoExterno(android.content.Context context, JSONObject obj) {
         if (context == null || obj == null) return;

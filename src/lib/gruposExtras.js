@@ -2,7 +2,7 @@
  * Etiquetas y cálculos que se añaden a la ficha de cada miembro en Comunidad.
  *
  * Los usan los dos modos (con y sin servidor) y sólo trabajan con el resultado
- * semanal de un miembro (`scoreMember`, en firebase/functions/scoring.js). Un
+ * semanal de un miembro (`scoreMember`, en lib/puntuacion.js). Un
  * resultado publicado antes de que existieran estas cifras no las trae, y cada
  * etiqueta simplemente no sale: nunca un hueco ni un «0».
  */

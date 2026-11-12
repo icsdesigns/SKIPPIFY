@@ -1,10 +1,10 @@
 /**
- * Modo LocalHost de Comunidad: prueba de extremo a extremo SIN red ni Firebase.
+ * Modo LocalHost de Comunidad: prueba de extremo a extremo SIN red.
  *
  * Dos «móviles» (cada uno con su IdbStorage sobre fake-indexeddb) comparten una
  * red simulada del kit. Se comprueba que el almacenamiento real cumple lo que
  * el kit exige, que se pueden crear y unir grupos, que las escuchas viajan, se
- * deduplican y puntúan IGUAL que en Firebase.
+ * deduplican y puntúan con lib/puntuacion.js.
  *
  *   npx vite build --ssr scripts/pruebas-localhost.mjs --outDir .tmp-ssr
  *   node .tmp-ssr/pruebas-localhost.js
@@ -16,7 +16,7 @@ import { actividadPorPersona, elegirExpulsados } from '../src/lib/localhost/inac
 import {
   decodeEscuchas, encodeEscuchas, partirEnLotes, puntuarSemana, ventanaSemana, ventanaMes, ventanaPeriodo, tuplaAEvento, PERIODOS, DIAS_PUBLICADOS
 } from '../src/lib/localhost/escuchas.js'
-import { scoreMember, esNoMusical } from '../firebase/functions/scoring.js'
+import { scoreMember, esNoMusical } from '../src/lib/puntuacion.js'
 import { comunConMiembro, escuchaComun, extrasNuevos, ordenarPorTiempo, perfilHorario, diaCorto } from '../src/lib/gruposExtras.js'
 
 let fallos = 0
@@ -78,7 +78,7 @@ const anaReabierta = await LocalHost.openGroup({ storage: new IdbStorage('ana'),
 check('el grupo sobrevive a reabrirlo', anaReabierta.id === ana.id && anaReabierta.members().length === 2)
 
 // ── Escuchas ────────────────────────────────────────────────────────────────
-titulo('Escuchas: compresión, deduplicación y puntuación idéntica a Firebase')
+titulo('Escuchas: compresión, deduplicación y puntuación compartida')
 const ahora = new Date()
 const lunes = ventanaSemana('pasada', ahora)
 {

@@ -1,18 +1,10 @@
 /**
- * Puntuación semanal de Comunidad — ÚNICA implementación.
+ * Puntuación de los grupos: las cifras de cada miembro (minutos, canciones,
+ * repertorio, variedad, hora punta…).
  *
- * Había dos copias de este cálculo: la de `firebase/functions/index.js` (función
- * programada) y la de `scripts/publish-weekly-leaderboard.mjs` (acción de
- * GitHub). Sólo se actualizó la segunda al añadir el repertorio distinto, el
- * índice de variedad y la hora punta en la v4.0.1, así que según cuál de las dos
- * publicara, el ranking del grupo traía esas cifras o no; la app las oculta
- * cuando faltan, y el resultado era una pestaña Comunidad que unas semanas
- * enseñaba las estadísticas de cada miembro y otras no.
- *
- * Vive dentro de `firebase/functions/` a propósito: `firebase deploy --only
- * functions` sólo empaqueta ese directorio, así que es el único sitio desde el
- * que pueden leerlo las dos. Es CommonJS y sin dependencias —ni firebase-admin—
- * para poder importarlo también desde ESM y desde las pruebas.
+ * ÚNICA implementación. La usan el ranking de los grupos sin servidor
+ * (lib/localhost/escuchas.js) y las estadísticas de la ficha de cada miembro.
+ * Skippify no tiene servidor: todo se calcula en cada móvil.
  */
 
 /**
@@ -250,4 +242,4 @@ function scoreMember (events) {
   }
 }
 
-module.exports = { scoreMember, horaLocalDeEscucha, topOf, esNoMusical }
+export { scoreMember, horaLocalDeEscucha, topOf, esNoMusical }

@@ -184,16 +184,10 @@ public class SkippifyForegroundService extends Service {
         } catch (Throwable ignored) {
         }
 
-        // Grupos con servidor (Firebase) deshabilitados: latido sólo borra la
-        // sesión anónima que una versión anterior hubiera guardado; no sube nada.
+        // Firebase está desconectado: si una versión anterior dejó su sesión
+        // anónima, sus grupos o la alarma del ranking, se borran aquí.
         try {
-            LigaBackground.latido(getApplicationContext());
-        } catch (Throwable ignored) {
-        }
-
-        // Y cancela la alarma del ranking del domingo, que ya no existe.
-        try {
-            LigaResultados.latido(getApplicationContext());
+            LogCrudo.limpiarRestos(getApplicationContext());
         } catch (Throwable ignored) {
         }
 

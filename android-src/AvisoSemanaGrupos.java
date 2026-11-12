@@ -38,7 +38,7 @@ import java.util.TimeZone;
  *   · Si el móvil estaba apagado o dormido a la hora, se avisa al volver hasta
  *     {@link RitmoGrupos#MARGEN_AVISO_MS} después; pasado ese margen se omite.
  *
- * No toca {@link LigaResultados} (el aviso del ranking de los grupos con
+ * No toca el antiguo aviso del ranking de los grupos con
  * servidor, desactivado): tiene su propia alarma, su propio fichero de
  * preferencias y su propia acción, y comparte sólo el canal de notificaciones.
  * Las decisiones de horas viven en {@link RitmoGrupos}, que se prueba aparte.

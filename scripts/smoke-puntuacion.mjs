@@ -1,17 +1,17 @@
 /**
  * Puntuación semanal de Comunidad: las cifras que se publican por miembro.
  *
- * Corre con Node a secas, sin Firebase ni red: `scoreMember` es una función pura
+ * Corre con Node a secas, sin red: `scoreMember` es una función pura
  * y lo único que necesita es una lista de escuchas.
  *
- *   node scripts/smoke-liga.mjs
+ *   node scripts/smoke-puntuacion.mjs
  *
  * El caso que justifica esta prueba es la HORA PUNTA. `playedAt` viaja en UTC y
  * la hora que le interesa al usuario es la suya, así que el cálculo depende del
  * desfase de Europe/Madrid —que además cambia entre invierno (+1) y verano (+2)—.
  * Es un fallo que no se ve: la cifra sale, sólo que corrida una o dos horas.
  */
-import { scoreMember, horaLocalDeEscucha, latestWeeklyCut, revealAtForCut, getCutWindow, colocarSemana, promocionPendiente } from './publish-weekly-leaderboard.mjs'
+import { scoreMember, horaLocalDeEscucha } from '../src/lib/puntuacion.js'
 
 let fallos = 0
 let total = 0
@@ -161,34 +161,6 @@ titulo('Las cifras anteriores no cambian')
   check('minutos válidos', r.totalMinutes, 7.2)
 }
 
-// ── Una sola implementación ──────────────────────────────────────────────────
-//
-// El ranking lo puede escribir la acción de GitHub (este script) o la función
-// programada de Firebase. Durante un tiempo cada una tenía su copia del
-// cálculo y sólo se actualizó la de aquí: según cuál publicara, el grupo se
-// quedaba sin repertorio, variedad ni hora punta, y la app —que oculta lo que
-// no viene— dejaba de enseñar las estadísticas de cada miembro. Ahora las dos
-// leen `firebase/functions/scoring.js`, y esto lo comprueba.
-
-titulo('Las dos publicaciones comparten el cálculo')
-{
-  const { readFileSync } = await import('node:fs')
-  const { fileURLToPath } = await import('node:url')
-  const raizDe = (rel) => fileURLToPath(new URL(rel, import.meta.url))
-
-  const compartido = await import('../firebase/functions/scoring.js')
-  check('este script usa el módulo compartido',
-    scoreMember, (compartido.default || compartido).scoreMember)
-  check('y la misma hora local',
-    horaLocalDeEscucha, (compartido.default || compartido).horaLocalDeEscucha)
-
-  const funcion = readFileSync(raizDe('../firebase/functions/index.js'), 'utf8')
-  check('la función programada también lo requiere',
-    /require\(['"]\.\/scoring['"]\)/.test(funcion), true)
-  check('y no vuelve a declarar scoreMember por su cuenta',
-    /\bfunction scoreMember\b/.test(funcion), false)
-}
-
 // ── Escuchas del miembro, no del grupo ───────────────────────────────────────
 // Cada evento se subía con los grupos que el usuario tenía en ese momento y el
 // ranking descartaba los que no nombraban al grupo. Quien entraba en IVANDRA
@@ -196,79 +168,11 @@ titulo('Las dos publicaciones comparten el cálculo')
 
 titulo('Un miembro puntúa todas sus escuchas')
 {
-  const { readFileSync } = await import('node:fs')
-  const { fileURLToPath } = await import('node:url')
-  const raizDe = (rel) => fileURLToPath(new URL(rel, import.meta.url))
-
   const deOtroGrupo = { ...escucha('A', 'X', '2026-09-22T10:00:00Z'), groupIds: ['otro-grupo'] }
   const sinGrupo = escucha('B', 'Y', '2026-09-22T11:00:00Z')
   check('una escucha subida con otro grupo cuenta igual',
     scoreMember([deOtroGrupo, sinGrupo]).totalTracks, 2)
 
-  for (const [nombre, ruta] of [
-    ['la acción de GitHub', './publish-weekly-leaderboard.mjs'],
-    ['la función programada', '../firebase/functions/index.js']
-  ]) {
-    check(`${nombre} no filtra las escuchas por grupo`,
-      /belongsToGroup|groupIds/.test(readFileSync(raizDe(ruta), 'utf8')), false)
-  }
-}
-
-// ── Corte semanal ────────────────────────────────────────────────────────────
-// GitHub arranca las ejecuciones programadas con horas de retraso. Antes sólo
-// se publicaba entre las 15:00 y las 15:59 de Madrid, y el domingo en que la
-// acción corría a las 16:59 (27-09-2026) el ranking no salió.
-
-// Desde la 4.2.7 la semana se cierra el domingo a las 00:00 y se publica a
-// partir de las 03:00, para que esté calculada antes de desvelarla a las 15:00.
-
-titulo('Cierre del domingo a las 00:00 de Madrid, desvelado a las 15:00')
-{
-  const corte = (iso) => latestWeeklyCut(new Date(iso)).toISOString()
-  check('una ejecución a las 03:17 publica la semana que acaba de cerrar',
-    corte('2026-09-27T01:17:00Z'), '2026-09-26T22:00:00.000Z')
-  check('dentro de las tres horas de gracia sigue valiendo la anterior',
-    corte('2026-09-27T00:47:00Z'), '2026-09-19T22:00:00.000Z')
-  check('una ejecución retrasada a las 16:59 publica la de ese domingo',
-    corte('2026-09-27T14:59:07Z'), '2026-09-26T22:00:00.000Z')
-  check('el lunes de madrugada todavía es la del domingo',
-    corte('2026-09-28T00:59:26Z'), '2026-09-26T22:00:00.000Z')
-  check('en invierno las 00:00 de Madrid son las 23:00 UTC del sábado',
-    corte('2026-12-06T18:00:00Z'), '2026-12-05T23:00:00.000Z')
-  check('un miércoles apunta al domingo anterior',
-    corte('2026-12-09T10:00:00Z'), '2026-12-05T23:00:00.000Z')
-  check('el día del cambio de hora se cierra a las 00:00 de verano',
-    corte('2026-10-25T05:00:00Z'), '2026-10-24T22:00:00.000Z')
-
-  const desvela = (iso) => revealAtForCut(new Date(iso)).toISOString()
-  check('se desvela a las 15:00 de verano',
-    desvela('2026-09-26T22:00:00.000Z'), '2026-09-27T13:00:00.000Z')
-  check('y a las 15:00 de invierno el día que cambia la hora',
-    desvela('2026-10-24T22:00:00.000Z'), '2026-10-25T14:00:00.000Z')
-
-  const v = getCutWindow(new Date('2026-12-06T08:00:00Z'))
-  check('la semana dura de domingo a domingo', v.startIso, '2026-11-28T23:00:00.000Z')
-  check('y se nombra por el día de Madrid, no el de UTC', v.weekKey, '2026-11-29')
-  const v2 = getCutWindow(new Date('2026-10-25T08:00:00Z'))
-  check('la semana del cambio de hora empieza a las 00:00 de verano', v2.startIso, '2026-10-17T22:00:00.000Z')
-  const t = getCutWindow(new Date('2026-10-18T05:00:00Z'), '2026-10-11T13:00:00.000Z')
-  check('la primera semana tras el cambio no repite las horas ya puntuadas',
-    t.startIso, '2026-10-11T13:00:00.000Z')
-}
-
-titulo('La semana nueva espera en `next` hasta las 15:00')
-{
-  const anterior = { weekKey: 'A', weekEnd: 'fin-A', members: [{ uid: 'a' }] }
-  const semana = { weekKey: 'B', weekEnd: 'fin-B', revealAt: '2026-10-18T13:00:00.000Z', members: [{ uid: 'b' }] }
-  const temprano = colocarSemana(anterior, semana, new Date('2026-10-18T03:00:00Z'))
-  check('a las 05:00 arriba sigue la semana anterior', temprano.weekKey, 'A')
-  check('y la nueva queda guardada en next', temprano.next?.weekKey, 'B')
-  check('antes de las 15:00 no se promociona', promocionPendiente(temprano, new Date('2026-10-18T12:59:59Z')), null)
-  const promovido = promocionPendiente(temprano, new Date('2026-10-18T13:00:00Z'))
-  check('a las 15:00 la nueva pasa arriba', promovido?.weekKey, 'B')
-  check('y next desaparece', 'next' in promovido, false)
-  const tarde = colocarSemana(anterior, semana, new Date('2026-10-18T16:00:00Z'))
-  check('si se calcula después de las 15:00 va directa arriba', tarde.weekKey + ('next' in tarde), 'Bfalse')
 }
 
 console.log()
