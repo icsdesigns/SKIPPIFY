@@ -8,7 +8,6 @@ on:
     branches: [main]
     paths-ignore:
       - '**.md'
-      - '.github/workflows/weekly-leaderboard.yml'
   workflow_dispatch:
 
 # Un push mientras otro compila cancela el anterior: sólo interesa la última.
@@ -26,22 +25,26 @@ jobs:
     permissions:
       contents: write   # necesario para crear la release
 
+    # Las acciones van fijadas a un commit concreto (con la versión en el
+    # comentario): una etiqueta se puede mover, un SHA no. Este job tiene
+    # acceso a la clave de firma, así que no debe ejecutar código que cambie
+    # sin que nadie lo vea.
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           # El versionCode es el número de commits: hace falta la historia
           # entera, no el clon superficial que hace checkout por defecto.
           fetch-depth: 0
 
       - name: Setup Node
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
 
       - name: Setup JDK 21
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
         with:
           distribution: temurin
           java-version: 21
@@ -50,9 +53,8 @@ jobs:
       # falla. Un fallo aquí costaba antes una compilación entera de cinco
       # minutos para acabar en un error mudo.
       #
-      # Nada de lo que imprime es secreto: sólo longitudes y el resultado de
-      # cada comprobación. Aun así Actions enmascara automáticamente cualquier
-      # valor que coincida con un secret.
+      # No imprime nada derivado de los secrets (ni siquiera su longitud): sólo
+      # si están presentes y si el keystore abre.
       - name: Restaurar y comprobar el keystore
         shell: pwsh
         env:
@@ -76,8 +78,6 @@ jobs:
             $valor = [Environment]::GetEnvironmentVariable($nombre)
             if ([string]::IsNullOrWhiteSpace($valor)) {
               $problemas += "SKIPPIFY_$nombre VACIO"
-            } else {
-              Aviso "SKIPPIFY_${nombre}: presente, $($valor.Length) caracteres"
             }
           }
           if ($problemas.Count) {
@@ -93,9 +93,8 @@ jobs:
           } catch {
             Abortar "SKIPPIFY_KEYSTORE_BASE64 no es base64 valido. Vuelve a copiarlo entero con: Get-Content android-keystore.base64.txt -Raw | Set-Clipboard"
           }
-          Aviso "Keystore decodificado: $($bytes.Length) bytes"
           if ($bytes.Length -lt 1000) {
-            Abortar "El keystore decodificado ocupa solo $($bytes.Length) bytes: el secret esta truncado."
+            Abortar "El keystore decodificado es demasiado pequeño: el secret esta truncado."
           }
 
           $path = Join-Path $env:RUNNER_TEMP 'skippify-release.jks'
@@ -143,7 +142,7 @@ jobs:
           "tag=v$($manifest.versionName)-b$($manifest.versionCode)" | Out-File $env:GITHUB_OUTPUT -Append
 
       - name: Publicar release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
         with:
           tag_name: ${{ steps.meta.outputs.tag }}
           name: Skippify ${{ steps.meta.outputs.versionName }} (build ${{ steps.meta.outputs.versionCode }})

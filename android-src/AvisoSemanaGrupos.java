@@ -146,7 +146,7 @@ public final class AvisoSemanaGrupos {
     // ── Alarma ───────────────────────────────────────────────────────────────
 
     private static PendingIntent intentAlarma(Context app, int flagBase) {
-        Intent intent = new Intent(app, BootCompletedReceiver.class);
+        Intent intent = new Intent(app, AlarmasReceiver.class);
         intent.setAction(ACTION_ALARMA);
         int flags = flagBase;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) flags |= PendingIntent.FLAG_IMMUTABLE;

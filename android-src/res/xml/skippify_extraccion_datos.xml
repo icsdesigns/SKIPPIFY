@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Skippify no se copia a la nube de Google ni pasa a otro móvil al cambiar de
+  teléfono: guarda las claves de los grupos y la sesión de Spotify, y esas no
+  deben salir del dispositivo. Ver android:allowBackup="false" en el manifiesto
+  (lo parchea scripts/build-apk.ps1); esto cubre Android 12 y posteriores.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="root" />
+        <exclude domain="file" />
+        <exclude domain="database" />
+        <exclude domain="sharedpref" />
+        <exclude domain="external" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="root" />
+        <exclude domain="file" />
+        <exclude domain="database" />
+        <exclude domain="sharedpref" />
+        <exclude domain="external" />
+    </device-transfer>
+</data-extraction-rules>

@@ -12,6 +12,7 @@
  */
 import { ref, computed } from 'vue'
 import { fechaDeRelease, evaluarRetraso, MARGEN_REVISION_MS } from '../lib/avisoActualizacion.js'
+import { ES_PLAY } from '../lib/canal.js'
 
 const REPO = 'icsdesigns/SKIPPIFY'
 const LATEST_RELEASE_URL = `https://api.github.com/repos/${REPO}/releases/latest`
@@ -44,6 +45,9 @@ let _progressListener = null
 let _timerRetenida = null
 
 function plugin () {
+  // En la build de Google Play actualiza la tienda: ni se consulta GitHub ni
+  // se descarga nada, aunque el plugin apareciese por algún motivo.
+  if (ES_PLAY) return null
   return window.Capacitor?.Plugins?.Updater || null
 }
 

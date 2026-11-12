@@ -35,6 +35,27 @@
         </p>
       </div>
 
+      <!-- ── Qué se lee y qué se hace con ello (aviso previo al permiso) ───── -->
+      <div class="sk-card p-4" data-aviso-notificaciones>
+        <p class="sk-eyebrow">Qué lee Skippify</p>
+        <ul class="mt-2 space-y-1.5 text-xs leading-relaxed text-slate-300">
+          <li>Sólo las notificaciones de Spotify: canción, artista, álbum, duración y si está sonando. Las de cualquier otra app se ignoran.</li>
+          <li>Con eso salta repetidas, silencia anuncios, ejecuta tus macros y guarda tu historial de escuchas en este móvil.</li>
+          <li>No se envía a ningún servidor de Skippify. Sólo si te unes a un grupo se comparten tus escuchas con sus miembros, cifradas.</li>
+        </ul>
+        <button
+          type="button"
+          class="mt-2 text-[11px] font-semibold text-brand-400 underline-offset-2 hover:underline"
+          @click="abrirPolitica"
+        >
+          Leer la política de privacidad
+        </button>
+        <label class="mt-3 flex items-start gap-2 text-[11px] font-semibold text-white">
+          <input v-model="aceptaAviso" type="checkbox" class="mt-0.5 h-4 w-4 shrink-0 accent-[#1ed760]" data-acepto-notificaciones>
+          <span>Entendido, permito que Skippify lea las notificaciones de Spotify</span>
+        </label>
+      </div>
+
       <!-- ── Dispositivo detectado ─────────────────────────────────────────── -->
       <div v-if="guia.dispositivo" class="sk-card flex items-start gap-3 px-4 py-3">
         <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/[0.08] text-slate-300">
@@ -55,7 +76,7 @@
         v-for="(paso, i) in guia.pasos"
         :key="paso.id"
         class="sk-card p-4 transition-opacity"
-        :class="estadoPaso(paso, i) === 'pendiente' ? 'opacity-60' : ''"
+        :class="!aceptaAviso || estadoPaso(paso, i) === 'pendiente' ? 'opacity-60' : ''"
       >
         <div class="flex items-start gap-3">
           <span
@@ -75,6 +96,7 @@
               type="button"
               class="sk-btn mt-3 w-full"
               :class="estadoPaso(paso, i) === 'actual' ? 'sk-btn-primary' : 'sk-btn-ghost'"
+              :disabled="!aceptaAviso"
               @click="ejecutar(paso)"
             >
               {{ paso.etiqueta }}
@@ -131,6 +153,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useNotifListener } from '@/composables/useNotifListener'
 import { construirGuia } from '@/lib/guiaAccesoNotificaciones'
+import { abrirPoliticaPrivacidad } from '@/lib/privacidad'
 
 const notif = useNotifListener()
 
@@ -139,6 +162,23 @@ const intentados = ref(new Set())
 const aviso = ref('')
 const verManual = ref(false)
 const comprobando = ref(false)
+
+/**
+ * Aviso destacado antes de pedir el permiso (lo exige Google Play para el
+ * acceso a notificaciones): los botones que llevan al ajuste no se activan
+ * hasta aceptarlo. Se recuerda en el móvil.
+ */
+const AVISO_KEY = 'skippify-aviso-notificaciones-aceptado'
+const aceptaAviso = ref((() => {
+  try { return localStorage.getItem(AVISO_KEY) === '1' } catch { return false }
+})())
+watch(aceptaAviso, (v) => {
+  try { localStorage.setItem(AVISO_KEY, v ? '1' : '0') } catch { /* sólo la preferencia */ }
+})
+
+function abrirPolitica () {
+  abrirPoliticaPrivacidad()
+}
 
 /**
  * Una vez vista la restricción, los tres pasos se quedan en pantalla aunque ya
@@ -180,6 +220,7 @@ function estadoPaso (paso, i) {
 }
 
 async function ejecutar (paso) {
+  if (!aceptaAviso.value) return
   aviso.value = ''
   intentados.value = new Set(intentados.value).add(paso.id)
   if (paso.accion === 'info-app') {

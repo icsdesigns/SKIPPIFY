@@ -45,7 +45,10 @@ const FUENTES = [
   join(raiz, 'scripts', 'native-tests', 'PruebasAvisoSonoro.java'),
   // El plazo de 6 horas antes de avisar de una versión nueva y la fecha de su alarma.
   join(raiz, 'android-src', 'ActualizacionAviso.java'),
-  join(raiz, 'scripts', 'native-tests', 'PruebasActualizaciones.java')
+  join(raiz, 'scripts', 'native-tests', 'PruebasActualizaciones.java'),
+  // Las URLs que aceptan los plugins de descargar la APK y de abrir enlaces.
+  join(raiz, 'android-src', 'UrlsSeguras.java'),
+  join(raiz, 'scripts', 'native-tests', 'PruebasUrls.java')
 ]
 
 for (const f of FUENTES) {
@@ -84,6 +87,7 @@ try {
   execFileSync('java', ['-Dfile.encoding=UTF-8', '-cp', salida, 'com.skippify.app.PruebasGrupos'], { stdio: 'inherit' })
   execFileSync('java', ['-Dfile.encoding=UTF-8', '-cp', salida, 'com.skippify.app.PruebasAvisoSonoro'], { stdio: 'inherit' })
   execFileSync('java', ['-Dfile.encoding=UTF-8', '-cp', salida, 'com.skippify.app.PruebasActualizaciones'], { stdio: 'inherit' })
+  execFileSync('java', ['-Dfile.encoding=UTF-8', '-cp', salida, 'com.skippify.app.PruebasUrls'], { stdio: 'inherit' })
 } finally {
   rmSync(salida, { recursive: true, force: true })
 }

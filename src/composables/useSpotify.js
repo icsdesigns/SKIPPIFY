@@ -13,6 +13,8 @@ import { computed, reactive, ref } from 'vue'
 
 const TOKEN_KEY = 'skippify-spotify-token'
 const VERIFIER_KEY = 'skippify-spotify-verifier'
+/** `state` del login en curso: la redirección sólo se acepta si lo devuelve igual. */
+const OAUTH_STATE_KEY = 'skippify-spotify-oauth-state'
 const CLIENT_ID_KEY = 'skippify-spotify-client-id'
 
 const AUTH_URL = 'https://accounts.spotify.com/authorize'
@@ -22,9 +24,10 @@ const API_BASE = 'https://api.spotify.com/v1'
 /** Esquema del deep link. Debe coincidir con el intent-filter del manifiesto. */
 const NATIVE_REDIRECT = 'skippify://spotify-auth'
 
+// Sólo los permisos que la app usa. Correo y artistas seguidos no se leen en
+// ningún sitio, así que no se piden.
 const SCOPE_LIST = [
   'user-read-private',
-  'user-read-email',
   'playlist-read-private',
   'playlist-read-collaborative',
   'playlist-modify-private',
@@ -35,8 +38,7 @@ const SCOPE_LIST = [
   'user-read-currently-playing',
   'user-read-playback-state',
   'user-modify-playback-state',
-  'user-top-read',
-  'user-follow-read'
+  'user-top-read'
 ]
 
 const SCOPES = SCOPE_LIST.join(' ')
@@ -209,7 +211,9 @@ async function connect () {
 
   try {
     const verifier = randomVerifier()
+    const oauthState = randomVerifier(32)
     localStorage.setItem(VERIFIER_KEY, verifier)
+    localStorage.setItem(OAUTH_STATE_KEY, oauthState)
 
     const params = new URLSearchParams({
       client_id: clientId.value,
@@ -218,6 +222,7 @@ async function connect () {
       code_challenge_method: 'S256',
       code_challenge: await challengeFrom(verifier),
       scope: SCOPES,
+      state: oauthState,
       show_dialog: 'true'
     })
 
@@ -273,6 +278,7 @@ async function exchangeCode (code) {
     // El verifier es de un solo uso: dejarlo permitiría reintentar un canje que
     // Spotify ya rechazaría, y confundiría el diagnóstico de errores.
     localStorage.removeItem(VERIFIER_KEY)
+    localStorage.removeItem(OAUTH_STATE_KEY)
     storeTokenResponse(data)
     await loadProfile()
     return true
@@ -355,7 +361,10 @@ async function refreshToken () {
 function disconnect () {
   saveToken(null)
   state.profile = null
-  try { localStorage.removeItem(VERIFIER_KEY) } catch { /* ignored */ }
+  try {
+    localStorage.removeItem(VERIFIER_KEY)
+    localStorage.removeItem(OAUTH_STATE_KEY)
+  } catch { /* ignored */ }
 }
 
 /** Recoge el `code` de una URL de redirección (deep link o barra del navegador). */
@@ -382,6 +391,23 @@ async function consumeRedirect (rawUrl) {
 
   const code = params.get('code')
   if (!code) return false
+
+  // Una redirección que no trae el `state` de NUESTRO login no se canjea: así
+  // otra app o web no puede colar un código suyo y vincular su cuenta aquí.
+  let esperado = ''
+  let verifier = ''
+  try {
+    esperado = localStorage.getItem(OAUTH_STATE_KEY) || ''
+    verifier = localStorage.getItem(VERIFIER_KEY) || ''
+  } catch { /* ignored */ }
+  // Sin login en curso (p. ej. la misma redirección leída dos veces tras un
+  // canje correcto) no hay nada que hacer ni error que enseñar.
+  if (!verifier) return false
+  if (!esperado || params.get('state') !== esperado) {
+    state.error = 'La respuesta de Spotify no corresponde a este inicio de sesión. Vuelve a intentarlo.'
+    state.connecting = false
+    return false
+  }
   return exchangeCode(code)
 }
 

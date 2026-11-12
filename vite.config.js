@@ -2,12 +2,15 @@ import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import { resolve } from 'path'
 const appVersion = process.env.SKIPPIFY_APP_VERSION || 'v3'
+// 'github' (actualizador propio) o 'play'. Ver src/lib/canal.js.
+const canal = process.env.SKIPPIFY_CANAL === 'play' ? 'play' : 'github'
 
 export default defineConfig({
   plugins: [vue()],
   define: {
     __APP_BUILD_ID__: JSON.stringify(new Date().toISOString()),
-    __APP_VERSION__: JSON.stringify(appVersion)
+    __APP_VERSION__: JSON.stringify(appVersion),
+    __CANAL__: JSON.stringify(canal)
   },
   resolve: {
     alias: {

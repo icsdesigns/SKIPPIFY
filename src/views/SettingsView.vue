@@ -297,6 +297,7 @@
              de ancho con cada pulsación. No usa disabled (cambia el aspecto):
              un guardián en checkForUpdates ignora el segundo toque. -->
         <OpcionFila
+          v-if="!ES_PLAY"
           as="button"
           tono="brand"
           class="w-full"
@@ -326,7 +327,10 @@
           data-resultado-actualizacion
         >{{ updateCheckMessage }}</p>
 
-        <p v-if="!isCapacitor" class="text-[11px] text-slate-500">
+        <p v-if="ES_PLAY" class="text-[11px] text-slate-500">
+          Las actualizaciones llegan desde Google Play.
+        </p>
+        <p v-else-if="!isCapacitor" class="text-[11px] text-slate-500">
           Sólo disponible en la app instalada; en el navegador no hay nada que actualizar.
         </p>
       </div>
@@ -352,6 +356,18 @@
         >
           <template #icono><AjusteIcon name="tour" class="h-8 w-8" /></template>
           <template #fin><span class="sk-chip hidden shrink-0 min-[420px]:inline-flex">Ver el tour</span></template>
+        </OpcionFila>
+
+        <OpcionFila
+          as="button"
+          tono="sky"
+          class="w-full"
+          titulo="Política de privacidad"
+          detalle="Qué datos usa la app y con quién se comparten."
+          data-politica-privacidad
+          @click="abrirPoliticaPrivacidad()"
+        >
+          <template #icono><AjusteIcon name="escudo" class="h-8 w-8" /></template>
         </OpcionFila>
 
         <DiagnosticoPanel />
@@ -393,6 +409,8 @@ import { useNotifListener } from '@/composables/useNotifListener'
 import { useEventStore } from '@/stores/events'
 import { useFeatures, sanitizeListeningMode, sanitizeSkipInterval } from '@/composables/useFeatures'
 import { useAppUpdate } from '@/composables/useAppUpdate'
+import { ES_PLAY } from '@/lib/canal.js'
+import { abrirPoliticaPrivacidad } from '@/lib/privacidad.js'
 import { usePlayLog } from '@/composables/usePlayLog'
 import { useTour } from '@/composables/useTour'
 import UpdateIcon from '@/components/UpdateIcon.vue'

@@ -266,7 +266,7 @@ public final class LocalHostBackground {
     // ── Latido de seguridad (alarma que despierta el móvil) ───────────────────
 
     private static PendingIntent intentLatido(Context c, int flagBase) {
-        Intent intent = new Intent(c, BootCompletedReceiver.class);
+        Intent intent = new Intent(c, AlarmasReceiver.class);
         intent.setAction(BootCompletedReceiver.ACTION_LH_LATIDO);
         int flags = flagBase;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) flags |= PendingIntent.FLAG_IMMUTABLE;

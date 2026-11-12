@@ -120,7 +120,7 @@ public class SkippifyForegroundService extends Service {
             AlarmManager am = (AlarmManager) context.getSystemService(ALARM_SERVICE);
             if (am == null) return;
 
-            Intent intent = new Intent(context, BootCompletedReceiver.class);
+            Intent intent = new Intent(context, AlarmasReceiver.class);
             intent.setAction(BootCompletedReceiver.ACTION_WATCHDOG);
 
             int flags = PendingIntent.FLAG_UPDATE_CURRENT;

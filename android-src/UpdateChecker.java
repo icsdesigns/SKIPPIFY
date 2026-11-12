@@ -57,7 +57,7 @@ final class UpdateChecker {
     private static final String PREF_PENDING_OPEN_AT = "pendingOpenAtMs";
     private static final String PREF_PENDING_ALARM_AT = "pendingAlarmAtMs";
 
-    /** Acción de la alarma puntual: la atiende {@link BootCompletedReceiver}. */
+    /** Acción de la alarma puntual: la atiende {@link AlarmasReceiver}. */
     static final String ACTION_ALARMA = "com.skippify.app.action.AVISO_ACTUALIZACION";
     private static final int ALARM_REQUEST_CODE = 0x5BE6;
     private static final long WAKELOCK_MS = 2L * 60L * 1000L;
@@ -95,7 +95,7 @@ final class UpdateChecker {
      * del servicio: barato de llamar de más.
      */
     static void latido(@Nullable Context context) {
-        if (context == null) return;
+        if (context == null || Canal.PLAY) return;
         final Context app = context.getApplicationContext();
 
         // Aprovecha el latido para dejar puesta la alarma de una release retenida
@@ -125,12 +125,16 @@ final class UpdateChecker {
     }
 
     /**
-     * Ha sonado la alarma de las 6 horas (la recibe {@link BootCompletedReceiver}).
+     * Ha sonado la alarma de las 6 horas (la recibe {@link AlarmasReceiver}).
      * Vuelve a consultar la release —puede haber salido otra más nueva, o el
      * usuario haber actualizado ya— y avisa si procede. La marca de «última
      * comprobación» no interviene: esta consulta es independiente de la diaria.
      */
     static void alSonar(Context ctx, @Nullable BroadcastReceiver.PendingResult pendiente) {
+        if (Canal.PLAY) {
+            terminar(pendiente);
+            return;
+        }
         final Context app = ctx.getApplicationContext();
         final PowerManager.WakeLock wl = tomarWakeLock(app);
         try {
@@ -157,6 +161,7 @@ final class UpdateChecker {
 
     /** Tras un reinicio o al actualizar la app: repone la alarma de una release retenida. */
     static void reponerAlarma(Context app) {
+        if (Canal.PLAY) return;
         try {
             SharedPreferences sp = prefs(app);
             if (sp == null) return;
@@ -259,7 +264,7 @@ final class UpdateChecker {
     // ── Alarma ───────────────────────────────────────────────────────────────
 
     private static PendingIntent intentAlarma(Context app, int flagBase) {
-        Intent intent = new Intent(app, BootCompletedReceiver.class);
+        Intent intent = new Intent(app, AlarmasReceiver.class);
         intent.setAction(ACTION_ALARMA);
         int flags = flagBase;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) flags |= PendingIntent.FLAG_IMMUTABLE;

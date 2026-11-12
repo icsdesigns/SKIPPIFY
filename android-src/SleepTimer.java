@@ -389,7 +389,7 @@ final class SleepTimer {
     }
 
     private static PendingIntent alarmIntent(Context context) {
-        Intent intent = new Intent(context, BootCompletedReceiver.class);
+        Intent intent = new Intent(context, AlarmasReceiver.class);
         intent.setAction(ACTION_ALARM);
         int flags = PendingIntent.FLAG_UPDATE_CURRENT;
         if (Build.VERSION.SDK_INT >= 23) flags |= PendingIntent.FLAG_IMMUTABLE;

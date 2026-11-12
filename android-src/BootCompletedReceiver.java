@@ -8,11 +8,13 @@ import android.content.ComponentName;
 
 /**
  * Relanza el servicio en primer plano tras un reinicio o una actualización del
- * paquete, y atiende la alarma de vigilancia que lo reafirma periódicamente.
+ * paquete.
  *
- * La alarma llega siempre por PendingIntent EXPLÍCITO (componente fijado), así
- * que no le afectan las restricciones de broadcasts implícitos de Android 8+ y
- * no necesita declararse en el intent-filter del manifiesto.
+ * Está exportado porque así lo exige recibir BOOT_COMPLETED, así que SÓLO
+ * atiende las acciones protegidas del sistema (que ninguna otra app puede
+ * enviar). Las alarmas internas (vigilancia, temporizador, avisos, latido de
+ * los grupos) llegan a {@link AlarmasReceiver}, que no está exportado: otra
+ * app instalada ya no puede dispararlas.
  */
 public class BootCompletedReceiver extends BroadcastReceiver {
 
@@ -25,49 +27,18 @@ public class BootCompletedReceiver extends BroadcastReceiver {
         if (context == null || intent == null) return;
 
         String action = intent.getAction();
-
-        // Alarma de respaldo del temporizador de escucha: levanta el proceso si
-        // Android lo había matado y reengancha la cuenta atrás.
-        if (SleepTimer.ACTION_ALARM.equals(action)) {
-            SleepTimer.resume(context);
-            return;
-        }
-
-        // El domingo a las 15:00 (o un reintento): avisar del ranking semanal.
-        // Alarma del ranking de la antigua Comunidad con servidor: ya no existe.
-        // Si quedó una programada de una versión anterior, se limpia y nada más.
-        if (LogCrudo.ACCION_RANKING_ANTIGUA.equals(action)) {
-            LogCrudo.limpiarRestos(context);
-            return;
-        }
-
-        // El domingo a media tarde: avisar de que se acaba la semana de los grupos.
-        if (AvisoSemanaGrupos.ACTION_ALARMA.equals(action)) {
-            AvisoSemanaGrupos.alSonar(context, goAsync());
-            return;
-        }
-
-        // Han pasado 6 horas desde que se publicó una versión nueva: avisar.
-        if (UpdateChecker.ACTION_ALARMA.equals(action)) {
-            UpdateChecker.alSonar(context, goAsync());
-            return;
-        }
-
-        // Latido de seguridad de la sincronización de los grupos.
-        if (ACTION_LH_LATIDO.equals(action)) {
-            LocalHostBackground.alLatido(context, goAsync());
-            return;
-        }
-
         boolean shouldStart = Intent.ACTION_BOOT_COMPLETED.equals(action)
                 || Intent.ACTION_LOCKED_BOOT_COMPLETED.equals(action)
-                || Intent.ACTION_MY_PACKAGE_REPLACED.equals(action)
-                || ACTION_WATCHDOG.equals(action);
+                || Intent.ACTION_MY_PACKAGE_REPLACED.equals(action);
 
         if (!shouldStart) return;
+        relanzar(context, false);
+    }
 
+    /** Arranca el servicio y repone las alarmas. También lo usa la vigilancia. */
+    static void relanzar(Context context, boolean vigilancia) {
         Context appContext = context.getApplicationContext();
-        SkippifyForegroundService.start(appContext, ACTION_WATCHDOG.equals(action));
+        SkippifyForegroundService.start(appContext, vigilancia);
         // Un temporizador puesto antes de reiniciar o de actualizar sigue vivo.
         SleepTimer.resume(appContext);
         // Y las de los grupos: el aviso de los domingos y el latido de la

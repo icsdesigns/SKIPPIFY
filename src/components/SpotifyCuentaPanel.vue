@@ -237,7 +237,7 @@ const titulo = computed(() => conectada.value
   ? (state.profile?.display_name || 'Cuenta vinculada')
   : 'Vincula tu Spotify')
 const subtitulo = computed(() => conectada.value
-  ? (state.profile?.email || state.profile?.id || '')
+  ? (state.profile?.id || '')
   : 'Para anotar las escuchas de cualquier dispositivo.')
 
 const ERRORES = {

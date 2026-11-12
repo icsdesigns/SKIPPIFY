@@ -850,8 +850,14 @@ public class NotifListenerPlugin extends Plugin
             call.reject("URL vacía");
             return;
         }
+        // Sólo enlaces https normales: nada de intent:, file:, content:…
+        if (!UrlsSeguras.esExternaSegura(url)) {
+            call.reject("URL no permitida");
+            return;
+        }
         try {
             Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url.trim()));
+            intent.addCategory(Intent.CATEGORY_BROWSABLE);
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             getContext().startActivity(intent);
             call.resolve(new JSObject().put("opened", true));

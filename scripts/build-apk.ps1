@@ -14,7 +14,16 @@ param(
     # para pruebas locales de usar y tirar.
     [Parameter(Mandatory = $false)]
     [ValidateSet("release", "debug")]
-    [string]$BuildType = "release"
+    [string]$BuildType = "release",
+
+    # Canal de distribución:
+    #   github (por defecto): APK con el actualizador propio por releases de
+    #     GitHub. Es lo que publica el workflow "Release APK" al hacer push a main.
+    #   play: AAB para Google Play. Sin actualizador (actualiza la tienda), sin
+    #     REQUEST_INSTALL_PACKAGES ni USE_EXACT_ALARM, que Play restringe.
+    [Parameter(Mandatory = $false)]
+    [ValidateSet("github", "play")]
+    [string]$Canal = "github"
 )
 
 $ErrorActionPreference = "Stop"
@@ -134,14 +143,18 @@ if (Test-Path $jdk21Path) {
 }
 
 # ─── 1. Install npm dependencies ───────────────────────────────────────────────
-Write-Step "Instalando dependencias npm..."
+# `npm ci` instala exactamente lo que fija package-lock.json: una build no debe
+# arrastrar una versión nueva de una dependencia que nadie ha revisado.
+Write-Step "Instalando dependencias npm (npm ci)..."
 Push-Location $workspaceRoot
-npm install | Out-Host
+npm ci | Out-Host
+if ($LASTEXITCODE -ne 0) { Pop-Location; throw "npm ci falló (¿package-lock.json desincronizado?)" }
 Pop-Location
 
 # ─── 2. Build Vue project with Vite ────────────────────────────────────────────
 Write-Step "Compilando proyecto Vue con Vite..."
-Write-Step "Versión de app para esta build: $env:SKIPPIFY_APP_VERSION"
+Write-Step "Versión de app para esta build: $env:SKIPPIFY_APP_VERSION (canal $Canal)"
+$env:SKIPPIFY_CANAL = $Canal
 Push-Location $workspaceRoot
 npx vite build | Out-Host
 Pop-Location
@@ -187,6 +200,16 @@ foreach ($srcFile in $notifSrcFiles) {
     Write-Step "Copiado: $srcFile"
 }
 Write-Step "Fuentes nativas copiadas: $($notifSrcFiles.Count)"
+
+# Canal.java lleva PLAY = false; en el canal de Play se sobrescribe la copia de
+# android/ (nunca la de android-src/) para que el actualizador quede apagado.
+if ($Canal -eq "play") {
+    $canalPath = Join-Path $javaPackageDir "Canal.java"
+    $canalContent = (Get-Content $canalPath -Raw) -replace 'static final boolean PLAY = false;', 'static final boolean PLAY = true;'
+    if ($canalContent -notmatch 'PLAY = true;') { throw "No se pudo marcar Canal.java como Play" }
+    [System.IO.File]::WriteAllText($canalPath, $canalContent, (New-Object System.Text.UTF8Encoding($false)))
+    Write-Step "Canal.java: PLAY = true"
+}
 
 # MainActivity.java tiene que estar sí o sí: es el punto de entrada y el que
 # registra los plugins. Si falta, el fallo aparecería mucho más tarde.
@@ -338,18 +361,48 @@ if ($manifestContent -notmatch 'android.permission.WAKE_LOCK') {
     Write-Step "AndroidManifest.xml: permiso WAKE_LOCK añadido"
 }
 
+# Sin copia de seguridad en la nube ni traspaso a otro móvil: los datos llevan
+# las claves de los grupos y la sesión de Spotify. dataExtractionRules lo cubre
+# en Android 12+, donde allowBackup ya no frena el traspaso entre dispositivos.
+if ($manifestContent -match 'android:allowBackup="true"') {
+    $manifestContent = $manifestContent -replace 'android:allowBackup="true"', 'android:allowBackup="false"'
+    $manifestChanged = $true
+    Write-Step "AndroidManifest.xml: allowBackup desactivado"
+}
+if ($manifestContent -notmatch 'android:dataExtractionRules') {
+    $manifestContent = $manifestContent -replace '(android:allowBackup="false")', "`$1`n        android:dataExtractionRules=`"@xml/skippify_extraccion_datos`""
+    if ($manifestContent -notmatch 'android:dataExtractionRules') { throw "No se pudo añadir dataExtractionRules al manifiesto" }
+    $manifestChanged = $true
+    Write-Step "AndroidManifest.xml: dataExtractionRules añadido"
+}
+
+# Permisos que sólo tiene el canal de GitHub. Si android/ viene de una build
+# de GitHub y ahora se compila para Play (o al revés), se quitan o se ponen.
+$permisosSoloGithub = @(
+    '\s*<uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />',
+    '\s*<uses-permission android:name="android.permission.USE_EXACT_ALARM" />'
+)
+if ($Canal -eq "play") {
+    foreach ($patron in $permisosSoloGithub) {
+        if ($manifestContent -match $patron) {
+            $manifestContent = $manifestContent -replace $patron, ''
+            $manifestChanged = $true
+        }
+    }
+    Write-Step "AndroidManifest.xml: canal Play sin REQUEST_INSTALL_PACKAGES ni USE_EXACT_ALARM"
+}
+
 # REQUEST_INSTALL_PACKAGES: sin esto el plugin de actualización no puede abrir
-# el instalador del sistema con la APK que acaba de descargar.
-if ($manifestContent -notmatch 'android.permission.REQUEST_INSTALL_PACKAGES') {
+# el instalador del sistema con la APK que acaba de descargar. Sólo GitHub.
+if ($Canal -eq "github" -and $manifestContent -notmatch 'android.permission.REQUEST_INSTALL_PACKAGES') {
     $manifestContent = $manifestContent -replace '(<uses-permission android:name="android.permission.INTERNET" />)', "`$1`n    <uses-permission android:name=`"android.permission.REQUEST_INSTALL_PACKAGES`" />"
     $manifestChanged = $true
     Write-Step "AndroidManifest.xml: permiso REQUEST_INSTALL_PACKAGES añadido"
 }
 
-# BootCompletedReceiver: relanza el servicio tras reiniciar y recibe las alarmas
-# del vigilante, del temporizador y del aviso del ranking. Sólo estaba en el
-# android/ de la máquina de siempre, puesto a mano; un android/ recién creado
-# salía sin él y ninguna de esas alarmas llegaba a nada.
+# BootCompletedReceiver: relanza el servicio tras reiniciar o actualizar. Tiene
+# que estar exportado para recibir esas difusiones del sistema, así que YA NO
+# atiende alarmas propias: esas van a AlarmasReceiver, sin exportar.
 if ($manifestContent -notmatch "BootCompletedReceiver") {
     $bootXml = @'
 
@@ -371,15 +424,39 @@ if ($manifestContent -notmatch "BootCompletedReceiver") {
     Write-Step "AndroidManifest.xml parcheado con BootCompletedReceiver"
 }
 
-# Alarma exacta para avisar del ranking de Comunidad el domingo a las 15:00 en
-# punto. USE_EXACT_ALARM (Android 13+) la concede el sistema sin preguntar; Google
-# Play la reserva a despertadores y calendarios, pero Skippify se distribuye por
-# releases de GitHub. En Android 12 basta SCHEDULE_EXACT_ALARM, que allí viene
-# concedida por defecto.
-if ($manifestContent -notmatch 'android.permission.USE_EXACT_ALARM') {
-    $manifestContent = $manifestContent -replace '(<uses-permission android:name="android.permission.INTERNET" />)', "`$1`n    <uses-permission android:name=`"android.permission.USE_EXACT_ALARM`" />`n    <uses-permission android:name=`"android.permission.SCHEDULE_EXACT_ALARM`" android:maxSdkVersion=`"32`" />"
+# AlarmasReceiver: el vigilante del servicio, el temporizador, el aviso de los
+# grupos, el latido de LocalHost y la alarma de actualización. Sin exportar:
+# sólo lo alcanzan los PendingIntent explícitos de la propia app, así que otra
+# app no puede dispararle alarmas falsas.
+if ($manifestContent -notmatch "AlarmasReceiver") {
+    $alarmasXml = @'
+
+        <!-- Skippify: alarmas propias (sólo PendingIntent explícitos) -->
+        <receiver
+            android:name=".AlarmasReceiver"
+            android:enabled="true"
+            android:exported="false"
+            android:directBootAware="true" />
+'@
+    $manifestContent = $manifestContent -replace '</application>', "$alarmasXml`n    </application>"
     $manifestChanged = $true
-    Write-Step "AndroidManifest.xml: permisos de alarma exacta añadidos"
+    Write-Step "AndroidManifest.xml parcheado con AlarmasReceiver"
+}
+
+# Alarma exacta para el aviso de los grupos y el de actualización. USE_EXACT_ALARM
+# (Android 13+) la concede el sistema sin preguntar, pero Google Play la reserva
+# a despertadores y calendarios: sólo va en el canal de GitHub. El código ya
+# cae a una alarma inexacta si no puede programarla exacta (canScheduleExactAlarms).
+# En Android 12 basta SCHEDULE_EXACT_ALARM, que allí viene concedida por defecto.
+if ($Canal -eq "github" -and $manifestContent -notmatch 'android.permission.USE_EXACT_ALARM') {
+    $manifestContent = $manifestContent -replace '(<uses-permission android:name="android.permission.INTERNET" />)', "`$1`n    <uses-permission android:name=`"android.permission.USE_EXACT_ALARM`" />"
+    $manifestChanged = $true
+    Write-Step "AndroidManifest.xml: permiso USE_EXACT_ALARM añadido"
+}
+if ($manifestContent -notmatch 'android.permission.SCHEDULE_EXACT_ALARM') {
+    $manifestContent = $manifestContent -replace '(<uses-permission android:name="android.permission.INTERNET" />)', "`$1`n    <uses-permission android:name=`"android.permission.SCHEDULE_EXACT_ALARM`" android:maxSdkVersion=`"32`" />"
+    $manifestChanged = $true
+    Write-Step "AndroidManifest.xml: permiso SCHEDULE_EXACT_ALARM añadido"
 }
 
 # Widgets de la pantalla de inicio: «Modo de escucha» y «Tu mes». El
@@ -595,7 +672,9 @@ if (-not (Test-Path $gradleWrapper)) {
     throw "No se encontró gradlew.bat en $androidDir"
 }
 
-Write-Step "Compilando APK $BuildType..."
+# Play recibe un AAB (bundle); GitHub, la APK que instala el actualizador.
+$gradleTask = if ($Canal -eq "play") { "bundle$buildTypeCap" } else { "assemble$buildTypeCap" }
+Write-Step "Compilando ($gradleTask)..."
 Push-Location $androidDir
 $packageTmpDir = Join-Path $androidDir "app\build\intermediates\incremental\package$buildTypeCap\tmp"
 $buildSucceeded = $false
@@ -632,7 +711,8 @@ for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
             Remove-Item -Path $packageTmpDir -Recurse -Force -ErrorAction SilentlyContinue
         }
 
-        & .\gradlew.bat "assemble$buildTypeCap" | Out-Host
+        & .\gradlew.bat $gradleTask | Out-Host
+        if ($LASTEXITCODE -ne 0) { throw "gradle $gradleTask terminó con código $LASTEXITCODE" }
         $buildSucceeded = $true
         break
     }
@@ -648,7 +728,19 @@ for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
 Pop-Location
 
 if (-not $buildSucceeded) {
-    throw "No se pudo completar assembleDebug tras varios intentos."
+    throw "No se pudo completar $gradleTask tras varios intentos."
+}
+
+if ($Canal -eq "play") {
+    $sourceAab = Join-Path $androidDir "app\build\outputs\bundle\$BuildType\app-$BuildType.aab"
+    if (-not (Test-Path $sourceAab)) {
+        throw "No se generó app-$BuildType.aab"
+    }
+    $targetAab = Join-Path $distDir "Skippify-$apkVersionLabel-play.aab"
+    Copy-Item -Path $sourceAab -Destination $targetAab -Force
+    Write-Step "AAB para Google Play: $targetAab"
+    Write-Host "Súbelo en Play Console > Prueba interna o Producción." -ForegroundColor Green
+    return
 }
 
 $sourceApk = Join-Path $androidDir "app\build\outputs\apk\$BuildType\app-$BuildType.apk"

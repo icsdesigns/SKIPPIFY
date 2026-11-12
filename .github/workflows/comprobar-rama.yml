@@ -1,0 +1,73 @@
+name: Comprobar rama
+
+# Compila las dos variantes (GitHub y Google Play) en modo debug en las ramas de
+# trabajo, para cazar fallos de Java o del manifiesto antes de llegar a main.
+# No firma con la clave de release ni publica nada: no toca ningún secret y no
+# afecta al canal de actualización.
+on:
+  push:
+    branches: ['claude/**']
+  workflow_dispatch:
+
+concurrency:
+  group: comprobar-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        canal: [github, play]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Setup JDK 21
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Pruebas
+        if: matrix.canal == 'github'
+        shell: pwsh
+        run: |
+          npm ci
+          npm run smoke
+
+      - name: Compilar (debug, canal ${{ matrix.canal }})
+        shell: pwsh
+        run: .\scripts\build-apk.ps1 -BuildType debug -Canal ${{ matrix.canal }}
+
+      - name: Revisar el manifiesto final
+        shell: pwsh
+        run: |
+          $m = Get-ChildItem android/app/build/intermediates -Recurse -Filter AndroidManifest.xml |
+            Where-Object { $_.FullName -match 'merged_manifest' } | Select-Object -First 1
+          if (-not $m) { Write-Host "::error::No se encontró el manifiesto combinado"; exit 1 }
+          $x = Get-Content $m.FullName -Raw
+          $fallos = @()
+          if ($x -notmatch 'android:allowBackup="false"') { $fallos += 'allowBackup no está en false' }
+          if ($x -notmatch 'AlarmasReceiver') { $fallos += 'falta AlarmasReceiver' }
+          if ('${{ matrix.canal }}' -eq 'play') {
+            if ($x -match 'REQUEST_INSTALL_PACKAGES') { $fallos += 'Play con REQUEST_INSTALL_PACKAGES' }
+            if ($x -match 'USE_EXACT_ALARM') { $fallos += 'Play con USE_EXACT_ALARM' }
+          } else {
+            if ($x -notmatch 'REQUEST_INSTALL_PACKAGES') { $fallos += 'GitHub sin REQUEST_INSTALL_PACKAGES' }
+          }
+          if ($fallos.Count) { Write-Host "::error::$($fallos -join '; ')"; exit 1 }
+          Write-Host "Manifiesto correcto ($($m.FullName))"

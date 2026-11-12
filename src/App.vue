@@ -374,6 +374,10 @@ onBeforeUnmount(() => {
 .sk-header {
   transition: background-color 0.25s ease, box-shadow 0.25s ease;
   background-color: transparent;
+  /* Android 15+ dibuja la app bajo la barra de estado (edge-to-edge). Con un
+     WebView reciente el hueco llega como env(); con uno viejo Capacitor ya
+     separa la vista por su cuenta y ambos valen 0. */
+  padding-top: max(env(safe-area-inset-top, 0px), var(--safe-area-inset-top, 0px));
 }
 
 .sk-header--solid {

@@ -17,7 +17,9 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(NotifListenerPlugin.class);
-        registerPlugin(UpdaterPlugin.class);
+        // En Google Play las actualizaciones las gestiona la tienda: la build
+        // de ese canal no lleva el actualizador por GitHub.
+        if (!Canal.PLAY) registerPlugin(UpdaterPlugin.class);
         registerPlugin(LocalHostBgPlugin.class);
         super.onCreate(savedInstanceState);
     }

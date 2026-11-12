@@ -48,7 +48,7 @@ public class UpdaterPlugin extends Plugin {
     private static final int READ_TIMEOUT_MS = 60000;
 
     /**
-     * Capacitor 6 sólo expone `executeOnMainThread()`, que es justo lo contrario
+     * Capacitor sólo expone `executeOnMainThread()`, que es justo lo contrario
      * de lo que hace falta aquí: descargar en el hilo principal bloquearía la UI
      * y el sistema mataría la app. Con un único hilo, además, dos toques
      * seguidos en "Actualizar" se encolan en vez de descargar por duplicado.
@@ -84,6 +84,12 @@ public class UpdaterPlugin extends Plugin {
         final String url = call.getString("url");
         if (url == null || url.isEmpty()) {
             call.reject("Falta la URL de la APK");
+            return;
+        }
+        // Sólo las releases del propio repo: el WebView no debe poder hacer que
+        // la app descargue (y luego ofrezca instalar) una APK de otro sitio.
+        if (!UrlsSeguras.esDescargaDeRelease(url)) {
+            call.reject("URL de actualización no permitida");
             return;
         }
         final String fileName = sanitizeFileName(call.getString("fileName", "skippify-update.apk"));
@@ -192,6 +198,19 @@ public class UpdaterPlugin extends Plugin {
         }
 
         File apk = new File(path);
+        // Sólo lo que haya descargado `download` en su carpeta de la caché.
+        try {
+            File carpeta = new File(getContext().getCacheDir(), UPDATE_DIR).getCanonicalFile();
+            File canon = apk.getCanonicalFile();
+            if (!carpeta.equals(canon.getParentFile())) {
+                call.reject("Ruta de APK no permitida");
+                return;
+            }
+            apk = canon;
+        } catch (Exception e) {
+            call.reject("Ruta de APK no válida");
+            return;
+        }
         if (!apk.exists()) {
             call.reject("La APK descargada ya no está en disco");
             return;

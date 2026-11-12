@@ -818,7 +818,7 @@ final class DuplicateSkipEngine {
         indexPut(key, playedAtMs);
         mWriter.execute(() -> insertRow(key, track, artist, durationMs, playedAtMs, playedMs));
 
-        Log.d(TAG, "commit key=" + key + " playedMs=" + playedMs);
+        Log.d(TAG, "commit playedMs=" + playedMs);
     }
 
     // ── Silenciado previo ─────────────────────────────────────────────────────
@@ -1036,7 +1036,7 @@ final class DuplicateSkipEngine {
             }
 
             if (!expectedKey.equals(liveKey(t))) {
-                Log.i(TAG, "skip abortado: la pista viva ya no coincide (" + expectedKey + ")");
+                Log.i(TAG, "skip abortado: la pista viva ya no coincide");
                 recordTelemetryEvent("salto_abortado", expectedKey, "pista_cambiada");
                 // La pista que suena ya no es la juzgada: devolver el sonido sin
                 // rebobinar, porque no es la canción que silenciamos.
@@ -1055,8 +1055,7 @@ final class DuplicateSkipEngine {
             }
 
             try { t.skipToNext(); } catch (Throwable ignored) {}
-            Log.i(TAG, "skip emitido key=" + expectedKey
-                    + " posMs=" + obs.positionMs
+            Log.i(TAG, "skip emitido posMs=" + obs.positionMs
                     + " latenciaMs=" + (SystemClock.uptimeMillis() - obs.uptimeMs));
 
             if (pauseFirst) {
@@ -1073,7 +1072,7 @@ final class DuplicateSkipEngine {
                 }
                 if (expectedKey.equals(liveKey(t2)) && isSameGeneration(generation)) {
                     try { t2.skipToNext(); } catch (Throwable ignored) {}
-                    Log.i(TAG, "skip reintentado key=" + expectedKey);
+                    Log.i(TAG, "skip reintentado");
                 }
                 // El salto ya se ha materializado (o se ha reintentado): a
                 // partir de aquí lo que suena es la pista siguiente, que abrirá
