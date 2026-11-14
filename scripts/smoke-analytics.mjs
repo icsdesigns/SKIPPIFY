@@ -229,10 +229,13 @@ async function main () {
   check('vacío: marca vacio y 0/0 sin NaN', JSON.stringify([vacioRep.vacio, vacioRep.pctEste, vacioRep.pctOtros, vacioRep.pctEsteTiempo]), '[true,0,0,null]')
   check('anuncios no cuentan', W.repartoDispositivos([{ ...conFuente(1, 'notification'), track: 'Anuncio' }], ahora).total, 0)
 
-  // ── Wrapped: cálculos (sólo mensual, últimos 30 días) ─────────────────
-  console.log('\nWrapped: cálculos (mes = últimos 30 días)')
+  // ── Wrapped: cálculos (sólo mensual, mes natural anterior) ─────────────────
+  console.log('\nWrapped: cálculos (mes natural anterior)')
+  // «Hoy» = día 1 del mes en curso a mediodía: el Wrapped enseña el mes que acaba de cerrarse.
+  const hoyM = new Date()
+  const ahoraW = new Date(hoyM.getFullYear(), hoyM.getMonth(), 1, 12).getTime()
   const h = (dias, hora, min = 0) => {
-    const d = new Date(ahora - dias * DIA); d.setHours(hora, min, 0, 0); return d.toISOString()
+    const d = new Date(ahoraW - dias * DIA); d.setHours(hora, min, 0, 0); return d.toISOString()
   }
   const hist = [
     // Día 1: sesión de 20 min (21:00, 21:10, 21:20)
@@ -246,12 +249,18 @@ async function main () {
     { ...escucha(3, '', 'Beto'), played_at: h(3, 21, 5) },
     // Día 20: dentro del mes; 3:00 y 3:30 (justo 30 min: no parte la sesión)
     { ...escucha(20, 'Cuatro', 'Cleo'), played_at: h(20, 3, 0) }, { ...escucha(20, 'Cinco', 'Zoe'), played_at: h(20, 3, 30) },
-    // Fuera de los 30 días
-    { ...escucha(31, 'Antigua', 'Yago'), played_at: h(31, 3) }
+    // Fuera del mes (anterior a ese)
+    { ...escucha(31, 'Antigua', 'Yago'), played_at: h(40, 3) }
   ]
-  const wm = W.calcularWrapped(hist, ahora, { variedad: 82.4 })
-  check('ventana de 30 días', W.DIAS_WRAPPED, 30)
-  check('título y rango mensuales', `${wm.titulo} · ${wm.rango}`, 'Tu mes en música · Últimos 30 días')
+  const wm = W.calcularWrapped(hist, ahoraW, { variedad: 82.4 })
+  const mes = W.mesAnterior(ahoraW)
+  check('el mes es el natural anterior (día 1 a día 1)', new Date(mes.inicio).getDate() === 1 && new Date(mes.fin).getDate() === 1 && new Date(mes.fin).getMonth() === new Date(ahoraW).getMonth(), true)
+  check('el rango lo nombra con mes y año', /^[^ ]+ (de )?[0-9]{4}$/.test(wm.rango), true)
+  check('el día 1 del mes en curso a las 00:00 aún no cuenta', W.calcularWrapped([{ ...escucha(0, 'Nueva', 'Ana'), played_at: new Date(mes.fin).toISOString() }], ahoraW).vacio, true)
+  check('el último ms del mes anterior sí cuenta', W.calcularWrapped([{ ...escucha(0, 'Última', 'Ana'), played_at: new Date(mes.fin - 1).toISOString() }], ahoraW).vacio, false)
+  check('el día 1 a las 00:00 del mes anterior sí cuenta', W.calcularWrapped([{ ...escucha(0, 'Primera', 'Ana'), played_at: new Date(mes.inicio).toISOString() }], ahoraW).vacio, false)
+  check('a mitad del mes en curso sigue saliendo el mes anterior', W.calcularWrapped(hist, mes.fin + 15 * DIA).tiempo, wm.tiempo)
+  check('título mensual', wm.titulo, 'Tu mes en música')
   check('trae las fechas del rango', /^\d{1,2} \S+ – \d{1,2} \S+$/.test(wm.fechas), true)
   check('tiempo: 9 escuchas × 3 min (sin anuncio ni la de hace 31 días)', wm.tiempo, '27 min')
   check('top 1 canción (agrupa mayúsculas y tildes)', wm.canciones[0].titulo, 'Uno')
@@ -264,8 +273,8 @@ async function main () {
   check('artistas distintos: Ana, Beto, Cleo y Zoe (sin Spotify ni Yago)', wm.artistasDistintos, 4)
   check('canciones distintas: Uno, Dos, Tres, Cuatro y Cinco', wm.cancionesDistintas, 5)
   check('variedad redondeada', wm.variedad, 82)
-  check('variedad fuera de rango se acota', W.calcularWrapped(hist, ahora, { variedad: 140 }).variedad, 100)
-  check('sin variedad queda null (la imagen pinta «—»)', W.calcularWrapped(hist, ahora).variedad, null)
+  check('variedad fuera de rango se acota', W.calcularWrapped(hist, ahoraW, { variedad: 140 }).variedad, 100)
+  check('sin variedad queda null (la imagen pinta «—»)', W.calcularWrapped(hist, ahoraW).variedad, null)
   check('4 sesiones en el mes', wm.sesiones, 4)
   check('duración media de la sesión: (20 + 10 + 5 + 30) / 4 → 16 min', wm.sesionMediaMin, 16)
   check('y con formato', wm.sesionMedia, '16 min')
@@ -277,8 +286,8 @@ async function main () {
   check('sesión de más de una hora con formato', W.calcularWrapped([
     { ...escucha(1, 'A', 'B'), played_at: h(1, 10, 0) }, { ...escucha(1, 'C', 'D'), played_at: h(1, 10, 25) },
     { ...escucha(1, 'E', 'F'), played_at: h(1, 10, 50) }, { ...escucha(1, 'G', 'H'), played_at: h(1, 11, 15) }
-  ], ahora).sesionMedia, '1 h 15 min')
-  const wv = W.calcularWrapped([], ahora)
+  ], ahoraW).sesionMedia, '1 h 15 min')
+  const wv = W.calcularWrapped([], ahoraW)
   check('vacío: sin NaN y con marca', JSON.stringify([wv.vacio, wv.tiempo, wv.artistasDistintos, wv.cancionesDistintas, wv.variedad, wv.sesiones, wv.sesionMedia]), '[true,"0 min",0,0,null,0,null]')
   check('vacío: listas vacías', wv.canciones.length + wv.artistas.length, 0)
   check('sólo los datos pedidos (ni hora favorita ni racha)', ['horaFavorita', 'mejorRacha', 'escuchas', 'periodo'].some(k => k in wm), false)
@@ -409,7 +418,7 @@ async function main () {
   const enorme = lienzoDePrueba()
   const datosLargos = W.calcularWrapped([1, 2, 3].map(i => (
     { ...escucha(1, largoTit + i, largoArt + i), played_at: h(1, 10, i) }
-  )), ahora, { variedad: 100 })
+  )), ahoraW, { variedad: 100 })
   datosLargos.tiempo = '1234 h 59 min'
   datosLargos.sesionMedia = '23 h 59 min'
   datosLargos.artistasDistintos = 123456
@@ -422,14 +431,14 @@ async function main () {
     ['1234', '59', '23', '123456', '1234567'].every(t => enorme.dibujados.some(d => d.t === t)), true)
 
   const vacio = lienzoDePrueba()
-  dibujarWrapped(vacio.lienzo, W.calcularWrapped([], ahora), vacio.registro)
+  dibujarWrapped(vacio.lienzo, W.calcularWrapped([], ahoraW), vacio.registro)
   comprobarGeometria('sin datos', vacio)
   check('sin datos: mensaje en las dos listas', vacio.dibujados.filter(d => d.t === 'Aún sin escuchas este mes').length, 2)
   check('sin datos: variedad «—» con su pista', vacio.dibujados.some(d => d.t === '—') && vacio.dibujados.some(d => d.t === 'aún sin datos'), true)
   check('sin datos: sesión media «—» con su pista', vacio.dibujados.some(d => d.t === 'sin sesiones'), true)
 
   const parcial = lienzoDePrueba()
-  const datosParciales = W.calcularWrapped([escucha(1, 'Sola', 'Única'), escucha(2, 'Otra', 'Única')], ahora)
+  const datosParciales = W.calcularWrapped([{ ...escucha(1, 'Sola', 'Única'), played_at: h(1, 10) }, { ...escucha(2, 'Otra', 'Única'), played_at: h(2, 10) }], ahoraW)
   dibujarWrapped(parcial.lienzo, datosParciales, parcial.registro)
   comprobarGeometria('datos parciales (2 canciones, 1 artista, sin variedad)', parcial)
   check('datos parciales: «—» en la variedad y el resto con cifras', parcial.dibujados.some(d => d.t === '—') && parcial.dibujados.some(d => d.t === 'Sola'), true)
@@ -467,7 +476,7 @@ async function main () {
   check('con descubrimiento se usa la disposición compacta', disposicionPara(datosDesc), DD)
   dibujarWrapped(conDesc.lienzo, datosDesc, conDesc.registro)
   comprobarGeometria('con descubrimiento', conDesc, panelesD)
-  for (const t of ['Descubrimiento del mes', 'NUEVO', 'Lumi', '5 canciones nuevas · 23 escuchas', 'Primera luz', 'Norte', 'Marea', 'Tiempo de escucha', 'en 30 días', 'Top 3 canciones', 'Top 3 artistas', 'Variedad', 'Sesión media', 'Artistas distintos', 'Canciones distintas']) {
+  for (const t of ['Descubrimiento del mes', 'NUEVO', 'Lumi', '5 canciones nuevas · 23 escuchas', 'Primera luz', 'Norte', 'Marea', 'Tiempo de escucha', 'en el mes', 'Top 3 canciones', 'Top 3 artistas', 'Variedad', 'Sesión media', 'Artistas distintos', 'Canciones distintas']) {
     check(`con descubrimiento se dibuja «${t}»`, conDesc.dibujados.some(d => d.t === t), true)
   }
   const mayorD = conDesc.dibujados.reduce((a, d) => (d.y1 - d.y0 > a.y1 - a.y0 ? d : a))
@@ -495,7 +504,7 @@ async function main () {
     ['1234', '59', '23', '123456', '1234567'].every(t => enormeD.dibujados.some(d => d.t === t)), true)
 
   const vacioD = lienzoDePrueba()
-  dibujarWrapped(vacioD.lienzo, { ...W.calcularWrapped([], ahora), descubrimiento: { ...descNormal, canciones: [] } }, vacioD.registro)
+  dibujarWrapped(vacioD.lienzo, { ...W.calcularWrapped([], ahoraW), descubrimiento: { ...descNormal, canciones: [] } }, vacioD.registro)
   comprobarGeometria('con descubrimiento sin canciones ni datos del mes', vacioD, panelesD)
 
   // ── Compartir / guardar ───────────────────────────────────────────────────

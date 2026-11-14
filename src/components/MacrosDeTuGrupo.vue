@@ -7,7 +7,7 @@
     <template #icono><GrupoIcono name="users" class="h-5 w-5" /></template>
 
     <div class="space-y-3" data-macros-grupo>
-      <!-- Consentimiento: apagado por defecto. Sin él no sale nada de tus macros. -->
+      <!-- Consentimiento: activado por defecto; al apagarlo se retira lo publicado. -->
       <OpcionFila
         plana
         compacta

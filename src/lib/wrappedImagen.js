@@ -7,7 +7,7 @@
  *
  * Contenido (y nada más): tiempo de escucha, top 3 canciones, top 3 artistas,
  * nº de artistas y de canciones distintas, % de variedad y duración media de la
- * sesión, de los últimos 30 días; y, sólo si lo hay, el descubrimiento de
+ * sesión, del mes natural anterior; y, sólo si lo hay, el descubrimiento de
  * artista del mes.
  *
  * Jerarquía, de arriba abajo:
@@ -666,12 +666,12 @@ export function dibujarWrapped (canvas, datos, registro = null) {
       const tx = x + t.tesela + 20
       const rot = L.texto('tiempo', 'Tiempo de escucha', tx, y + t.tesela / 2 + cap(t.rotulo) / 2, { peso: 800, px: t.rotulo, ls: -0.4, max: 420 })
       const base = p.y + p.h - PAD
-      L.texto('tiempo', 'en 30 días', tx, base, { peso: 600, px: T.pista, color: C.gris500, max: 420 })
+      L.texto('tiempo', 'en el mes', tx, base, { peso: 600, px: T.pista, color: C.gris500, max: 420 })
       const der = p.x + p.w - PAD
       const max = der - (tx + Math.max(rot.ancho, 140) + 40)
       L.cifra('tiempo', datos.tiempo, der, base, { px: t.heroe, minPx: 40, max, color: C.verde, colorUnidad: C.verde200, derecha: true })
     } else {
-      L.cabecera('tiempo', p, 'reloj', 'Tiempo de escucha', { pista: 'en 30 días' })
+      L.cabecera('tiempo', p, 'reloj', 'Tiempo de escucha', { pista: 'en el mes' })
       L.cifra('tiempo', datos.tiempo, p.x + PAD, p.y + p.h - PAD, { px: t.heroe, minPx: 48, max: p.w - PAD * 2, color: C.verde, colorUnidad: C.verde200 })
     }
   }

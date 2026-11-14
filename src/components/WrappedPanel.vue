@@ -6,7 +6,7 @@
       compacta
       color-tesela
       :titulo="abierto ? 'Tu Wrapped del mes' : 'Crea tu Wrapped del mes'"
-      detalle="Tus números de los últimos 30 días en una imagen vertical, lista para compartir."
+      detalle="Tus números del último mes completo en una imagen vertical, lista para compartir."
       class="w-full"
       :aria-expanded="abierto"
       data-wrapped-toggle
@@ -65,24 +65,22 @@
  * `lib/wrapped.js`, el dibujo de `lib/wrappedImagen.js` y el reparto de
  * «compartir / guardar» de `lib/compartirImagen.js`.
  *
- * Sólo mensual: los últimos 30 días, la misma ventana que la variedad mensual
- * de Inicio. La variedad se calcula EXACTAMENTE como allí (escuchas de
- * `last30Events` + duplicadas del mes de `useDuplicateStats`), así que ambas
- * cifras coinciden; sin datos del motor queda en null y la imagen pinta «—».
+ * Sólo mensual: el mes natural anterior (del día 1 al último día), sin datos
+ * nuevos hasta que acaba el mes en curso. La variedad usa la misma fórmula que
+ * Inicio (`calcularVariedad`) con las escuchas y las duplicadas de ESE mes;
+ * sin datos del motor queda en null y la imagen pinta «—».
  */
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import OpcionFila from '@/components/OpcionFila.vue'
 import StatIcon from '@/components/StatIcon.vue'
 import { useEventStore } from '@/stores/events'
-import { useAnalytics } from '@/composables/useAnalytics'
 import { useDuplicateStats } from '@/composables/useDuplicateStats'
 import { calcularVariedad } from '@/lib/inicioStats'
-import { calcularWrapped } from '@/lib/wrapped'
+import { calcularWrapped, mesAnterior } from '@/lib/wrapped'
 import { generarWrappedPng } from '@/lib/wrappedImagen'
 import { compartirPng, guardarPng } from '@/lib/compartirImagen'
 
 const { events } = useEventStore()
-const { last30Events } = useAnalytics()
 const dup = useDuplicateStats()
 
 const abierto = ref(false)
@@ -93,10 +91,17 @@ const aviso = ref('')
 const ocupado = ref(false)
 let ticket = 0
 
-/** Variedad mensual: la misma cuenta que el cartel de Inicio (DuplicateKpiCards). */
-const variedad = computed(() => dup.hasData.value
-  ? calcularVariedad(last30Events.value.length, dup.monthDuplicates.value, dup.monthSkipped.value)
-  : null)
+/** Variedad del mes anterior: la misma fórmula que el cartel de Inicio (DuplicateKpiCards). */
+const variedad = computed(() => {
+  if (!dup.hasData.value) return null
+  const mes = mesAnterior(Date.now())
+  const escuchas = events.value.filter(e => {
+    const t = new Date(e?.played_at).getTime()
+    return t >= mes.inicio && t < mes.fin
+  }).length
+  const { duplicates, skipped } = dup.rango(mes.inicio, mes.fin)
+  return calcularVariedad(escuchas, duplicates, skipped)
+})
 
 function alternar () {
   abierto.value = !abierto.value
@@ -128,8 +133,8 @@ async function generar () {
 watch([() => events.value.length, variedad], () => { if (abierto.value) generar() })
 
 function nombreArchivo () {
-  const d = new Date()
-  const f = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`
+  const d = new Date(mesAnterior(Date.now()).inicio)
+  const f = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}`
   return `skippify-wrapped-mes-${f}.png`
 }
 

@@ -3,10 +3,10 @@
  * poder probarlos con historiales sintéticos).
  *
  * Definiciones (las mismas en la pantalla y en la imagen para compartir):
- *  - El Wrapped es SÓLO mensual: «mes» = últimos 30 días (ventana móvil que
- *    acaba ahora), el mismo criterio que la variedad mensual de Inicio
- *    (`last30Events` + `useDuplicateStats().month`), para que las cifras
- *    coincidan. No es el mes natural en curso.
+ *  - El Wrapped es SÓLO mensual y del MES NATURAL ANTERIOR: del día 1 al último
+ *    día del mes que acaba de terminar (`mesAnterior`). No enseña datos nuevos
+ *    hasta que termina el mes en curso. La variedad se calcula desde fuera con
+ *    las duplicadas de ese mismo tramo.
  *  - Se descartan anuncios y emisiones de Spotify (`esExcluida`) del tiempo,
  *    los tops y los recuentos de artistas y canciones.
  *  - Tiempo escuchado: suma de `ms_played`, o de `duration_ms` si aquél falta.
@@ -15,8 +15,8 @@
  *    primera escucha hasta la última. Se mide con todas las escuchas de la
  *    ventana, como en Inicio.
  *  - Descubrimiento del mes: `estadoDescubrimientos` (lib/descubrimientos.js)
- *    con el historial completo y la misma ventana; null si está bloqueado o
- *    no hay ninguno.
+ *    con el historial hasta el fin de ese mes y ese mes como ventana; null si
+ *    está bloqueado o no hay ninguno.
  *  - Este dispositivo = fuente `notification` / `notification_background` (o sin
  *    fuente). Otros dispositivos = `spotify_api`.
  */
@@ -231,7 +231,26 @@ export function rangoFechas (ahoraMs, dias = DIAS_WRAPPED) {
 }
 
 /**
- * Datos del Wrapped mensual (últimos 30 días). `variedad` (0-100 o null) llega
+ * El mes natural anterior a `ahoraMs` (hora local): `inicio` es el día 1 a las
+ * 00:00, `fin` el día 1 del mes siguiente (excluido) y `ultimo` su último ms.
+ */
+export function mesAnterior (ahoraMs = Date.now()) {
+  const a = new Date(Number.isFinite(ahoraMs) ? ahoraMs : Date.now())
+  const inicio = new Date(a.getFullYear(), a.getMonth() - 1, 1).getTime()
+  const fin = new Date(a.getFullYear(), a.getMonth(), 1).getTime()
+  const nombre = new Date(inicio).toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })
+  const f = ms => new Date(ms).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }).replace('.', '')
+  return {
+    inicio,
+    fin,
+    ultimo: fin - 1,
+    nombre: nombre.charAt(0).toUpperCase() + nombre.slice(1),
+    fechas: `${f(inicio)} – ${f(fin - 1)}`
+  }
+}
+
+/**
+ * Datos del Wrapped mensual (el mes natural anterior). `variedad` (0-100 o null) llega
  * calculada desde fuera —con la misma fórmula y ventana que Inicio— porque
  * depende de las duplicadas, que no viven en el historial.
  *
@@ -241,11 +260,12 @@ export function rangoFechas (ahoraMs, dias = DIAS_WRAPPED) {
  * artista del mes (con todo el historial, porque compara con lo anterior).
  */
 export function calcularWrapped (eventos, ahoraMs = Date.now(), { variedad = null } = {}) {
-  const corte = ahoraMs - DIAS_WRAPPED * MS_DIA
-  const ventana = (eventos || []).filter(e => {
+  const mes = mesAnterior(ahoraMs)
+  const hastaFin = (eventos || []).filter(e => {
     const t = new Date(e?.played_at).getTime()
-    return Number.isFinite(t) && t >= corte && t <= ahoraMs + MS_HORA
+    return Number.isFinite(t) && t < mes.fin
   })
+  const ventana = hastaFin.filter(e => new Date(e.played_at).getTime() >= mes.inicio)
   const lista = ventana.filter(e => !esExcluida(e))
 
   let totalMs = 0
@@ -269,12 +289,12 @@ export function calcularWrapped (eventos, ahoraMs = Date.now(), { variedad = nul
 
   const ses = calcularSesiones(ventana)
   const v = Number.isFinite(variedad) ? Math.max(0, Math.min(100, Math.round(variedad))) : null
-  const desc = estadoDescubrimientos(eventos, ahoraMs)
+  const desc = estadoDescubrimientos(hastaFin, mes.ultimo, { desdeMs: mes.inicio })
 
   return {
     titulo: 'Tu mes en música',
-    rango: 'Últimos 30 días',
-    fechas: rangoFechas(ahoraMs),
+    rango: mes.nombre,
+    fechas: mes.fechas,
     vacio: lista.length === 0,
     totalMs,
     tiempo: formatearDuracion(totalMs),

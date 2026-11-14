@@ -83,8 +83,9 @@ function compararCandidatos (a, b) {
  * primeraEscucha (ms), ultimaEscucha (ms), canciones: [top 3 { titulo, escuchas }],
  * previo: { escuchas, canciones } }`; `candidatos` son todos los que cumplen,
  * ya ordenados (el primero es el principal). Bloqueado, no hay candidatos.
+ * `desdeMs` (opcional) fija el inicio de la ventana; sin él son los últimos 30 días.
  */
-export function estadoDescubrimientos (eventos, ahoraMs = Date.now()) {
+export function estadoDescubrimientos (eventos, ahoraMs = Date.now(), { desdeMs = null } = {}) {
   const ahora = Number.isFinite(ahoraMs) ? ahoraMs : Date.now()
   const lista = Array.isArray(eventos) ? eventos : []
   const cancionesUnicas = contarCancionesUnicas(lista, ahora)
@@ -100,7 +101,7 @@ export function estadoDescubrimientos (eventos, ahoraMs = Date.now()) {
   }
   if (!desbloqueado) return base
 
-  const corte = ahora - DIAS_WRAPPED * MS_DIA
+  const corte = Number.isFinite(desdeMs) ? desdeMs : ahora - DIAS_WRAPPED * MS_DIA
   const limite = ahora + MS_HORA
   /** clave de artista → { previo, ventana } */
   const artistas = new Map()

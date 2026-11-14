@@ -102,12 +102,12 @@ const funcionalidad = reactive({})
 /** { [groupId]: [macro compartida por otro miembro] } — ver lib/macrosCompartidas.js. */
 const macrosGrupos = reactive({})
 /**
- * «Compartir mis macros con mis grupos». Apagado por defecto: sin este
- * consentimiento no sale nada de las macros del móvil.
+ * «Compartir mis macros con mis grupos». Activado por defecto (se puede apagar): sin
+ * él no sale nada de las macros del móvil.
  */
 const MACROS_COMPARTIR_KEY = 'skippify-macros-compartir'
 const compartirMacros = ref((() => {
-  try { return localStorage.getItem(MACROS_COMPARTIR_KEY) === '1' } catch { return false }
+  try { return localStorage.getItem(MACROS_COMPARTIR_KEY) !== '0' } catch { return true }
 })())
 
 const runtimes = new Map()
