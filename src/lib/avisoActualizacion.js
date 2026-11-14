@@ -19,6 +19,17 @@ export const TOLERANCIA_RELOJ_MS = 60 * 60 * 1000
 /** Margen tras el plazo con el que se vuelve a mirar si la app sigue abierta. */
 export const MARGEN_REVISION_MS = 60 * 1000
 
+/** Pasado este tiempo desde la publicación de la última versión, actualizar es obligatorio. */
+export const PLAZO_OBLIGATORIA_MS = 7 * 24 * 60 * 60 * 1000
+
+/**
+ * ¿Han pasado más de 7 días desde que se publicó la versión? Sin fecha legible
+ * (0) o con el reloj atrasado nunca es obligatoria.
+ */
+export function esObligatoria (ahora, publicadoMs) {
+  return Number.isFinite(publicadoMs) && publicadoMs > 0 && ahora - publicadoMs > PLAZO_OBLIGATORIA_MS
+}
+
 /** ISO 8601 → ms de época UTC (sin zona se toma como UTC, igual que en Java); 0 si no se entiende. */
 export function parsearFecha (iso) {
   if (typeof iso !== 'string') return 0

@@ -179,6 +179,20 @@ console.log('\n«Ahora no» y «Posponer 1 semana» siguen funcionando')
   u.postpone()
   release = nueva({ code: 461, publicada: iso(AHORA - 7 * H) })
   check('otra build nueva (ya pasadas 6 h) recupera el aviso pese al pospuesto', (await u.check()) === true && u.shouldPrompt.value === true)
+
+  // ── Obligatoria a partir de 7 días ──
+  u = await modulo()
+  release = nueva({ code: 470, publicada: iso(AHORA - 7 * 24 * H + 60000) })
+  await u.check()
+  check('a punto de cumplir 7 días: aún se puede posponer', u.obligatoria.value === false && u.shouldPrompt.value === true)
+  u = await modulo()
+  release = nueva({ code: 471, publicada: iso(AHORA - 7 * 24 * H - 60000) })
+  await u.check()
+  check('pasados 7 días es obligatoria y avisa', u.obligatoria.value === true && u.shouldPrompt.value === true)
+  u.dismiss(); u.postpone()
+  check('«Ahora no» y «Posponer» no la ocultan', u.shouldPrompt.value === true && almacen.get('skippify.update.postponed') === undefined)
+  almacen.set('skippify.update.skipped', '471')
+  check('ni aunque se hubiera descartado antes', (await u.check()) === true && u.shouldPrompt.value === true)
 }
 
 if (fallos) {

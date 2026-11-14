@@ -10,7 +10,7 @@
             <UpdateIcon class="h-6 w-6 text-black" />
           </span>
           <div class="min-w-0">
-            <h2 class="truncate text-lg font-extrabold tracking-tight text-white">Actualización disponible</h2>
+            <h2 class="truncate text-lg font-extrabold tracking-tight text-white">{{ update.obligatoria.value ? 'Actualización obligatoria' : 'Actualización disponible' }}</h2>
             <p class="truncate text-[11px] font-bold text-brand-400">Skippify {{ update.latest.value?.version }}</p>
           </div>
         </div>
@@ -20,6 +20,9 @@
           aviso alarmante al instalar fuera de Play Store y ese es el momento en
           que la gente cancela, así que conviene anticiparlo.
         -->
+        <p v-if="update.obligatoria.value" class="mb-3 rounded-xl bg-amber-400/[0.14] px-3 py-2 text-xs font-semibold leading-relaxed text-amber-100" data-actualizacion-obligatoria>
+          Esta versión lleva más de una semana publicada. Para seguir usando Skippify hay que actualizar.
+        </p>
         <p v-if="needsInstallPermission" class="mb-5 text-sm leading-relaxed text-slate-300">
           Android necesita tu permiso para instalar aplicaciones fuera de Play Store.
           Concédeselo a Skippify y vuelve aquí.
@@ -48,6 +51,7 @@
           </button>
 
           <button
+            v-if="!update.obligatoria.value"
             class="sk-btn sk-btn-ghost sk-btn-sm shrink-0"
             :disabled="update.status.value === 'downloading'"
             @click="update.dismiss()"
@@ -55,6 +59,7 @@
             Ahora no
           </button>
           <button
+            v-if="!update.obligatoria.value"
             class="sk-btn sk-btn-ghost sk-btn-sm shrink-0"
             :disabled="update.status.value === 'downloading'"
             @click="update.postpone()"

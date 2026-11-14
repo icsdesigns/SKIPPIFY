@@ -11,7 +11,7 @@
  * una app normal, así que ese último toque es inevitable.
  */
 import { ref, computed } from 'vue'
-import { fechaDeRelease, evaluarRetraso, MARGEN_REVISION_MS } from '../lib/avisoActualizacion.js'
+import { fechaDeRelease, evaluarRetraso, esObligatoria, MARGEN_REVISION_MS } from '../lib/avisoActualizacion.js'
 import { ES_PLAY } from '../lib/canal.js'
 
 const REPO = 'icsdesigns/SKIPPIFY'
@@ -39,6 +39,11 @@ const dismissed = ref(false)
  * «Buscar actualizaciones») la muestra al momento.
  */
 const retenida = ref(false)
+/**
+ * La versión nueva lleva más de 7 días publicada: hay que actualizar sí o sí. El
+ * aviso no se puede descartar ni posponer y vuelve aunque se hubiera ignorado.
+ */
+const obligatoria = ref(false)
 
 let _initialized = false
 let _progressListener = null
@@ -67,7 +72,7 @@ function plugin () {
 const TAG_PATTERN = /^v(.+)-b(\d+)$/
 
 const updateAvailable = computed(() => {
-  if (dismissed.value || retenida.value) return false
+  if ((dismissed.value && !obligatoria.value) || retenida.value) return false
   if (!latest.value || !current.value) return false
   return latest.value.versionCode > current.value.versionCode
 })
@@ -156,7 +161,9 @@ async function check ({ manual = false } = {}) {
     // el aviso vuelve a aparecer. Se guarda el versionCode y no el nombre de
     // versión, que se repite entre builds de la misma release.
     const skipped = localStorage.getItem(SKIPPED_KEY)
-    dismissed.value = !manual && (
+    obligatoria.value = latest.value.versionCode > current.value.versionCode &&
+      esObligatoria(Date.now(), latest.value.publishedAt)
+    dismissed.value = !manual && !obligatoria.value && (
       skipped === String(latest.value.versionCode) || isPostponed(latest.value.versionCode)
     )
 
@@ -276,6 +283,7 @@ function isPostponed (versionCode) {
 
 /** Oculta el aviso de esta build durante una semana; otra build nueva lo recupera. */
 function postpone () {
+  if (obligatoria.value) return
   if (latest.value?.versionCode) {
     try {
       localStorage.setItem(POSTPONED_KEY, JSON.stringify({
@@ -289,6 +297,7 @@ function postpone () {
 }
 
 function dismiss () {
+  if (obligatoria.value) return
   if (latest.value?.versionCode) {
     localStorage.setItem(SKIPPED_KEY, String(latest.value.versionCode))
   }
@@ -320,6 +329,7 @@ export function useAppUpdate () {
     progress,
     error,
     dismissed,
+    obligatoria,
     updateAvailable,
     shouldPrompt,
     initialize,

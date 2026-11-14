@@ -69,27 +69,27 @@
         <div class="space-y-2 border-t border-white/[0.07] p-4">
           <!-- Sin vincular: todas las instrucciones, una tarjeta por paso. -->
           <template v-if="!conectada">
-            <OpcionFila plana compacta color-tesela tono="brand" titulo="1 · Para qué sirve" detalle="Anota lo que escuchas en cualquier dispositivo, sin depender de las notificaciones.">
-              <template #icono><AjusteIcon name="antena" class="h-6 w-6" /></template>
+            <OpcionFila plana compacta color-tesela tono="brand" titulo="Para qué sirve" detalle="Anota lo que escuchas en cualquier dispositivo, sin depender de las notificaciones.">
+              <template #icono><span class="text-base font-extrabold leading-none" aria-hidden="true">0</span></template>
             </OpcionFila>
 
-            <OpcionFila plana compacta color-tesela tono="amber" titulo="2 · Requisitos" detalle="Requiere Spotify Premium. Sólo pueden vincularse 5 cuentas a la aplicación que vas a crear ahora.">
-              <template #icono><AjusteIcon name="escudo" class="h-6 w-6" /></template>
+            <OpcionFila plana compacta color-tesela tono="amber" titulo="Requisitos" detalle="Requiere Spotify Premium.">
+              <template #icono><span class="text-base font-extrabold leading-none" aria-hidden="true">1</span></template>
             </OpcionFila>
 
-            <OpcionFila plana compacta color-tesela tono="sky" titulo="3 · Crea una aplicación" detalle="Inicia sesión con tu cuenta de Spotify, entra en «Dashboard» y pulsa «Create app».">
-              <template #icono><AjusteIcon name="tour" class="h-6 w-6" /></template>
+            <OpcionFila plana compacta color-tesela tono="sky" titulo="Crea una aplicación" detalle="Inicia sesión en Spotify for Developers y acepta los términos y condiciones si es la primera vez que entras. Después, en «Dashboard», pulsa «Create app». Si el botón no aparece en el móvil, activa la versión para ordenador en el navegador.">
+              <template #icono><span class="text-base font-extrabold leading-none" aria-hidden="true">2</span></template>
             </OpcionFila>
             <button type="button" class="w-full sk-btn sk-btn-ghost" data-cuenta-abrir-dashboard @click="abrirDashboard">
               Abrir Spotify for Developers
             </button>
 
-            <OpcionFila plana compacta color-tesela tono="sky" titulo="4a · Nombre y descripción" detalle="En «App name» escribe Skippify y, en «App description», Registro personal de mis escuchas.">
-              <template #icono><AjusteIcon name="etiqueta" class="h-6 w-6" /></template>
+            <OpcionFila plana compacta color-tesela tono="sky" titulo="Nombre y descripción" detalle="En «App name» escribe Skippify y, en «App description», Registro personal de mis escuchas.">
+              <template #icono><span class="text-base font-extrabold leading-none" aria-hidden="true">3</span></template>
             </OpcionFila>
 
-            <OpcionFila plana compacta color-tesela tono="sky" titulo="4b · URI de redirección" detalle="En «Redirect URIs» pega esta dirección, exactamente igual, y pulsa «Add» (Añadir).">
-              <template #icono><AjusteIcon name="copia" class="h-6 w-6" /></template>
+            <OpcionFila plana compacta color-tesela tono="sky" titulo="URI de redirección" detalle="En «Redirect URIs» pega esta dirección, exactamente igual, y pulsa «Add» (Añadir).">
+              <template #icono><span class="text-base font-extrabold leading-none" aria-hidden="true">4</span></template>
             </OpcionFila>
             <div class="flex flex-wrap items-center gap-2">
               <code class="min-w-0 flex-1 basis-40 break-all rounded-lg bg-black/30 px-2.5 py-2 font-mono text-[11px] text-brand-400">{{ redirectUri() }}</code>
@@ -98,12 +98,12 @@
               </button>
             </div>
 
-            <OpcionFila plana compacta color-tesela tono="sky" titulo="4c · API y guardado" detalle="En «Which API/SDKs are you planning to use?» marca «Web API», acepta los términos y pulsa «Save» (Guardar).">
-              <template #icono><AjusteIcon name="registro" class="h-6 w-6" /></template>
+            <OpcionFila plana compacta color-tesela tono="sky" titulo="API y guardado" detalle="En «Which API/SDKs are you planning to use?» marca «Web API», acepta los términos y pulsa «Save» (Guardar).">
+              <template #icono><span class="text-base font-extrabold leading-none" aria-hidden="true">5</span></template>
             </OpcionFila>
 
-            <OpcionFila plana compacta color-tesela tono="brand" titulo="5a · Copia el Client ID" detalle="En «Settings» de tu aplicación de Spotify copia el Client ID y pégalo aquí.">
-              <template #icono><AjusteIcon name="version" class="h-6 w-6" /></template>
+            <OpcionFila plana compacta color-tesela tono="brand" titulo="Copia el Client ID" detalle="En «Basic Information» de tu aplicación de Spotify copia el Client ID y pégalo aquí.">
+              <template #icono><span class="text-base font-extrabold leading-none" aria-hidden="true">6</span></template>
             </OpcionFila>
             <input
               v-model="clientIdInput"
@@ -113,8 +113,8 @@
               class="w-full sk-input px-3 py-2.5 font-mono text-xs text-slate-200 placeholder:text-slate-600"
             >
 
-            <OpcionFila plana compacta color-tesela tono="brand" titulo="5b · Conecta y acepta" detalle="Pulsa «Conectar con Spotify» y, en la pantalla de Spotify, pulsa «Aceptar».">
-              <template #icono><AjusteIcon name="cuenta" class="h-6 w-6" /></template>
+            <OpcionFila plana compacta color-tesela tono="brand" titulo="Conecta y acepta" detalle="Pulsa «Conectar con Spotify» y, en la pantalla de Spotify, pulsa «Aceptar».">
+              <template #icono><span class="text-base font-extrabold leading-none" aria-hidden="true">7</span></template>
             </OpcionFila>
             <button
               type="button"
@@ -182,7 +182,7 @@
  *
  * Componente autónomo y reutilizable (no depende de la vista que lo aloja).
  * Sin sesión se titula «Vincula tu Spotify» y, desplegado, da el paso a paso
- * completo: para qué sirve, requisitos (Premium, 5 cuentas), crear la aplicación,
+ * completo: para qué sirve, requisitos (Premium), crear la aplicación,
  * qué rellenar y copiar el Client ID. Con sesión, plegado muestra foto, nombre,
  * correo y el icono de desvincular; desplegado, el conmutador de la lectura por
  * API y una invitación a crear macros.
