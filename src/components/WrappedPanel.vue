@@ -6,7 +6,7 @@
       compacta
       color-tesela
       :titulo="abierto ? 'Tu Wrapped del mes' : 'Crea tu Wrapped del mes'"
-      detalle="Tus números del último mes completo en una imagen vertical, lista para compartir."
+      detalle="Tu último mes completo en una imagen vertical, lista para tus historias de Instagram."
       class="w-full"
       :aria-expanded="abierto"
       data-wrapped-toggle

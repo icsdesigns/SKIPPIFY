@@ -291,14 +291,24 @@ async function main () {
   check('vacío: sin NaN y con marca', JSON.stringify([wv.vacio, wv.tiempo, wv.artistasDistintos, wv.cancionesDistintas, wv.variedad, wv.sesiones, wv.sesionMedia]), '[true,"0 min",0,0,null,0,null]')
   check('vacío: listas vacías', wv.canciones.length + wv.artistas.length, 0)
   check('sólo los datos pedidos (ni hora favorita ni racha)', ['horaFavorita', 'mejorRacha', 'escuchas', 'periodo'].some(k => k in wm), false)
+  const casi0 = (a, b) => Math.abs(a - b) < 1e-9
   check('formato de duración con horas', W.formatearDuracion(3 * 3600000 + 5 * 60000), '3 h 5 min')
   check('formato de duración exacta', W.formatearDuracion(2 * 3600000), '2 h')
+  check('horas del mes: por debajo de media hora, «<1»', wm.horas, '<1')
+  check('horas redondeadas y sin minutos', W.formatearHoras(61.6 * 3600000), '62')
+  check('horas: sin escucha, «0»', W.formatearHoras(0), '0')
+  check('mejor día: el de más tiempo (3 escuchas, 9 min)', wm.mejorDia?.tiempo, '9 min')
+  check('mejor día: por encima de una hora, sólo horas', W.formatearHoras(6.2 * 3600000, { minutosSiMenos: true }), '6 h')
+  check('mejor día: fecha legible y sin puntos', /^\p{L}+ \d{1,2} \p{L}+$/u.test(wm.mejorDia?.texto || ''), true)
+  check('gráfica del año: doce meses', wm.anio?.horas?.length, 12)
+  check('gráfica del año: el mes del Wrapped lleva sus horas', casi0(wm.anio.horas[wm.anio.mes], wm.totalMs / 3600000), true)
+  check('gráfica del año: los meses posteriores van sin dato', wm.anio.horas.slice(wm.anio.mes + 1).every(v => v === null), true)
 
   // ── Wrapped: dibujo (contexto simulado) y recorte con measureText ─────────
-  console.log('\nWrapped: imagen')
+  console.log('\nWrapped: imagen (A1·2, para Instagram Stories)')
   const {
-    recortarTexto, dibujarWrapped, WRAPPED_ANCHO, WRAPPED_ALTO, DISPOSICION, PANELES, REJILLA, ALTO_CAP,
-    M: MARGEN, CW: ANCHO_UTIL, DISPOSICION_DESCUBRIMIENTO, PANELES_DESCUBRIMIENTO, disposicionPara
+    recortarTexto, dibujarWrapped, WRAPPED_ANCHO, WRAPPED_ALTO, DISPOSICION, BLOQUES, REJILLA, ALTO_CAP,
+    M: MARGEN, ZONA_SEGURA
   } = await import('../src/lib/wrappedImagen.js')
   const ctxMedida = { measureText: t => ({ width: String(t).length * 10 }) }
   check('texto corto no se recorta', recortarTexto(ctxMedida, 'Hola', 100), 'Hola')
@@ -307,31 +317,23 @@ async function main () {
   check('texto largo mide como mucho el máximo', largo.length * 10 <= 150, true)
   check('hueco nulo da cadena vacía', recortarTexto(ctxMedida, 'Hola', 0), '')
 
-  // ── Geometría de la rejilla (constantes de REJILLA en todo el dibujo) ──────
+  // ── Geometría: todo en la zona que no tapa Instagram ─────────────────────
   const casi = (a, b) => Math.abs(a - b) < 0.01
-  const { margen: RM, hueco: RH, relleno: RP } = REJILLA
-  check('margen exterior = REJILLA.margen', MARGEN, RM)
-  const paneles = PANELES.map(([nombre, p]) => ({ nombre, ...p }))
-  check('margen izquierdo igual en todos los paneles de la columna izquierda',
-    paneles.filter(p => p.x < WRAPPED_ANCHO / 2).every(p => casi(p.x, RM)), true)
-  check('margen derecho igual al izquierdo',
-    paneles.filter(p => p.x + p.w > WRAPPED_ANCHO / 2).every(p => casi(WRAPPED_ANCHO - (p.x + p.w), RM)), true)
-  const filasPaneles = [DISPOSICION.tiempo, DISPOSICION.canciones, DISPOSICION.artistas, DISPOSICION.celdas[0], DISPOSICION.celdas[2]]
-  check('separación vertical igual entre paneles consecutivos',
-    filasPaneles.every((p, i) => i === 0 || casi(p.y - (filasPaneles[i - 1].y + filasPaneles[i - 1].h), RH)), true)
-  const [c0, c1, c2, c3] = DISPOSICION.celdas
-  check('separación horizontal entre celdas = la vertical',
-    casi(c1.x - (c0.x + c0.w), RH) && casi(c3.x - (c2.x + c2.w), RH), true)
-  check('las cuatro celdas miden igual', [c1, c2, c3].every(c => casi(c.w, c0.w) && casi(c.h, c0.h)), true)
-  check('las celdas tienen altura suficiente (≥ 160 px)', c0.h >= 160, true)
-  check('la marca empieza en el margen superior', casi(DISPOSICION.cab.y, RM), true)
-  check('el pie apoya en el margen inferior', casi(DISPOSICION.pie.y + DISPOSICION.pie.h, WRAPPED_ALTO - RM), true)
-  check('título → primer panel y última celda → pie con la misma separación',
-    casi(DISPOSICION.tiempo.y - (DISPOSICION.titulo.y + DISPOSICION.titulo.h), REJILLA.seccion) &&
-    casi(DISPOSICION.pie.y - (c3.y + c3.h), REJILLA.seccion), true)
-  const solapan = (a, b, tol = 0.5) => a.x0 < b.x1 - tol && b.x0 < a.x1 - tol && a.y0 < b.y1 - tol && b.y0 < a.y1 - tol
+  const segura = { x0: MARGEN, y0: ZONA_SEGURA.arriba, x1: WRAPPED_ANCHO - MARGEN, y1: WRAPPED_ALTO - ZONA_SEGURA.abajo }
+  const bloques = BLOQUES.map(([nombre, p]) => ({ nombre, ...p }))
   const caja = p => ({ x0: p.x, y0: p.y, x1: p.x + p.w, y1: p.y + p.h })
-  check('ningún panel solapa a otro', paneles.every((a, i) => paneles.every((b, j) => i === j || !solapan(caja(a), caja(b)))), true)
+  const contiene = (a, d, tol = 0.5) => d.x0 >= a.x0 - tol && d.x1 <= a.x1 + tol && d.y0 >= a.y0 - tol && d.y1 <= a.y1 + tol
+  const solapan = (a, b, tol = 0.5) => a.x0 < b.x1 - tol && b.x0 < a.x1 - tol && a.y0 < b.y1 - tol && b.y0 < a.y1 - tol
+  check('zona segura de Stories: 250 px arriba y 340 abajo', `${ZONA_SEGURA.arriba}/${ZONA_SEGURA.abajo}`, '250/340')
+  check('todos los bloques dentro de la zona segura', bloques.every(b => contiene(segura, caja(b))), true)
+  check('mismo hueco entre bloques consecutivos', bloques.every((b, i) => i === 0 || casi(b.y - (bloques[i - 1].y + bloques[i - 1].h), REJILLA.hueco)), true)
+  check('ningún bloque solapa a otro', bloques.every((a, i) => bloques.every((b, j) => i === j || !solapan(caja(a), caja(b)))), true)
+  check('los paneles van de margen a margen', [DISPOSICION.principal, DISPOSICION.cifras].every(p => casi(p.x, MARGEN) && casi(WRAPPED_ANCHO - (p.x + p.w), MARGEN)), true)
+  check('la gráfica es más estrecha que los paneles y va centrada',
+    DISPOSICION.anio.w < DISPOSICION.principal.w && casi(DISPOSICION.anio.x - MARGEN, WRAPPED_ANCHO - MARGEN - (DISPOSICION.anio.x + DISPOSICION.anio.w)), true)
+  const [c0, c1, c2, c3] = DISPOSICION.celdas
+  check('las cuatro celdas miden igual y llenan su panel',
+    [c1, c2, c3].every(c => casi(c.w, c0.w) && casi(c.h, c0.h)) && casi(c0.w * 2, DISPOSICION.cifras.w) && casi(c0.h * 2, DISPOSICION.cifras.h), true)
 
   // Contexto falso que mide según el tamaño de la fuente (0,6 × px por letra)
   // y apunta cada texto con su caja (línea base y alto de mayúscula).
@@ -348,7 +350,7 @@ async function main () {
             const px = pxDe(o.font)
             const w = String(t).length * px * 0.6
             const x0 = o.textAlign === 'center' ? x - w / 2 : (o.textAlign === 'right' ? x - w : x)
-            dibujados.push({ t: String(t), x0, x1: x0 + w, y, y0: y - px * ALTO_CAP, y1: y })
+            dibujados.push({ t: String(t), x0, x1: x0 + w, y, y0: y - px * ALTO_CAP, y1: y, px })
           }
         }
         if (k === 'createLinearGradient' || k === 'createRadialGradient') return () => grad
@@ -359,59 +361,40 @@ async function main () {
     })
     return { lienzo: { getContext: () => ctx }, dibujados, registro: [] }
   }
-  // Área útil (dentro del margen exterior) y área interior de cada panel.
-  const util = { x0: RM, y0: RM, x1: WRAPPED_ANCHO - RM, y1: WRAPPED_ALTO - RM }
-  const interior = p => ({ x0: p.x + RP, y0: p.y + RP, x1: p.x + p.w - RP, y1: p.y + p.h - RP })
-  const contiene = (a, d, tol = 0.5) => d.x0 >= a.x0 - tol && d.x1 <= a.x1 + tol && d.y0 >= a.y0 - tol && d.y1 <= a.y1 + tol
-  const dentro = d => contiene(util, d)
-  /** Cada texto va dentro del área útil y, si cae en un panel, dentro de su interior. */
-  const enSuPanel = (d, lista = paneles) => {
-    const p = lista.find(q => solapan(caja(q), d, 0))
-    return p ? contiene(interior(p), d) : dentro(d)
+  /** Interior de cada panel (con su relleno) o la caja del bloque si no es panel. */
+  const interiorDe = nombre => {
+    const b = bloques.find(x => x.nombre === nombre)
+    if (nombre === 'principal' || nombre === 'cifras') return { x0: b.x + REJILLA.rellenoX, y0: b.y, x1: b.x + b.w - REJILLA.rellenoX, y1: b.y + b.h }
+    return caja(b)
   }
-  /** Ningún texto pisa a otro (salvo el número que va dentro de su puesto, que no es texto). */
-  const sinSolapes = lista => lista.every((a, i) => lista.every((b, j) => j <= i || !solapan(a, b)))
-  /**
-   * Relleno de cada panel según lo que se dibujó en él: el contenido empieza a
-   * `relleno` del borde izquierdo y del superior, acaba a `relleno` del inferior
-   * y nunca pasa del derecho (las listas y el tiempo llegan justo a él).
-   */
-  function rellenos (registro, lista = paneles) {
-    return lista.map(p => {
-      const cs = registro.filter(r => r.zona === p.nombre)
-      const u = cs.reduce((a, r) => ({ x0: Math.min(a.x0, r.x0), y0: Math.min(a.y0, r.y0), x1: Math.max(a.x1, r.x1), y1: Math.max(a.y1, r.y1) }), { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity })
-      return { nombre: p.nombre, izq: u.x0 - p.x, arr: u.y0 - p.y, aba: p.y + p.h - u.y1, der: p.x + p.w - u.x1 }
-    })
-  }
-  function comprobarGeometria (caso, l, lista = paneles) {
-    check(`${caso}: todo texto dentro del área útil`, l.dibujados.every(dentro), true)
-    check(`${caso}: cada texto dentro del interior de su panel`, l.dibujados.every(d => enSuPanel(d, lista)), true)
-    check(`${caso}: ningún texto se solapa con otro`, sinSolapes(l.dibujados), true)
-    const r = rellenos(l.registro, lista)
-    const mal = r.filter(x => !(casi(x.izq, RP) && casi(x.arr, RP) && casi(x.aba, RP) && x.der >= RP - 0.01))
-    check(`${caso}: mismo relleno interior en todos los paneles${mal.length ? ' ' + JSON.stringify(mal) : ''}`, mal.length, 0)
-    check(`${caso}: tiempo, listas y descubrimiento llegan justo al relleno derecho`,
-      r.filter(x => ['tiempo', 'canciones', 'artistas', 'descubrimiento'].includes(x.nombre)).every(x => casi(x.der, RP)), true)
-    check(`${caso}: la marca y la pastilla tocan los márgenes laterales`,
-      casi(Math.min(...l.registro.filter(x => x.zona === 'cab').map(x => x.x0)), RM) &&
-      casi(Math.max(...l.registro.filter(x => x.zona === 'cab').map(x => x.x1)), WRAPPED_ANCHO - RM), true)
+  function comprobarGeometria (caso, l) {
+    check(`${caso}: todo texto en la zona segura`, l.dibujados.every(d => contiene(segura, d)), true)
+    const fuera = l.registro.filter(r => !contiene(interiorDe(r.zona), r))
+    check(`${caso}: cada elemento dentro de su bloque${fuera.length ? ' ' + JSON.stringify(fuera.slice(0, 3)) : ''}`, fuera.length, 0)
+    const textos = l.dibujados
+    check(`${caso}: ningún texto se solapa con otro`, textos.every((a, i) => textos.every((b, j) => j <= i || !solapan(a, b))), true)
   }
 
+  const descNormal = { artista: 'Lumi', cancionesNuevas: 5, cancionesDistintas: 5, escuchas: 23, diasActivos: 6, canciones: [] }
   const normal = lienzoDePrueba()
-  dibujarWrapped(normal.lienzo, wm, normal.registro)
+  const datosImagen = { ...wm, descubrimiento: descNormal }
+  dibujarWrapped(normal.lienzo, datosImagen, normal.registro)
   check('lienzo de 1080 × 1920', `${normal.lienzo.width}x${normal.lienzo.height}`, `${WRAPPED_ANCHO}x${WRAPPED_ALTO}`)
   comprobarGeometria('datos normales', normal)
-  for (const t of ['Tiempo de escucha', '27', 'min', 'Top 3 canciones', 'Top 3 artistas', 'Uno', 'Beto', '4', '5', '82', '%', '16', 'Sesión media', 'Variedad', 'Artistas distintos', 'Canciones distintas', 'según escuchas']) {
+  for (const t of [wm.horas, 'horas', 'de música este mes', 'Tu mejor día:', 'TU CANCIÓN', 'TU ARTISTA', 'DESCUBRIMIENTO', 'NUEVO', 'Uno', 'Beto', 'Lumi', '5 canciones', 'artistas', 'canciones', 'variedad', 'sesión media', '82', '%', 'Skippify']) {
     check(`se dibuja «${t}»`, normal.dibujados.some(d => d.t === t), true)
   }
-  check('nada de racha ni hora favorita', normal.dibujados.some(d => /RACHA|HORA FAVORITA|racha|hora favorita/.test(d.t)), false)
+  check('las horas sin minutos', /min/.test(wm.horas), false)
+  check('el mejor día con su fecha', normal.dibujados.some(d => d.t === `${wm.mejorDia.texto} · ${wm.mejorDia.tiempo}`), true)
+  check('las doce iniciales de los meses', ['E', 'F', 'M', 'A', 'J', 'S', 'O', 'N', 'D'].every(m => normal.dibujados.some(d => d.t === m)) &&
+    normal.dibujados.filter(d => d.t.length === 1 && /[A-Z]/.test(d.t)).length >= 12, true)
   check('sin emoji en la imagen', normal.dibujados.some(d => /\p{Extended_Pictographic}/u.test(d.t)), false)
-  // Barras proporcionales: Uno (3 escuchas) llena la pista; Dos (2) dos tercios.
-  const barrasCan = normal.registro.filter(r => r.zona === 'canciones' && r.y1 - r.y0 === 8)
-  check('las canciones llevan tres barras con la misma pista', barrasCan.length === 3 && barrasCan.every(b => casi(b.x1 - b.x0, barrasCan[0].x1 - barrasCan[0].x0)), true)
-  // La cifra protagonista: el número es el texto más grande de la imagen.
   const mayor = normal.dibujados.reduce((a, d) => (d.y1 - d.y0 > a.y1 - a.y0 ? d : a))
-  check('la cifra más grande es el tiempo de escucha', mayor.t, '27')
+  check('la cifra más grande son las horas', mayor.t, wm.horas)
+  const barras = normal.registro.filter(r => r.barra)
+  check('doce barras en la gráfica del año', barras.length, 12)
+  check('las barras de los meses que no han llegado son una raya', barras.filter(b => b.valor === null).every(b => casi(b.y1 - b.y0, 6)), true)
+  check('todas las barras apoyan en la misma línea', barras.every(b => casi(b.y1, barras[0].y1)), true)
 
   const largoTit = 'Título extraordinariamente largo '.repeat(8)
   const largoArt = 'Artista con un nombre también larguísimo '.repeat(6)
@@ -419,93 +402,28 @@ async function main () {
   const datosLargos = W.calcularWrapped([1, 2, 3].map(i => (
     { ...escucha(1, largoTit + i, largoArt + i), played_at: h(1, 10, i) }
   )), ahoraW, { variedad: 100 })
-  datosLargos.tiempo = '1234 h 59 min'
-  datosLargos.sesionMedia = '23 h 59 min'
+  datosLargos.horas = '12345'
+  datosLargos.sesionMediaMin = 1439
   datosLargos.artistasDistintos = 123456
   datosLargos.cancionesDistintas = 1234567
+  datosLargos.rango = 'Septiembre de 2026 con un texto muy largo de prueba'
+  datosLargos.descubrimiento = { ...descNormal, artista: 'Orquesta Sinfónica Experimental de Nombres Larguísimos '.repeat(3), cancionesNuevas: 123456 }
   dibujarWrapped(enorme.lienzo, datosLargos, enorme.registro)
-  comprobarGeometria('títulos larguísimos', enorme)
+  comprobarGeometria('textos y cifras larguísimos', enorme)
   check('el título largo se recortó con puntos suspensivos', enorme.dibujados.some(d => d.t.startsWith('Título extra') && d.t.endsWith('…')), true)
   check('el artista largo también', enorme.dibujados.some(d => d.t.startsWith('Artista con') && d.t.endsWith('…')), true)
+  check('el descubrimiento largo también', enorme.dibujados.some(d => d.t.startsWith('Orquesta') && d.t.endsWith('…')), true)
   check('las cifras largas se dibujan enteras (encogen, no se cortan)',
-    ['1234', '59', '23', '123456', '1234567'].every(t => enorme.dibujados.some(d => d.t === t)), true)
+    ['12345', '123456', '1234567', '24'].every(t => enorme.dibujados.some(d => d.t === t)), true)
 
   const vacio = lienzoDePrueba()
-  dibujarWrapped(vacio.lienzo, W.calcularWrapped([], ahoraW), vacio.registro)
+  const datosVacios = W.calcularWrapped([], ahoraW)
+  dibujarWrapped(vacio.lienzo, datosVacios, vacio.registro)
   comprobarGeometria('sin datos', vacio)
-  check('sin datos: mensaje en las dos listas', vacio.dibujados.filter(d => d.t === 'Aún sin escuchas este mes').length, 2)
-  check('sin datos: variedad «—» con su pista', vacio.dibujados.some(d => d.t === '—') && vacio.dibujados.some(d => d.t === 'aún sin datos'), true)
-  check('sin datos: sesión media «—» con su pista', vacio.dibujados.some(d => d.t === 'sin sesiones'), true)
-
-  const parcial = lienzoDePrueba()
-  const datosParciales = W.calcularWrapped([{ ...escucha(1, 'Sola', 'Única'), played_at: h(1, 10) }, { ...escucha(2, 'Otra', 'Única'), played_at: h(2, 10) }], ahoraW)
-  dibujarWrapped(parcial.lienzo, datosParciales, parcial.registro)
-  comprobarGeometria('datos parciales (2 canciones, 1 artista, sin variedad)', parcial)
-  check('datos parciales: «—» en la variedad y el resto con cifras', parcial.dibujados.some(d => d.t === '—') && parcial.dibujados.some(d => d.t === 'Sola'), true)
-  check('datos parciales: los puestos sin dato siguen numerados', ['1', '2', '3'].every(n => parcial.dibujados.filter(d => d.t === n).length >= 2), true)
-
-  // ── Wrapped con «Descubrimiento del mes» (disposición compacta) ──────────
-  console.log('\nWrapped: descubrimiento del mes')
-  check('sin descubrimiento se usa la disposición de siempre', disposicionPara(wm), DISPOSICION)
-  check('sin descubrimiento no hay panel nuevo', DISPOSICION.descubrimiento, null)
-  check('sin descubrimiento no se dibuja el panel', normal.dibujados.some(d => /Descubrimiento|NUEVO/.test(d.t)), false)
-  const DD = DISPOSICION_DESCUBRIMIENTO
-  const panelesD = PANELES_DESCUBRIMIENTO.map(([nombre, p]) => ({ nombre, ...p }))
-  check('con descubrimiento hay un panel más', panelesD.length, paneles.length + 1)
-  check('margen izquierdo y derecho iguales (compacta)',
-    panelesD.every(p => (p.x >= WRAPPED_ANCHO / 2 || casi(p.x, RM)) && (p.x + p.w <= WRAPPED_ANCHO / 2 || casi(WRAPPED_ANCHO - (p.x + p.w), RM))), true)
-  const filasD = [DD.tiempo, DD.canciones, DD.artistas, DD.descubrimiento, DD.celdas[0], DD.celdas[2]]
-  check('separación vertical igual entre paneles (compacta)',
-    filasD.every((p, i) => i === 0 || casi(p.y - (filasD[i - 1].y + filasD[i - 1].h), RH)), true)
-  const [d0, d1, d2, d3] = DD.celdas
-  check('separación horizontal entre celdas = la vertical (compacta)', casi(d1.x - (d0.x + d0.w), RH) && casi(d3.x - (d2.x + d2.w), RH), true)
-  check('las cuatro celdas miden igual (compacta)', [d1, d2, d3].every(c => casi(c.w, d0.w) && casi(c.h, d0.h)), true)
-  check('las celdas compactas caben (≥ 140 px)', d0.h >= 140, true)
-  check('el panel nuevo ocupa unos 200 px', DD.descubrimiento.h >= 180 && DD.descubrimiento.h <= 240, true)
-  check('marca, título y pie en el mismo sitio (compacta)',
-    casi(DD.cab.y, RM) && casi(DD.pie.y + DD.pie.h, WRAPPED_ALTO - RM) &&
-    casi(DD.tiempo.y - (DD.titulo.y + DD.titulo.h), REJILLA.seccion) && casi(DD.pie.y - (d3.y + d3.h), REJILLA.seccion), true)
-  check('ningún panel solapa a otro (compacta)', panelesD.every((a, i) => panelesD.every((b, j) => i === j || !solapan(caja(a), caja(b)))), true)
-
-  const descNormal = {
-    artista: 'Lumi', cancionesNuevas: 5, cancionesDistintas: 5, escuchas: 23, diasActivos: 6,
-    canciones: [{ titulo: 'Primera luz', escuchas: 8 }, { titulo: 'Norte', escuchas: 6 }, { titulo: 'Marea', escuchas: 4 }]
-  }
-  const conDesc = lienzoDePrueba()
-  const datosDesc = { ...wm, descubrimiento: descNormal }
-  check('con descubrimiento se usa la disposición compacta', disposicionPara(datosDesc), DD)
-  dibujarWrapped(conDesc.lienzo, datosDesc, conDesc.registro)
-  comprobarGeometria('con descubrimiento', conDesc, panelesD)
-  for (const t of ['Descubrimiento del mes', 'NUEVO', 'Lumi', '5 canciones nuevas · 23 escuchas', 'Primera luz', 'Norte', 'Marea', 'Tiempo de escucha', 'en el mes', 'Top 3 canciones', 'Top 3 artistas', 'Variedad', 'Sesión media', 'Artistas distintos', 'Canciones distintas']) {
-    check(`con descubrimiento se dibuja «${t}»`, conDesc.dibujados.some(d => d.t === t), true)
-  }
-  const mayorD = conDesc.dibujados.reduce((a, d) => (d.y1 - d.y0 > a.y1 - a.y0 ? d : a))
-  check('con descubrimiento la cifra más grande sigue siendo el tiempo', mayorD.t, '27')
-  check('con descubrimiento, sin emoji', conDesc.dibujados.some(d => /\p{Extended_Pictographic}/u.test(d.t)), false)
-  const nombreD = conDesc.dibujados.find(d => d.t === 'Lumi')
-  check('el artista es el texto más grande del panel', conDesc.dibujados
-    .filter(d => contiene(caja(DD.descubrimiento), d))
-    .every(d => d.y1 - d.y0 <= nombreD.y1 - nombreD.y0 + 0.01), true)
-
-  const enormeD = lienzoDePrueba()
-  const largoNombre = 'Orquesta Sinfónica Experimental de Nombres Larguísimos '.repeat(4)
-  dibujarWrapped(enormeD.lienzo, {
-    ...datosLargos,
-    descubrimiento: {
-      artista: largoNombre, cancionesNuevas: 123456, cancionesDistintas: 123456, escuchas: 9876543,
-      canciones: [1, 2, 3].map(i => ({ titulo: `${largoTit} ${i}`, escuchas: 10 - i }))
-    }
-  }, enormeD.registro)
-  comprobarGeometria('con descubrimiento y textos larguísimos', enormeD, panelesD)
-  check('el artista larguísimo se recortó con puntos suspensivos', enormeD.dibujados.some(d => d.t.startsWith('Orquesta') && d.t.endsWith('…')), true)
-  check('las canciones larguísimas del descubrimiento también',
-    enormeD.dibujados.filter(d => contiene(caja(DD.descubrimiento), d) && d.t.startsWith('Título extra') && d.t.endsWith('…')).length, 3)
-  check('con descubrimiento las cifras largas se dibujan enteras',
-    ['1234', '59', '23', '123456', '1234567'].every(t => enormeD.dibujados.some(d => d.t === t)), true)
-
-  const vacioD = lienzoDePrueba()
-  dibujarWrapped(vacioD.lienzo, { ...W.calcularWrapped([], ahoraW), descubrimiento: { ...descNormal, canciones: [] } }, vacioD.registro)
-  comprobarGeometria('con descubrimiento sin canciones ni datos del mes', vacioD, panelesD)
+  check('sin datos: 0 horas', datosVacios.horas, '0')
+  check('sin datos: mensajes en las filas', ['Aún sin escuchas', 'Ninguno este mes'].every(t => vacio.dibujados.some(d => d.t === t)), true)
+  check('sin datos: mejor día «sin escuchas»', vacio.dibujados.some(d => d.t === 'sin escuchas'), true)
+  check('sin datos: variedad y sesión con «—»', vacio.dibujados.filter(d => d.t === '—').length, 2)
 
   // ── Compartir / guardar ───────────────────────────────────────────────────
   console.log('\nCompartir imagen')

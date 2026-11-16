@@ -201,6 +201,19 @@ export function formatearDuracion (ms) {
 }
 
 /**
+ * Sólo horas, redondeadas: «62» (sin unidad; la imagen pone «horas»). Con
+ * escucha pero por debajo de media hora, «<1». Con `minutosSiMenos`, por debajo
+ * de una hora se dan los minutos («45 min») y si no, «6 h».
+ */
+export function formatearHoras (ms, { minutosSiMenos = false } = {}) {
+  const v = Math.max(0, Number(ms) || 0)
+  if (minutosSiMenos) return v < MS_HORA ? `${Math.max(1, Math.round(v / 60000))} min` : `${Math.round(v / MS_HORA)} h`
+  if (v === 0) return '0'
+  const h = Math.round(v / MS_HORA)
+  return h < 1 ? '<1' : String(h)
+}
+
+/**
  * Agrupa escuchas en sesiones: un hueco de más de 30 minutos empieza una nueva,
  * y cada sesión dura de su primera escucha a la última. Es LA definición de
  * sesión de la app (Inicio la usa con el último año; el Wrapped, con el mes).
@@ -320,6 +333,38 @@ export function calcularWrapped (eventos, ahoraMs = Date.now(), { variedad = nul
   const v = Number.isFinite(variedad) ? Math.max(0, Math.min(100, Math.round(variedad))) : null
   const desc = estadoDescubrimientos(hastaFin, mes.ultimo, { desdeMs: mes.inicio })
 
+  // Mejor día del mes: el de más tiempo de escucha (en hora local).
+  const porDia = new Map()
+  for (const e of lista) {
+    const d = numeroDiaLocal(new Date(msDeEscucha(e)))
+    porDia.set(d, (porDia.get(d) || 0) + msDeEvento(e))
+  }
+  let mejorDia = null
+  for (const [dia, ms] of porDia) {
+    if (ms > 0 && (!mejorDia || ms > mejorDia.ms || (ms === mejorDia.ms && dia < mejorDia.dia))) mejorDia = { dia, ms }
+  }
+  if (mejorDia) {
+    const f = new Date(mejorDia.dia * MS_DIA)
+    const fecha = new Date(f.getUTCFullYear(), f.getUTCMonth(), f.getUTCDate())
+    mejorDia = {
+      fecha: fecha.getTime(),
+      ms: mejorDia.ms,
+      texto: fecha.toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short' }).replace(/\./g, '').replace(',', ''),
+      tiempo: formatearHoras(mejorDia.ms, { minutosSiMenos: true })
+    }
+  }
+
+  // Horas de cada mes del año del Wrapped; los meses posteriores, null.
+  const anioDe = new Date(mes.inicio).getFullYear()
+  const mesWrapped = new Date(mes.inicio).getMonth()
+  const msPorMes = Array.from({ length: 12 }, (_, i) => (i <= mesWrapped ? 0 : null))
+  for (const e of hastaFin) {
+    if (esExcluida(e)) continue
+    const f = new Date(msDeEscucha(e))
+    if (f.getFullYear() !== anioDe || f.getMonth() > mesWrapped) continue
+    msPorMes[f.getMonth()] += msDeEvento(e)
+  }
+
   return {
     titulo: 'Tu mes en música',
     rango: mes.nombre,
@@ -327,6 +372,9 @@ export function calcularWrapped (eventos, ahoraMs = Date.now(), { variedad = nul
     vacio: lista.length === 0,
     totalMs,
     tiempo: formatearDuracion(totalMs),
+    horas: formatearHoras(totalMs),
+    mejorDia,
+    anio: { anio: anioDe, mes: mesWrapped, horas: msPorMes.map(ms => (ms === null ? null : ms / MS_HORA)) },
     canciones,
     artistas,
     artistasDistintos,
