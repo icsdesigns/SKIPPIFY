@@ -252,7 +252,7 @@
           </template>
         </OpcionFila>
         <p class="px-1 text-[11px] leading-relaxed text-slate-500">
-          Apagado por defecto. Si lo activas, todos los miembros de tus grupos podrán ver y descargar los
+          Activado por defecto. Todos los miembros de tus grupos pueden ver y descargar los
           títulos, artistas y horas de lo que escuchas. Desactívalo y se retira de tus grupos; la versión de
           tu app se sigue mostrando.
         </p>

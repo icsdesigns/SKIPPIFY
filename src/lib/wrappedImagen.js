@@ -724,6 +724,12 @@ export function dibujarWrapped (canvas, datos, registro = null) {
   return canvas
 }
 
+/**
+ * La última imagen generada ({ clave, blob }), compartida por toda la app para
+ * no volver a dibujarla si los datos no han cambiado.
+ */
+export const cacheWrapped = { png: null }
+
 /** Genera el PNG como Blob (rechaza si el navegador no puede codificarlo). */
 export async function generarWrappedPng (datos) {
   const canvas = document.createElement('canvas')

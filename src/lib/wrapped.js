@@ -35,9 +35,38 @@ export const MINUTOS_ENTRE_SESIONES = 30
 /** Días de la ventana del cartel «Este dispositivo vs otros». */
 export const DIAS_DISPOSITIVOS = 30
 
+/**
+ * Cachés de los cálculos que más se repiten al recorrer el historial entero
+ * (Wrapped, descubrimientos, tops): normalizar un texto y leer la fecha de una
+ * escucha. Con miles de escuchas eran la mayor parte del tiempo y, en un móvil
+ * modesto, bloqueaban la interfaz (animación de arranque, Wrapped).
+ */
+const CACHE_NORMALIZADO = new Map()
+const MAX_CACHE_NORMALIZADO = 50000
+const CACHE_FECHA = new WeakMap()
+
+/** ms de época de `played_at` (NaN si no se lee), recordado por escucha. */
+export function msDeEscucha (e) {
+  if (!e || typeof e !== 'object') return new Date(e?.played_at).getTime()
+  const c = CACHE_FECHA.get(e)
+  if (c && c.p === e.played_at) return c.t
+  const t = new Date(e.played_at).getTime()
+  CACHE_FECHA.set(e, { p: e.played_at, t })
+  return t
+}
+
 export function normalizarTexto (valor) {
-  return (valor || '')
-    .toString()
+  const texto = (valor || '').toString()
+  const hecho = CACHE_NORMALIZADO.get(texto)
+  if (hecho !== undefined) return hecho
+  const r = normalizarSinCache(texto)
+  if (CACHE_NORMALIZADO.size >= MAX_CACHE_NORMALIZADO) CACHE_NORMALIZADO.clear()
+  CACHE_NORMALIZADO.set(texto, r)
+  return r
+}
+
+function normalizarSinCache (texto) {
+  return texto
     .normalize('NFD')
     .replace(/[̀-ͯ]/g, '')
     .toLowerCase()
@@ -139,7 +168,7 @@ export function repartoDispositivos (eventos, ahoraMs = Date.now(), dias = DIAS_
   const este = { count: 0, ms: 0 }
   const otros = { count: 0, ms: 0 }
   for (const e of eventos || []) {
-    const t = new Date(e?.played_at).getTime()
+    const t = msDeEscucha(e)
     if (!Number.isFinite(t) || t < corte || esExcluida(e)) continue
     const bolsa = esEsteDispositivo(e) ? este : otros
     bolsa.count += 1
@@ -178,7 +207,7 @@ export function formatearDuracion (ms) {
  */
 export function calcularSesiones (lista) {
   const tiempos = (lista || [])
-    .map(e => new Date(e?.played_at).getTime())
+    .map(e => msDeEscucha(e))
     .filter(Number.isFinite)
     .sort((a, b) => a - b)
   const durations = []
@@ -203,7 +232,7 @@ function top (eventos, claveDe, etiquetaDe, n) {
   for (const e of eventos) {
     const clave = claveDe(e)
     if (!clave) continue
-    const t = new Date(e.played_at).getTime() || 0
+    const t = msDeEscucha(e) || 0
     const previo = mapa.get(clave)
     if (previo) {
       previo.count += 1
@@ -262,10 +291,10 @@ export function mesAnterior (ahoraMs = Date.now()) {
 export function calcularWrapped (eventos, ahoraMs = Date.now(), { variedad = null } = {}) {
   const mes = mesAnterior(ahoraMs)
   const hastaFin = (eventos || []).filter(e => {
-    const t = new Date(e?.played_at).getTime()
+    const t = msDeEscucha(e)
     return Number.isFinite(t) && t < mes.fin
   })
-  const ventana = hastaFin.filter(e => new Date(e.played_at).getTime() >= mes.inicio)
+  const ventana = hastaFin.filter(e => msDeEscucha(e) >= mes.inicio)
   const lista = ventana.filter(e => !esExcluida(e))
 
   let totalMs = 0

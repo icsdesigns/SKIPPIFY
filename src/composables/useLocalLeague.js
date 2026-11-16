@@ -1147,6 +1147,12 @@ async function syncGroup (groupId, { silent = true } = {}) {
   try {
     const report = await rt.group.sync()
     await actualizarVista(rt)
+    // Lo recibido se enseña YA: miembros, nombres y ranking del grupo. Antes la
+    // interfaz esperaba a que terminase también la publicación propia (perfil,
+    // escuchas, registro, macros y mantenimiento) de todos los grupos, y la
+    // información nueva tardaba mucho en aparecer.
+    refreshMembers(groupId, rt.group)
+    try { await loadSemanas(groupId) } catch { /* sin datos aún */ }
     if (rt.group.status === 'ready' && !rt.group.removedInOwnView()) {
       await asegurarPerfil(rt.group)
       await publicarEscuchas(groupId)

@@ -45,7 +45,7 @@
 
   <!-- Bloqueado: progreso hasta las 300 canciones únicas. -->
   <section
-    v-else-if="!estado.desbloqueado"
+    v-else-if="estado && !estado.desbloqueado"
     class="sk-card relative overflow-hidden p-4"
     data-descubrimiento="bloqueado"
   >
@@ -79,7 +79,7 @@
 
   <!-- Desbloqueado y sin descubrimiento: una línea discreta. -->
   <section
-    v-else
+    v-else-if="estado"
     class="sk-card relative overflow-hidden p-4"
     data-descubrimiento="ninguno"
   >
@@ -111,7 +111,7 @@ import { desdeCuando, textoCancionesNuevas, textoEscuchas } from '@/lib/descubri
 const router = useRouter()
 const { estado } = useDescubrimientos()
 
-const desc = computed(() => (estado.value.desbloqueado ? estado.value.descubrimiento : null))
+const desc = computed(() => (estado.value?.desbloqueado ? estado.value.descubrimiento : null))
 
 const resumen = computed(() => {
   const d = desc.value

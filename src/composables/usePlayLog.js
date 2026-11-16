@@ -24,9 +24,9 @@ const EXPORT_VERSION = 2
 
 const busy = ref(false)
 const total = ref(null)
-/** «Medir fundido (experimental)» (activado por defecto) y «Compartir mi registro con mis grupos» (apagado). */
+/** «Medir fundido (experimental)» (activado por defecto) y «Compartir mi registro con mis grupos» (también activado). */
 const fundidoMedir = ref(true)
-const fundidoCompartir = ref(false)
+const fundidoCompartir = ref(true)
 
 function plugin () {
   return window.Capacitor?.Plugins?.NotifListener || null
@@ -124,7 +124,7 @@ export async function leerAjustesFundido () {
   try {
     const cfg = await NL.getFundidoConfig()
     fundidoMedir.value = cfg?.medir !== false
-    fundidoCompartir.value = cfg?.compartir === true
+    fundidoCompartir.value = cfg?.compartir !== false
   } catch { /* se queda lo que hubiera */ }
   return { medir: fundidoMedir.value, compartir: fundidoCompartir.value }
 }
@@ -137,7 +137,7 @@ async function guardarAjustesFundido (cambio) {
   try {
     const cfg = await NL.setFundidoConfig(cambio)
     fundidoMedir.value = cfg?.medir !== false
-    fundidoCompartir.value = cfg?.compartir === true
+    fundidoCompartir.value = cfg?.compartir !== false
   } catch { /* el valor local ya está puesto; el nativo se corrige en la siguiente lectura */ }
 }
 

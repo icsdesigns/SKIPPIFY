@@ -77,19 +77,24 @@
               <template #icono><span class="text-base font-extrabold leading-none" aria-hidden="true">1</span></template>
             </OpcionFila>
 
-            <OpcionFila plana compacta color-tesela tono="sky" titulo="Crea una aplicación" detalle="Inicia sesión en Spotify for Developers y acepta los términos y condiciones si es la primera vez que entras. Después, en «Dashboard», pulsa «Create app». Si el botón no aparece en el móvil, activa la versión para ordenador en el navegador.">
+            <OpcionFila plana compacta color-tesela tono="sky" titulo="Entra en Spotify for Developers" detalle="Inicia sesión con tu cuenta de Spotify. Si es la primera vez que entras, acepta los términos y condiciones.">
               <template #icono><span class="text-base font-extrabold leading-none" aria-hidden="true">2</span></template>
             </OpcionFila>
             <button type="button" class="w-full sk-btn sk-btn-ghost" data-cuenta-abrir-dashboard @click="abrirDashboard">
               Abrir Spotify for Developers
             </button>
 
-            <OpcionFila plana compacta color-tesela tono="sky" titulo="Nombre y descripción" detalle="En «App name» escribe Skippify y, en «App description», Registro personal de mis escuchas.">
+            <OpcionFila plana compacta color-tesela tono="sky" titulo="Crea una aplicación" detalle="En «Dashboard» pulsa «Create app».">
               <template #icono><span class="text-base font-extrabold leading-none" aria-hidden="true">3</span></template>
+            </OpcionFila>
+            <p class="px-1 text-[11px] leading-relaxed text-slate-500 [overflow-wrap:anywhere]">¿No aparece el botón en el móvil? Activa la versión para ordenador en el menú del navegador.</p>
+
+            <OpcionFila plana compacta color-tesela tono="sky" titulo="Nombre y descripción" detalle="En «App name» escribe Skippify y, en «App description», Registro personal de mis escuchas.">
+              <template #icono><span class="text-base font-extrabold leading-none" aria-hidden="true">4</span></template>
             </OpcionFila>
 
             <OpcionFila plana compacta color-tesela tono="sky" titulo="URI de redirección" detalle="En «Redirect URIs» pega esta dirección, exactamente igual, y pulsa «Add» (Añadir).">
-              <template #icono><span class="text-base font-extrabold leading-none" aria-hidden="true">4</span></template>
+              <template #icono><span class="text-base font-extrabold leading-none" aria-hidden="true">5</span></template>
             </OpcionFila>
             <div class="flex flex-wrap items-center gap-2">
               <code class="min-w-0 flex-1 basis-40 break-all rounded-lg bg-black/30 px-2.5 py-2 font-mono text-[11px] text-brand-400">{{ redirectUri() }}</code>
@@ -98,12 +103,13 @@
               </button>
             </div>
 
-            <OpcionFila plana compacta color-tesela tono="sky" titulo="API y guardado" detalle="En «Which API/SDKs are you planning to use?» marca «Web API», acepta los términos y pulsa «Save» (Guardar).">
-              <template #icono><span class="text-base font-extrabold leading-none" aria-hidden="true">5</span></template>
+            <OpcionFila plana compacta color-tesela tono="sky" titulo="API y guardado" detalle="Marca «Web API», acepta los términos y pulsa «Save» (Guardar).">
+              <template #icono><span class="text-base font-extrabold leading-none" aria-hidden="true">6</span></template>
             </OpcionFila>
+            <p class="px-1 text-[11px] leading-relaxed text-slate-500 [overflow-wrap:anywhere]">«Web API» está bajo «Which API/SDKs are you planning to use?».</p>
 
             <OpcionFila plana compacta color-tesela tono="brand" titulo="Copia el Client ID" detalle="En «Basic Information» de tu aplicación de Spotify copia el Client ID y pégalo aquí.">
-              <template #icono><span class="text-base font-extrabold leading-none" aria-hidden="true">6</span></template>
+              <template #icono><span class="text-base font-extrabold leading-none" aria-hidden="true">7</span></template>
             </OpcionFila>
             <input
               v-model="clientIdInput"
@@ -114,7 +120,7 @@
             >
 
             <OpcionFila plana compacta color-tesela tono="brand" titulo="Conecta y acepta" detalle="Pulsa «Conectar con Spotify» y, en la pantalla de Spotify, pulsa «Aceptar».">
-              <template #icono><span class="text-base font-extrabold leading-none" aria-hidden="true">7</span></template>
+              <template #icono><span class="text-base font-extrabold leading-none" aria-hidden="true">8</span></template>
             </OpcionFila>
             <button
               type="button"

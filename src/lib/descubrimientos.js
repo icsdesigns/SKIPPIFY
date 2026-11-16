@@ -21,7 +21,7 @@
  *  - Las escuchas con fecha ilegible o en el futuro (más de 1 h, el mismo
  *    margen que el Wrapped) se ignoran por completo.
  */
-import { DIAS_WRAPPED, esExcluida, normalizarTexto, numeroDiaLocal } from '@/lib/wrapped'
+import { DIAS_WRAPPED, esExcluida, msDeEscucha, normalizarTexto, numeroDiaLocal } from '@/lib/wrapped'
 
 const MS_DIA = 86400000
 const MS_HORA = 3600000
@@ -50,7 +50,7 @@ export function claveArtistaPrincipal (artista) {
 }
 
 function fechaValida (e, limite) {
-  const t = new Date(e?.played_at).getTime()
+  const t = msDeEscucha(e)
   return Number.isFinite(t) && t <= limite ? t : null
 }
 

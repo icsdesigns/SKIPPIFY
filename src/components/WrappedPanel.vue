@@ -70,14 +70,14 @@
  * Inicio (`calcularVariedad`) con las escuchas y las duplicadas de ESE mes;
  * sin datos del motor queda en null y la imagen pinta «—».
  */
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { onBeforeUnmount, onMounted, ref } from 'vue'
 import OpcionFila from '@/components/OpcionFila.vue'
 import StatIcon from '@/components/StatIcon.vue'
 import { useEventStore } from '@/stores/events'
 import { useDuplicateStats } from '@/composables/useDuplicateStats'
 import { calcularVariedad } from '@/lib/inicioStats'
-import { calcularWrapped, mesAnterior } from '@/lib/wrapped'
-import { generarWrappedPng } from '@/lib/wrappedImagen'
+import { calcularWrapped, mesAnterior, msDeEscucha } from '@/lib/wrapped'
+import { generarWrappedPng, cacheWrapped } from '@/lib/wrappedImagen'
 import { compartirPng, guardarPng } from '@/lib/compartirImagen'
 
 const { events } = useEventStore()
@@ -92,23 +92,50 @@ const ocupado = ref(false)
 let ticket = 0
 
 /** Variedad del mes anterior: la misma fórmula que el cartel de Inicio (DuplicateKpiCards). */
-const variedad = computed(() => {
+function variedadDelMes (mes) {
   if (!dup.hasData.value) return null
-  const mes = mesAnterior(Date.now())
-  const escuchas = events.value.filter(e => {
-    const t = new Date(e?.played_at).getTime()
-    return t >= mes.inicio && t < mes.fin
-  }).length
+  let escuchas = 0
+  for (const e of events.value) {
+    const t = msDeEscucha(e)
+    if (t >= mes.inicio && t < mes.fin) escuchas++
+  }
   const { duplicates, skipped } = dup.rango(mes.inicio, mes.fin)
   return calcularVariedad(escuchas, duplicates, skipped)
-})
+}
+
+/** Deja pintar la pantalla antes de un cálculo pesado (dos fotogramas). */
+function cederPintado () {
+  if (typeof requestAnimationFrame !== 'function') return Promise.resolve()
+  return new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+}
+
+/** Lee las duplicadas del motor sin esperar más de 1,5 s si el puente tarda. */
+function refrescarDuplicadas () {
+  return Promise.race([
+    Promise.resolve().then(() => dup.refresh()).catch(() => {}),
+    new Promise(resolve => setTimeout(resolve, 1500))
+  ])
+}
+
+/**
+ * El Wrapped es del mes ya cerrado: sus datos casi no cambian. Se calcula y se
+ * dibuja UNA vez y se reutiliza mientras los datos sean los mismos (también al
+ * volver a abrirlo o al cambiar de pestaña). Antes se redibujaba con cada
+ * escucha nueva y dos veces al abrir, y en un móvil modesto tardaba mucho.
+ */
+async function prepararPng () {
+  const mes = mesAnterior(Date.now())
+  const datos = calcularWrapped(events.value, Date.now(), { variedad: variedadDelMes(mes) })
+  const clave = JSON.stringify(datos)
+  if (cacheWrapped.png && cacheWrapped.png.clave === clave) return cacheWrapped.png.blob
+  const png = await generarWrappedPng(datos)
+  cacheWrapped.png = { clave, blob: png }
+  return png
+}
 
 function alternar () {
   abierto.value = !abierto.value
-  if (abierto.value) {
-    dup.refresh()
-    generar()
-  }
+  if (abierto.value) generar()
 }
 
 async function generar () {
@@ -116,12 +143,13 @@ async function generar () {
   error.value = ''
   aviso.value = ''
   try {
-    const datos = calcularWrapped(events.value, Date.now(), { variedad: variedad.value })
-    const png = await generarWrappedPng(datos)
+    if (!blob.value && cacheWrapped.png) mostrar(cacheWrapped.png.blob)
+    await cederPintado()
+    await refrescarDuplicadas()
     if (mio !== ticket) return
-    if (vistaUrl.value) URL.revokeObjectURL(vistaUrl.value)
-    blob.value = png
-    vistaUrl.value = URL.createObjectURL(png)
+    const png = await prepararPng()
+    if (mio !== ticket) return
+    if (png !== blob.value) mostrar(png)
   } catch (e) {
     if (mio !== ticket) return
     blob.value = null
@@ -129,8 +157,22 @@ async function generar () {
   }
 }
 
-// Si llegan escuchas o datos del motor con la vista previa abierta, se redibuja.
-watch([() => events.value.length, variedad], () => { if (abierto.value) generar() })
+function mostrar (png) {
+  if (vistaUrl.value) URL.revokeObjectURL(vistaUrl.value)
+  blob.value = png
+  vistaUrl.value = URL.createObjectURL(png)
+}
+
+// Se prepara en segundo plano al entrar en Estadísticas, cuando la app está
+// ociosa, para que al abrir el Wrapped la imagen ya esté lista.
+let tareaPrevia = null
+onMounted(() => {
+  if (cacheWrapped.png) return
+  const lanzar = () => { tareaPrevia = null; if (!abierto.value) prepararPng().catch(() => {}) }
+  tareaPrevia = typeof requestIdleCallback === 'function'
+    ? { idle: requestIdleCallback(lanzar, { timeout: 4000 }) }
+    : { t: setTimeout(lanzar, 2000) }
+})
 
 function nombreArchivo () {
   const d = new Date(mesAnterior(Date.now()).inicio)
@@ -173,6 +215,8 @@ async function guardar () {
 
 onBeforeUnmount(() => {
   ticket++
+  if (tareaPrevia?.idle) cancelIdleCallback(tareaPrevia.idle)
+  if (tareaPrevia?.t) clearTimeout(tareaPrevia.t)
   if (vistaUrl.value) URL.revokeObjectURL(vistaUrl.value)
 })
 </script>

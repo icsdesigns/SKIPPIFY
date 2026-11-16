@@ -13,7 +13,8 @@ import { estadoDescubrimientos } from '@/lib/descubrimientos'
 
 const MS_HORA = 3600000
 
-const estado = shallowRef(estadoDescubrimientos([], Date.now()))
+/** null hasta el primer cálculo (la tarjeta no se enseña con un progreso falso). */
+const estado = shallowRef(null)
 const hora = shallowRef(Math.floor(Date.now() / MS_HORA))
 let iniciado = false
 
@@ -41,9 +42,31 @@ function iniciar () {
       return `${n}|${n ? lista[0]?.played_at : ''}|${n ? lista[n - 1]?.played_at : ''}`
     })
 
-    watch([firma, hora], () => {
+    // El cálculo recorre todo el historial: no se hace en pleno arranque (la
+    // animación de carga se cortaba) ni una vez por cada escucha que llega en
+    // tromba al recoger las del servicio, sino agrupado y con la app ociosa.
+    let pendiente = null
+    const calcular = () => {
+      pendiente = null
       estado.value = estadoDescubrimientos(events.value, Date.now())
-    }, { immediate: true })
+    }
+    const programar = (espera) => {
+      if (pendiente) clearTimeout(pendiente)
+      pendiente = setTimeout(() => {
+        if (typeof requestIdleCallback === 'function') {
+          pendiente = null
+          requestIdleCallback(calcular, { timeout: 1500 })
+        } else {
+          calcular()
+        }
+      }, espera)
+    }
+    if (typeof window === 'undefined') {
+      watch([firma, hora], calcular, { immediate: true })
+    } else {
+      programar(1800)
+      watch([firma, hora], () => programar(600))
+    }
   })
 }
 

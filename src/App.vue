@@ -257,6 +257,8 @@ let splashTimer = null
 let drainTimer = null
 const DRAIN_MS = 60_000
 let tourTimer = null
+let diferidoTimer = null
+const arranque = Date.now()
 
 function setNowPlaying (state) {
   // Lo que llega de la notificación manda sobre lo que enseñó la API.
@@ -304,8 +306,6 @@ onMounted(async () => {
   drainTimer = setInterval(() => {
     if (document.visibilityState === 'visible') notif.drainBackground()
   }, DRAIN_MS)
-  apiNow.start({ leerModo: () => nowPlaying.value?.mode, poner: setNowPlayingFromApi })
-  syncNativeHistoryFromEvents(eventStore.state.events).catch(() => {})
   await notif.refreshSystemPermissions()
   document.addEventListener('visibilitychange', onVisibleAgain)
   window.addEventListener('scroll', onScroll, { passive: true })
@@ -314,12 +314,18 @@ onMounted(async () => {
   const requestedRoute = notif.consumePendingOpenRoute()
   if (requestedRoute) router.replace(requestedRoute)
 
-  // Se comprueba al final: nunca debe retrasar el arranque ni el splash, y si
-  // no hay red simplemente no pasa nada.
-  update.initialize()
-
-  // Grupos «sin servidor» (LocalHost): sincroniza y publica escuchas. Sin grupos no hace nada.
-  localLeague.startWatch()
+  // El trabajo pesado (grupos, API de Spotify, copia del historial al nativo y
+  // la búsqueda de actualizaciones) espera a que acabe la animación de carga:
+  // hecho durante ella ocupaba el hilo principal y la animación se cortaba.
+  diferidoTimer = setTimeout(() => {
+    diferidoTimer = null
+    apiNow.start({ leerModo: () => nowPlaying.value?.mode, poner: setNowPlayingFromApi })
+    syncNativeHistoryFromEvents(eventStore.state.events).catch(() => {})
+    // Si no hay red simplemente no pasa nada.
+    update.initialize()
+    // Grupos «sin servidor» (LocalHost): sincroniza y publica escuchas. Sin grupos no hace nada.
+    localLeague.startWatch()
+  }, Math.max(0, SPLASH_MS + 250 - (Date.now() - arranque)))
 
   // Primera vez: el tour se abre solo tras el splash. Si el acceso a
   // notificaciones sigue bloqueando la app, queda abierto pero apartado
@@ -365,6 +371,7 @@ onBeforeUnmount(() => {
   if (drainTimer) clearInterval(drainTimer)
   if (splashTimer) clearTimeout(splashTimer)
   if (tourTimer) clearTimeout(tourTimer)
+  if (diferidoTimer) clearTimeout(diferidoTimer)
   stopNavWatch()
 })
 </script>
@@ -487,8 +494,13 @@ onBeforeUnmount(() => {
 .splash-in--1 { animation-delay: 0.06s; }
 .splash-in--2 { animation-delay: 0.5s; }
 
+/* La barra crece con transform (no con width): así la anima el compositor y no
+   se detiene si el hilo principal está ocupado arrancando la app. */
 .splash-progress {
-  width: 0;
+  width: 100%;
+  transform: scaleX(0);
+  transform-origin: left center;
+  will-change: transform;
   animation: splash-progress 1.5s cubic-bezier(0.35, 0.6, 0.3, 1) forwards;
 }
 
@@ -514,8 +526,8 @@ onBeforeUnmount(() => {
 }
 
 @keyframes splash-letter {
-  from { opacity: 0; transform: translateY(14px); filter: blur(5px); }
-  to   { opacity: 1; transform: translateY(0); filter: blur(0); }
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
 @keyframes splash-in {
@@ -524,8 +536,8 @@ onBeforeUnmount(() => {
 }
 
 @keyframes splash-progress {
-  from { width: 0; }
-  to   { width: 100%; }
+  from { transform: scaleX(0); }
+  to   { transform: scaleX(1); }
 }
 
 /* Respeta la preferencia del sistema: sin movimiento, sólo aparición. */
@@ -540,7 +552,7 @@ onBeforeUnmount(() => {
     animation: none !important;
     opacity: 1;
   }
-  .splash-progress { width: 100%; }
+  .splash-progress { transform: none; }
   .splash-mark .sk-mark-s { stroke-dashoffset: 0; }
 }
 </style>
