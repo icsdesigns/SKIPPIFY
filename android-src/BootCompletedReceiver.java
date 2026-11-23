@@ -38,6 +38,22 @@ public class BootCompletedReceiver extends BroadcastReceiver {
     /** Arranca el servicio y repone las alarmas. También lo usa la vigilancia. */
     static void relanzar(Context context, boolean vigilancia) {
         Context appContext = context.getApplicationContext();
+
+        // Vigilancia con el servicio vivo: nada que relanzar ni que reenlazar.
+        // Sólo corren las tareas del latido (con sus frenos) y, si cambió el
+        // día, se repintan notificación y widgets. Antes cada 15 minutos se
+        // forzaba el arranque, se republicaba la notificación y se pedía el
+        // reenlace del listener aunque todo estuviera en marcha.
+        if (vigilancia && SkippifyForegroundService.vivo()) {
+            try {
+                SkippifyForegroundService.vigilanciaLigera(appContext);
+                SleepTimer.resume(appContext);
+            } catch (Throwable ignored) {
+            }
+            if (SpotifyNotificationListener.sServiceInstance == null) pedirReenlace(appContext);
+            return;
+        }
+
         SkippifyForegroundService.start(appContext, vigilancia);
         // Un temporizador puesto antes de reiniciar o de actualizar sigue vivo.
         SleepTimer.resume(appContext);
@@ -59,6 +75,14 @@ public class BootCompletedReceiver extends BroadcastReceiver {
         // memoria y no lo vuelven a enlazar solos. Pedirlo es barato y es la
         // única forma de recuperar la detección sin que el usuario entre en los
         // ajustes del sistema.
+        // En el arranque del móvil o tras actualizar se pide siempre; en la
+        // vigilancia, sólo si el listener no está enlazado.
+        if (!vigilancia || SpotifyNotificationListener.sServiceInstance == null) {
+            pedirReenlace(appContext);
+        }
+    }
+
+    private static void pedirReenlace(Context appContext) {
         try {
             NotificationListenerService.requestRebind(
                     new ComponentName(appContext, SpotifyNotificationListener.class)

@@ -33,10 +33,22 @@ public final class RitmoGrupos {
     static final long LATIDO_MS = 15L * 60L * 1000L;
     /** Tras acabar una escucha se espera un poco por si empieza otra enseguida (se juntan). */
     static final long ESPERA_TRAS_ESCUCHA_MS = 30L * 1000L;
-    /** Entre dos sincronizaciones provocadas por escuchas: no más de una cada 3 minutos. */
-    static final long MIN_ENTRE_FORZADAS_MS = 3L * 60L * 1000L;
-    /** Sin ningún pulso de JS en tanto tiempo, el WebView se da por colgado y se reinicia. */
-    static final long COLGADO_MS = 20L * 60L * 1000L;
+    /**
+     * Entre dos sincronizaciones provocadas por escuchas: no más de una cada 10
+     * minutos. La clasificación es semanal, así que publicar lo recién oído en
+     * 10 minutos en vez de en 3 no se nota y ahorra abrir los relays sin parar.
+     */
+    static final long MIN_ENTRE_FORZADAS_MS = 10L * 60L * 1000L;
+    /**
+     * Sin ningún pulso de JS en tanto tiempo DESPIERTO (reloj de actividad, que
+     * no corre con la CPU dormida), el WebView se da por colgado y se reinicia.
+     * Holgura de algo más de dos tandas del ritmo más lento (15 min).
+     */
+    static final long COLGADO_MS = 35L * 60L * 1000L;
+    /** Una espera pedida por JS de hasta esto es el modo rápido (alguien espera entrar). */
+    static final long RAPIDO_MAX_MS = 60L * 1000L;
+    /** Ritmo base con la pantalla apagada: los grupos son semanales, 15 min sobran. */
+    static final long PERIODO_PANTALLA_APAGADA_MS = 15L * 60L * 1000L;
     /** Lo que se mantiene despierta la CPU al sincronizar desde una alarma. */
     static final long WAKELOCK_MS = 45L * 1000L;
 
@@ -91,10 +103,26 @@ public final class RitmoGrupos {
         return Math.max(ESPERA_TRAS_ESCUCHA_MS, hastaMinimo);
     }
 
+    /** ¿Es la espera que pide JS la del modo rápido (invitación activa o alguien entrando)? */
+    static boolean esRapido(long esperaPedida) {
+        return esperaPedida > 0 && esperaPedida <= RAPIDO_MAX_MS;
+    }
+
+    /**
+     * Espera hasta la siguiente tanda en segundo plano. El modo rápido se
+     * respeta siempre (la invitación exprés no puede esperar); el ritmo normal
+     * que pide JS (5 min) se estira a 15 con la pantalla apagada.
+     */
+    static long esperaTanda(long esperaPedida, boolean pantallaEncendida) {
+        if (esRapido(esperaPedida) || pantallaEncendida) return esperaPedida;
+        return Math.max(esperaPedida, PERIODO_PANTALLA_APAGADA_MS);
+    }
+
     /**
      * ¿Está colgado el WebView? Cuenta desde el último pulso de JS (cada tanda
      * termina avisando con `schedule`) o, si aún no hubo ninguno, desde que
-     * arrancó. El ritmo más lento es de 5 minutos, así que 20 sin pulso es un fallo.
+     * arrancó. Los tiempos son del reloj de actividad (sin contar el sueño de la
+     * CPU): el ritmo más lento es de 15 minutos, así que 35 sin pulso es un fallo.
      */
     static boolean colgado(long ahora, long ultimoPulso, long arrancadoEn) {
         long referencia = Math.max(ultimoPulso, arrancadoEn);

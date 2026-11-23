@@ -12,6 +12,8 @@ import android.os.Build;
 import android.os.IBinder;
 import android.os.SystemClock;
 
+import java.util.TimeZone;
+
 import androidx.annotation.Nullable;
 import androidx.core.app.NotificationCompat;
 
@@ -45,6 +47,13 @@ public class SkippifyForegroundService extends Service {
     /** Intervalo con el que la alarma reafirma el servicio. */
     private static final long WATCHDOG_INTERVAL_MS = 15L * 60L * 1000L;
     private static final int WATCHDOG_REQUEST_CODE = 0x5BD0;
+
+    /** Alarma de medianoche que repinta los contadores del día (ver programarCambioDia). */
+    static final String ACTION_CAMBIO_DIA = "com.skippify.app.action.CAMBIO_DIA";
+    private static final int CAMBIO_DIA_REQUEST_CODE = 0x5BD4;
+    private static volatile long sCambioDiaArmado = 0L;
+    /** Día (aaaammdd) de lo último que se pintó en la notificación y los widgets. */
+    private static volatile int sDiaPintado = 0;
 
     /** True once startForeground() ha tenido éxito y el servicio sigue vivo. */
     private static volatile boolean sRunning = false;
@@ -97,6 +106,7 @@ public class SkippifyForegroundService extends Service {
         if (context == null) return;
         // Los widgets enseñan los mismos contadores que la notificación.
         WidgetsSkippify.actualizar(context);
+        sDiaPintado = hoy();
         if (!sRunning) {
             start(context, false);
             return;
@@ -166,13 +176,32 @@ public class SkippifyForegroundService extends Service {
             return START_NOT_STICKY;
         }
 
+        tareasDelLatido(getApplicationContext());
+
+        // Los widgets: el modo puede haber cambiado (los cambios de ajustes pasan
+        // por aquí) y, con él, lo que enseñan.
+        WidgetsSkippify.actualizar(getApplicationContext());
+        sDiaPintado = hoy();
+
+        // START_STICKY: if Android kills us, it will re-create and re-deliver
+        // a null intent, which is fine – we'll call startForeground() again.
+        return START_STICKY;
+    }
+
+    /**
+     * Lo que cuelga del latido de 15 minutos. Lo llama {@link #onStartCommand}
+     * y, con el servicio ya vivo, la vigilancia ({@link #vigilanciaLigera}) sin
+     * relanzarlo. Cada tarea lleva su propio freno, así que llamarla de más no
+     * cuesta red.
+     */
+    static void tareasDelLatido(Context app) {
         // Los origenes de lista de las macros no tienen ningun evento que los
         // dispare, asi que se aprovecha este latido —que ya existia para
         // reafirmar la notificacion— en vez de programar una alarma propia. El
         // freno de 15 minutos por macro vive en MacroRunner, de modo que llamar
         // de mas aqui no cuesta ni una peticion.
         try {
-            MacroBackground.repasoPeriodico(getApplicationContext());
+            MacroBackground.repasoPeriodico(app);
         } catch (Throwable ignored) {
         }
 
@@ -180,21 +209,21 @@ public class SkippifyForegroundService extends Service {
         // vez al día, así que casi todos los latidos sólo miran el reloj. Sin
         // esto, la app sólo se enteraba de una versión nueva al abrirla.
         try {
-            UpdateChecker.latido(getApplicationContext());
+            UpdateChecker.latido(app);
         } catch (Throwable ignored) {
         }
 
         // Firebase está desconectado: si una versión anterior dejó su sesión
         // anónima, sus grupos o la alarma del ranking, se borran aquí.
         try {
-            LogCrudo.limpiarRestos(getApplicationContext());
+            LogCrudo.limpiarRestos(app);
         } catch (Throwable ignored) {
         }
 
         // Comunidad sin servidor: si el proceso se reinició sin la app abierta,
         // reanuda el WebView que sigue sincronizando los grupos.
         try {
-            LocalHostBackground.latido(getApplicationContext());
+            LocalHostBackground.latido(app);
         } catch (Throwable ignored) {
         }
 
@@ -202,24 +231,80 @@ public class SkippifyForegroundService extends Service {
         // de zona horaria, limpieza del sistema) se repone, y si el móvil estaba
         // apagado a la hora, se avisa al volver.
         try {
-            AvisoSemanaGrupos.latido(getApplicationContext());
+            AvisoSemanaGrupos.latido(app);
         } catch (Throwable ignored) {
         }
 
         // Escuchas de la cuenta de Spotify (otros dispositivos incluidos) y las
-        // que se escaparon con el servicio parado. El freno de cinco minutos
-        // vive en EscuchasApiBackground.
+        // que se escaparon con el servicio parado. El freno (~15 min en uso,
+        // ~30 en reposo) vive en EscuchasApiBackground.
         try {
-            EscuchasApiBackground.latido(getApplicationContext());
+            EscuchasApiBackground.latido(app);
         } catch (Throwable ignored) {
         }
 
-        // Los widgets: el modo puede haber cambiado y, con el latido, el día.
-        WidgetsSkippify.actualizar(getApplicationContext());
+        // El repintado de medianoche (contadores del día a cero).
+        try {
+            programarCambioDia(app);
+        } catch (Throwable ignored) {
+        }
+    }
 
-        // START_STICKY: if Android kills us, it will re-create and re-deliver
-        // a null intent, which is fine – we'll call startForeground() again.
-        return START_STICKY;
+    /**
+     * Vigilancia con el servicio vivo: no lo relanza ni vuelve a publicar la
+     * notificación. Corre las tareas del latido y sólo repinta notificación y
+     * widgets si ha cambiado el día desde la última vez.
+     */
+    static void vigilanciaLigera(Context ctx) {
+        Context app = ctx.getApplicationContext();
+        tareasDelLatido(app);
+        if (sDiaPintado != hoy()) refresh(app);
+    }
+
+    /** ¿Está el servicio en primer plano vivo en este proceso? */
+    static boolean vivo() {
+        return sRunning;
+    }
+
+    private static int hoy() {
+        return RitmoFondo.diaLocal(System.currentTimeMillis(), TimeZone.getDefault());
+    }
+
+    // ── Cambio de día ────────────────────────────────────────────────────────
+
+    /**
+     * Alarma diaria que NO despierta al móvil, un minuto después de medianoche:
+     * llega en cuanto el móvil se despierte por cualquier motivo y deja los
+     * contadores del día a cero en la notificación y los widgets. Sustituye a la
+     * actualización periódica de 30 minutos de los widgets.
+     */
+    static void programarCambioDia(Context ctx) {
+        Context app = ctx.getApplicationContext();
+        long cuando = RitmoFondo.proximoCambioDia(System.currentTimeMillis(), TimeZone.getDefault());
+        if (cuando == sCambioDiaArmado && intentCambioDia(app, PendingIntent.FLAG_NO_CREATE) != null) return;
+        AlarmManager am = (AlarmManager) app.getSystemService(ALARM_SERVICE);
+        if (am == null) return;
+        am.set(AlarmManager.RTC, cuando, intentCambioDia(app, PendingIntent.FLAG_UPDATE_CURRENT));
+        sCambioDiaArmado = cuando;
+    }
+
+    /** Ha sonado la alarma de medianoche (la recibe {@link AlarmasReceiver}). */
+    static void alCambiarDia(Context ctx) {
+        Context app = ctx.getApplicationContext();
+        refresh(app);
+        sCambioDiaArmado = 0L;
+        try {
+            programarCambioDia(app);
+        } catch (Throwable ignored) {
+        }
+    }
+
+    private static PendingIntent intentCambioDia(Context app, int flagBase) {
+        Intent intent = new Intent(app, AlarmasReceiver.class);
+        intent.setAction(ACTION_CAMBIO_DIA);
+        int flags = flagBase;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) flags |= PendingIntent.FLAG_IMMUTABLE;
+        return PendingIntent.getBroadcast(app, CAMBIO_DIA_REQUEST_CODE, intent, flags);
     }
 
     @Override

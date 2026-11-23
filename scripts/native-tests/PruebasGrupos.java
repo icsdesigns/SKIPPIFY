@@ -77,25 +77,35 @@ public final class PruebasGrupos {
         check("sin sincronizaciones recientes, se espera sólo el margen de juntar escuchas",
                 RitmoGrupos.esperaTrasEscucha(ahora, 0L), RitmoGrupos.ESPERA_TRAS_ESCUCHA_MS);
         check("si acaba de haber una, se espera a que pase el mínimo entre ellas",
-                RitmoGrupos.esperaTrasEscucha(ahora, ahora - 60_000L), 120_000L);
+                RitmoGrupos.esperaTrasEscucha(ahora, ahora - 60_000L), 540_000L);
         check("a punto de cumplirse el mínimo, rige el margen de juntar escuchas",
-                RitmoGrupos.esperaTrasEscucha(ahora, ahora - 170_000L), RitmoGrupos.ESPERA_TRAS_ESCUCHA_MS);
-        check("nunca más de una cada 3 minutos",
+                RitmoGrupos.esperaTrasEscucha(ahora, ahora - 590_000L), RitmoGrupos.ESPERA_TRAS_ESCUCHA_MS);
+        check("nunca más de una cada 10 minutos",
                 RitmoGrupos.esperaTrasEscucha(ahora, ahora) >= RitmoGrupos.MIN_ENTRE_FORZADAS_MS, true);
 
         // WebView colgado.
         check("con un pulso reciente no está colgado",
                 RitmoGrupos.colgado(ahora, ahora - 5 * 60_000L, ahora - 60 * 60_000L), false);
-        check("sin pulso en 25 minutos, sí",
-                RitmoGrupos.colgado(ahora, ahora - 25 * 60_000L, ahora - 60 * 60_000L), true);
+        check("sin pulso en 25 minutos aún no (el ritmo con pantalla apagada es de 15)",
+                RitmoGrupos.colgado(ahora, ahora - 25 * 60_000L, ahora - 60 * 60_000L), false);
+        check("sin pulso en 40 minutos, sí",
+                RitmoGrupos.colgado(ahora, ahora - 40 * 60_000L, ahora - 60 * 60_000L), true);
         check("recién arrancado y aún sin pulso, no",
                 RitmoGrupos.colgado(ahora, 0L, ahora - 2 * 60_000L), false);
-        check("arrancado hace 30 minutos y sin pulso nunca, sí",
-                RitmoGrupos.colgado(ahora, 0L, ahora - 30 * 60_000L), true);
+        check("arrancado hace 40 minutos y sin pulso nunca, sí",
+                RitmoGrupos.colgado(ahora, 0L, ahora - 40 * 60_000L), true);
         check("sin ningún dato (nunca arrancó) no se da por colgado",
                 RitmoGrupos.colgado(ahora, 0L, 0L), false);
-        check("el ritmo más lento de JS (5 min) cabe de sobra antes de darlo por colgado",
-                RitmoGrupos.COLGADO_MS > 3 * 5 * 60_000L, true);
+        check("el ritmo más lento (15 min con pantalla apagada) cabe dos veces antes de darlo por colgado",
+                RitmoGrupos.COLGADO_MS > 2 * RitmoGrupos.PERIODO_PANTALLA_APAGADA_MS, true);
+
+        // Ritmo de las tandas en segundo plano.
+        check("15 s es el modo rápido", RitmoGrupos.esRapido(15_000L), true);
+        check("5 min no es el modo rápido", RitmoGrupos.esRapido(300_000L), false);
+        check("modo rápido con pantalla apagada: se respeta", RitmoGrupos.esperaTanda(15_000L, false), 15_000L);
+        check("ritmo normal con pantalla encendida: 5 min", RitmoGrupos.esperaTanda(300_000L, true), 300_000L);
+        check("ritmo normal con pantalla apagada: 15 min", RitmoGrupos.esperaTanda(300_000L, false), 900_000L);
+        check("una espera ya larga no se acorta", RitmoGrupos.esperaTanda(1_200_000L, false), 1_200_000L);
         check("el latido de seguridad es de 15 minutos",
                 RitmoGrupos.LATIDO_MS, 15L * 60_000L);
 

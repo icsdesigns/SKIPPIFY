@@ -28,7 +28,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *
  * Se refrescan desde donde ya cambia cada dato: los contadores del día y el
  * modo pasan por {@link SkippifyForegroundService}, y las escuchas por el
- * listener. El latido de 15 minutos del servicio cubre el cambio de día.
+ * listener. El cambio de día lo cubren la alarma de medianoche del servicio
+ * (que no despierta al móvil) y la vigilancia de 15 minutos; por eso los
+ * widgets ya no piden la actualización periódica del sistema
+ * (`updatePeriodMillis="0"`).
  */
 final class WidgetsSkippify {
 

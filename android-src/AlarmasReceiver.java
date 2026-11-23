@@ -44,6 +44,12 @@ public class AlarmasReceiver extends BroadcastReceiver {
             return;
         }
 
+        // Medianoche: contadores del día a cero en la notificación y los widgets.
+        if (SkippifyForegroundService.ACTION_CAMBIO_DIA.equals(action)) {
+            SkippifyForegroundService.alCambiarDia(context);
+            return;
+        }
+
         // Vigilancia periódica: reafirma el servicio en primer plano.
         if (BootCompletedReceiver.ACTION_WATCHDOG.equals(action)) {
             BootCompletedReceiver.relanzar(context, true);

@@ -24,9 +24,9 @@ import java.util.List;
  *
  * Skippify ya no habla con Firebase. Las versiones anteriores guardaban en el
  * móvil una sesión anónima (refresh token incluido), los grupos y una alarma
- * del ranking de los domingos. `limpiarRestos` borra todo eso una sola vez y
- * cancela la alarma; es idempotente y barato, así que el latido del servicio
- * lo llama siempre.
+ * del ranking de los domingos. `limpiarRestos` borra todo eso y cancela la
+ * alarma. El latido del servicio lo llama, pero sólo trabaja la primera vez:
+ * después queda una marca y sale sin tocar nada más.
  */
 public final class LogCrudo {
 
@@ -39,19 +39,30 @@ public final class LogCrudo {
     static final String ACCION_RANKING_ANTIGUA = "com.skippify.app.action.LIGA_RESULTADOS";
     private static final int ALARMA_RANKING_ANTIGUA = 0x5BE1;
     private static final String CANAL_RANKING_ANTIGUO = "skippify_liga";
+    /** Marca de que la limpieza ya se hizo entera (preferencias propias). */
+    private static final String PREFS_LIMPIEZA = "skippify_limpieza";
+    private static final String K_RESTOS_LIMPIOS = "restosLimpiosV1";
+    /** En memoria: evita incluso leer la marca en los latidos siguientes. */
+    private static volatile boolean sLimpio = false;
 
     private LogCrudo() { }
 
     /** Borra la sesión de Firebase, los grupos con servidor y la alarma del ranking. */
     static void limpiarRestos(Context ctx) {
-        if (ctx == null) return;
+        if (ctx == null || sLimpio) return;
         Context app = ctx.getApplicationContext();
+        SharedPreferences marca = app.getSharedPreferences(PREFS_LIMPIEZA, Context.MODE_PRIVATE);
+        if (marca.getBoolean(K_RESTOS_LIMPIOS, false)) {
+            sLimpio = true;
+            return;
+        }
+        boolean completa = true;
         try {
             for (String nombre : new String[] { PREFS_LIGA, PREFS_RESULTADOS }) {
                 SharedPreferences sp = app.getSharedPreferences(nombre, Context.MODE_PRIVATE);
                 if (!sp.getAll().isEmpty()) sp.edit().clear().apply();
             }
-        } catch (Throwable ignored) { }
+        } catch (Throwable ignored) { completa = false; }
         try {
             AlarmManager am = (AlarmManager) app.getSystemService(Context.ALARM_SERVICE);
             Intent intent = new Intent(app, BootCompletedReceiver.class);
@@ -63,7 +74,7 @@ public final class LogCrudo {
                 if (am != null) am.cancel(pi);
                 pi.cancel();
             }
-        } catch (Throwable ignored) { }
+        } catch (Throwable ignored) { completa = false; }
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 NotificationManager nm = (NotificationManager) app.getSystemService(Context.NOTIFICATION_SERVICE);
@@ -71,7 +82,13 @@ public final class LogCrudo {
                     nm.deleteNotificationChannel(CANAL_RANKING_ANTIGUO);
                 }
             }
-        } catch (Throwable ignored) { }
+        } catch (Throwable ignored) { completa = false; }
+        // Sólo se marca si todo salió bien: si algo falló, se reintenta en el
+        // próximo latido como antes.
+        if (completa) {
+            marca.edit().putBoolean(K_RESTOS_LIMPIOS, true).apply();
+            sLimpio = true;
+        }
     }
 
     /** Lee el log crudo SIN vaciarlo: eso sigue siendo cosa de la app al abrirse. */

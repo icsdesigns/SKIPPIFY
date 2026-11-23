@@ -2,6 +2,7 @@ package com.skippify.app;
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.os.PowerManager;
 import android.util.Log;
 
 import org.json.JSONObject;
@@ -48,8 +49,6 @@ public final class EscuchasApiBackground {
     private static final String URL = "https://api.spotify.com/v1/me/player/recently-played?limit=50";
     private static final String URL_AHORA = "https://api.spotify.com/v1/me/player";
 
-    /** Entre consulta y consulta: lo bastante poco para que 50 canciones sobren. */
-    static final long PERIODO_MS = 5L * 60L * 1000L;
     /** Tras un 429 o un fallo de red no se insiste enseguida. */
     static final long ESPERA_TRAS_ERROR_MS = 15L * 60L * 1000L;
     /** Tras un 429 al preguntar qué suena: el sondeo es mucho más frecuente. */
@@ -116,7 +115,9 @@ public final class EscuchasApiBackground {
 
         long ahora = System.currentTimeMillis();
         if (ahora < sp.getLong(K_NO_ANTES, 0L)) return;
-        if (!forzar && ahora - sp.getLong(K_ULTIMA_CONSULTA, 0L) < PERIODO_MS) return;
+        // Entre consulta y consulta: ~15 min con el móvil en uso y ~30 en reposo,
+        // lo bastante poco para que las 50 canciones que devuelve sobren.
+        if (!forzar && !RitmoFondo.tocaConsultarApi(ahora, sp.getLong(K_ULTIMA_CONSULTA, 0L), movilEnUso(app))) return;
 
         JSONObject sesion = MacroBackground.estadoSesion(app);
         if (!sesion.optBoolean("connected", false)) {
@@ -170,6 +171,20 @@ public final class EscuchasApiBackground {
                 .putLong(K_TOTAL, sp.getLong(K_TOTAL, 0L) + nuevas.size())
                 .putString(K_ERROR, "").apply();
         if (!nuevas.isEmpty()) Log.i(TAG, "escuchas nuevas desde la API: " + nuevas.size());
+    }
+
+    /** Pantalla encendida o música sonando en este móvil. */
+    private static boolean movilEnUso(Context app) {
+        try {
+            SpotifyNotificationListener svc = SpotifyNotificationListener.sServiceInstance;
+            if (svc != null && svc.isPlaying()) return true;
+        } catch (Throwable ignored) { }
+        try {
+            PowerManager pm = (PowerManager) app.getSystemService(Context.POWER_SERVICE);
+            return pm == null || pm.isInteractive();
+        } catch (Throwable t) {
+            return true;
+        }
     }
 
     private static void fallo(Context app, String motivo) {

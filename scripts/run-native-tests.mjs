@@ -44,6 +44,9 @@ const FUENTES = [
   // Los disparadores de los grupos en segundo plano y el aviso de los domingos.
   join(raiz, 'android-src', 'RitmoGrupos.java'),
   join(raiz, 'scripts', 'native-tests', 'PruebasGrupos.java'),
+  // El sondeo de la API de Spotify y el cambio de día de widgets y notificación.
+  join(raiz, 'android-src', 'RitmoFondo.java'),
+  join(raiz, 'scripts', 'native-tests', 'PruebasRitmoFondo.java'),
   // El aviso sonoro del botón de los auriculares: qué toca y las muestras del tono.
   join(raiz, 'android-src', 'AvisoSonoro.java'),
   join(raiz, 'scripts', 'native-tests', 'PruebasAvisoSonoro.java'),
@@ -90,6 +93,7 @@ try {
   execFileSync('java', ['-Dfile.encoding=UTF-8', '-cp', salida, 'com.skippify.app.PruebasFundido'], { stdio: 'inherit' })
   execFileSync('java', ['-Dfile.encoding=UTF-8', '-cp', salida, 'com.skippify.app.PruebasMotorAfinado'], { stdio: 'inherit' })
   execFileSync('java', ['-Dfile.encoding=UTF-8', '-cp', salida, 'com.skippify.app.PruebasGrupos'], { stdio: 'inherit' })
+  execFileSync('java', ['-Dfile.encoding=UTF-8', '-cp', salida, 'com.skippify.app.PruebasRitmoFondo'], { stdio: 'inherit' })
   execFileSync('java', ['-Dfile.encoding=UTF-8', '-cp', salida, 'com.skippify.app.PruebasAvisoSonoro'], { stdio: 'inherit' })
   execFileSync('java', ['-Dfile.encoding=UTF-8', '-cp', salida, 'com.skippify.app.PruebasActualizaciones'], { stdio: 'inherit' })
   execFileSync('java', ['-Dfile.encoding=UTF-8', '-cp', salida, 'com.skippify.app.PruebasUrls'], { stdio: 'inherit' })

@@ -57,12 +57,17 @@ import java.util.Map;
  *     no. Se refuerza con tres disparadores (decisiones en {@link RitmoGrupos}):
  *       1. Tras acabar una escucha (el listener llama a {@link #alRegistrarEscucha}):
  *          una sincronización 30 s después (se juntan escuchas seguidas) y como
- *          mucho una cada 3 min, para publicar lo recién oído sin esperar a la
+ *          mucho una cada 10 min, para publicar lo recién oído sin esperar a la
  *          siguiente tanda.
- *       2. Un latido de seguridad cada ~15 min con una alarma que despierta al
- *          móvil aunque esté en reposo (los temporizadores del hilo principal no
- *          corren con la CPU dormida): fuerza una tanda, repone el servicio y
- *          reinicia el WebView si lleva 20 min sin dar señales.
+ *       2. Un latido de seguridad cada ~15 min con una alarma: fuerza una tanda,
+ *          repone el servicio y reinicia el WebView si lleva 35 min despierto
+ *          sin dar señales. Sólo despierta al móvil en reposo en el modo rápido
+ *          (invitación activa o alguien entrando); en el resto llega cuando el
+ *          móvil se despierta por otra causa, porque dormido no hay escuchas
+ *          nuevas que publicar.
+ *
+ *     Ritmo base: el que pide JS (5 min), estirado a 15 con la pantalla apagada;
+ *     el modo rápido de 15 s no se toca.
  *       3. Al arrancar el servicio, tras un reinicio del móvil o una
  *          actualización, y cuando suena el aviso del domingo
  *          ({@link AvisoSemanaGrupos}): {@link #latido} y {@link #sincronizarYa}.
@@ -93,7 +98,11 @@ public final class LocalHostBackground {
     private static boolean principalActiva;
     private static boolean corriendo;
     private static boolean parando;
-    /** Última vez que JS terminó una tanda (`schedule`), y cuándo arrancó este WebView. */
+    /**
+     * Última vez que JS terminó una tanda (`schedule`), y cuándo arrancó este
+     * WebView, en el reloj de actividad (`uptimeMillis`): el sueño de la CPU no
+     * cuenta para dar el WebView por colgado.
+     */
     private static long ultimoPulso;
     private static long arrancadoEn;
     /** Última sincronización provocada por una escucha o un latido. */
@@ -104,6 +113,8 @@ public final class LocalHostBackground {
     private static long latidoArmadoHasta;
     /** El servicio pudo escribir desde la última vez que la app lo supo. */
     private static boolean haEscrito;
+    /** JS pidió el ritmo rápido en su última tanda: el latido debe despertar al móvil. */
+    private static boolean modoRapido;
     private static final List<Respuesta> esperando = new ArrayList<>();
 
     private static final Runnable ARRANCAR = new Runnable() {
@@ -218,7 +229,7 @@ public final class LocalHostBackground {
                 programarLatido(a, false);
                 if (principalActiva) return;
                 if (!corriendo) arrancar();
-                else if (!parando && RitmoGrupos.colgado(System.currentTimeMillis(), ultimoPulso, arrancadoEn)) reiniciar();
+                else if (!parando && RitmoGrupos.colgado(SystemClock.uptimeMillis(), ultimoPulso, arrancadoEn)) reiniciar();
             }
         });
     }
@@ -274,10 +285,13 @@ public final class LocalHostBackground {
     }
 
     /**
-     * Arma la alarma inexacta del latido (cada ~15 min, aunque el móvil esté en
-     * reposo: `setAndAllowWhileIdle` la deja pasar, con la limitación que impone
-     * el sistema de una cada varios minutos). Es idempotente salvo con `forzar`:
-     * volver a armarla cada vez que alguien llama la retrasaría sin fin.
+     * Arma la alarma inexacta del latido (cada ~15 min). En el modo rápido
+     * despierta al móvil aunque esté en reposo (`setAndAllowWhileIdle` la deja
+     * pasar, con la limitación de una cada varios minutos) para que la
+     * invitación exprés se atienda; fuera de él es una alarma que no despierta y
+     * llega cuando el móvil se despierte por otra causa. Es idempotente salvo
+     * con `forzar`: volver a armarla cada vez que alguien llama la retrasaría
+     * sin fin.
      */
     private static void programarLatido(Context c, boolean forzar) {
         try {
@@ -287,13 +301,25 @@ public final class LocalHostBackground {
             if (am == null) return;
             PendingIntent pi = intentLatido(c, PendingIntent.FLAG_UPDATE_CURRENT);
             long cuando = ahora + RitmoGrupos.LATIDO_MS;
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            if (!modoRapido) {
+                am.set(AlarmManager.ELAPSED_REALTIME, cuando, pi);
+            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 am.setAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP, cuando, pi);
             } else {
                 am.set(AlarmManager.ELAPSED_REALTIME_WAKEUP, cuando, pi);
             }
             latidoArmadoHasta = cuando;
         } catch (Throwable ignored) { }
+    }
+
+    /** Pantalla encendida: sin saberlo, se supone que sí (el ritmo de siempre). */
+    private static boolean pantallaEncendida(Context c) {
+        try {
+            PowerManager pm = c == null ? null : (PowerManager) c.getSystemService(Context.POWER_SERVICE);
+            return pm == null || pm.isInteractive();
+        } catch (Throwable t) {
+            return true;
+        }
     }
 
     private static void cancelarLatido(Context c) {
@@ -332,7 +358,7 @@ public final class LocalHostBackground {
                     if (principalActiva) return;
                     // El proceso pudo reiniciarse: se asegura el servicio en primer plano.
                     try { SkippifyForegroundService.start(a, false); } catch (Throwable ignored) { }
-                    if (corriendo && !parando && RitmoGrupos.colgado(System.currentTimeMillis(), ultimoPulso, arrancadoEn)) {
+                    if (corriendo && !parando && RitmoGrupos.colgado(SystemClock.uptimeMillis(), ultimoPulso, arrancadoEn)) {
                         reiniciar();
                     } else {
                         ultimaForzada = System.currentTimeMillis();
@@ -353,7 +379,7 @@ public final class LocalHostBackground {
         haEscrito = true;
         paginaLista = false;
         ultimoPulso = 0L;
-        arrancadoEn = System.currentTimeMillis();
+        arrancadoEn = SystemClock.uptimeMillis();
         try {
             SkippifyForegroundService.start(app, false);
         } catch (Throwable ignored) { }
@@ -421,6 +447,9 @@ public final class LocalHostBackground {
         corriendo = false;
         parando = false;
         paginaLista = false;
+        // La app toma el relevo: la próxima tanda en segundo plano dirá si sigue
+        // haciendo falta el ritmo rápido.
+        modoRapido = false;
         if (web != null) {
             try { web.stopLoading(); } catch (Throwable ignored) { }
             try { web.destroy(); } catch (Throwable ignored) { }
@@ -450,9 +479,17 @@ public final class LocalHostBackground {
             H.post(new Runnable() {
                 @Override public void run() {
                     // Cada tanda de JS acaba aquí: es la señal de que el WebView sigue vivo.
-                    ultimoPulso = System.currentTimeMillis();
+                    ultimoPulso = SystemClock.uptimeMillis();
                     if (!corriendo || parando || principalActiva) return;
-                    long espera = Math.max(MIN_PERIODO_MS, Math.min(MAX_PERIODO_MS, ms));
+                    // Al entrar o salir del modo rápido cambia el tipo de alarma
+                    // del latido (despertadora o no): se rearma ya.
+                    boolean rapido = RitmoGrupos.esRapido(ms);
+                    if (rapido != modoRapido) {
+                        modoRapido = rapido;
+                        if (app != null) programarLatido(app, true);
+                    }
+                    long pedida = RitmoGrupos.esperaTanda(ms, pantallaEncendida(app));
+                    long espera = Math.max(MIN_PERIODO_MS, Math.min(MAX_PERIODO_MS, pedida));
                     H.removeCallbacks(LATIDO_JS);
                     H.postDelayed(LATIDO_JS, espera);
                 }
