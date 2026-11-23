@@ -33,6 +33,14 @@ import java.util.List;
  * `listening_sessions`, con esas sesiones y la respuesta del usuario a «¿has
  * estado escuchando con fundido?». Las bases de la versión 1 se amplían con
  * ALTER TABLE ADD COLUMN, sin borrar nada.
+ *
+ * Versión 3 (app 4.10.0): cada fila dice además si la canción era duplicada
+ * según el intervalo configurado (se comprueba siempre, también con la función
+ * apagada), si debía saltarse según los ajustes, si el salto se materializó y
+ * cuánto tardó, la ventana de decisión aplicada y si el motor estimaba un
+ * fundido activo. Al pasar a esta versión el registro y las sesiones de escucha
+ * se BORRAN una vez: es el reset de registros de funcionalidad de la 4.10.0,
+ * para que las nuevas mediciones no se mezclen con las de antes del afinado.
  */
 final class PlayLogStore {
 
@@ -40,7 +48,7 @@ final class PlayLogStore {
     private static final String DB_NAME = "skippify-play-log.db";
     private static final String TABLE = "play_log";
     private static final String SESSIONS = "listening_sessions";
-    private static final int DB_VERSION = 2;
+    private static final int DB_VERSION = 3;
 
     /** Antigüedad máxima conservada. */
     private static final long RETENTION_MS = 400L * 86_400_000L;
@@ -83,6 +91,18 @@ final class PlayLogStore {
         String fundidoReason;
         /** Id de la sesión de escucha de esta fila, 0 si no pertenece a ninguna. */
         long listeningSessionId;
+        /** ¿Se comprobó si era duplicada? (sin índice o sin metadatos no se puede). */
+        boolean duplicateChecked;
+        /** ¿Debía saltarse según los ajustes? (función activa, duplicada y aún a tiempo). */
+        boolean shouldSkip;
+        /** `confirmado`, `abortado`, `sin_confirmar` o null si no se saltó. */
+        String skipResult;
+        /** Desde la orden de salto hasta que cambió la canción; null si no aplica. */
+        Long skipMs;
+        /** Estimación del motor al abrir la canción: null sin datos. */
+        Boolean fundidoActive;
+        /** Ventana de decisión aplicada (ms). */
+        long decisionWindowMs;
     }
 
     /** Una sesión de escucha guardada. */
@@ -129,11 +149,19 @@ final class PlayLogStore {
                     + "fundido_prev_remaining_ms INTEGER,"
                     + "fundido_first_pos_ms INTEGER,"
                     + "fundido_reason TEXT,"
-                    + "listening_session_id INTEGER"
+                    + "listening_session_id INTEGER,"
+                    + COLS_V3_SQL
                     + ")");
             db.execSQL("CREATE INDEX IF NOT EXISTS idx_log_started ON " + TABLE + "(started_at)");
             createSessions(db);
         }
+
+        private static final String COLS_V3_SQL = "dup_checked INTEGER,"
+                + "should_skip INTEGER,"
+                + "skip_result TEXT,"
+                + "skip_ms INTEGER,"
+                + "fundido_active INTEGER,"
+                + "decision_window_ms INTEGER";
 
         private void createSessions(SQLiteDatabase db) {
             db.execSQL("CREATE TABLE IF NOT EXISTS " + SESSIONS + " ("
@@ -175,6 +203,23 @@ final class PlayLogStore {
                     }
                 }
                 createSessions(db);
+            }
+            if (oldVersion < 3) {
+                String[] cols = COLS_V3_SQL.split(",");
+                for (String col : cols) {
+                    try {
+                        db.execSQL("ALTER TABLE " + TABLE + " ADD COLUMN " + col);
+                    } catch (Throwable t) {
+                        Log.w(TAG, "no se pudo añadir " + col, t);
+                    }
+                }
+                // Reset único de la 4.10.0: registro y sesiones de escucha desde cero.
+                try {
+                    db.delete(TABLE, null, null);
+                    db.delete(SESSIONS, null, null);
+                } catch (Throwable t) {
+                    Log.w(TAG, "reset del registro fallido", t);
+                }
             }
         }
     }
@@ -244,6 +289,14 @@ final class PlayLogStore {
             else v.put("fundido_reason", e.fundidoReason);
             if (e.listeningSessionId > 0L) v.put("listening_session_id", e.listeningSessionId);
             else v.putNull("listening_session_id");
+            v.put("dup_checked", e.duplicateChecked ? 1 : 0);
+            v.put("should_skip", e.shouldSkip ? 1 : 0);
+            if (e.skipResult == null) v.putNull("skip_result");
+            else v.put("skip_result", e.skipResult);
+            putLong(v, "skip_ms", e.skipMs);
+            if (e.fundidoActive == null) v.putNull("fundido_active");
+            else v.put("fundido_active", e.fundidoActive ? 1 : 0);
+            v.put("decision_window_ms", e.decisionWindowMs);
             db.insert(TABLE, null, v);
 
             if (++sInsertsSincePrune >= PRUNE_EVERY) {
@@ -323,7 +376,9 @@ final class PlayLogStore {
                             + " p.skip_interval, p.listening_mode, p.config,"
                             + " p.fundido_label, p.fundido_conf, p.fundido_overlap_ms,"
                             + " p.fundido_prev_remaining_ms, p.fundido_first_pos_ms, p.fundido_reason,"
-                            + " p.listening_session_id, s.answer"
+                            + " p.listening_session_id, s.answer,"
+                            + " p.dup_checked, p.should_skip, p.skip_result, p.skip_ms,"
+                            + " p.fundido_active, p.decision_window_ms"
                             + " FROM " + TABLE + " p LEFT JOIN " + SESSIONS + " s"
                             + " ON s.id = p.listening_session_id"
                             + " ORDER BY p.id ASC LIMIT ? OFFSET ?",
@@ -372,8 +427,21 @@ final class PlayLogStore {
                     if ("si".equals(ans)) f.put("respuestaUsuario", true);
                     else if ("no".equals(ans)) f.put("respuestaUsuario", false);
                     else f.put("respuestaUsuario", JSONObject.NULL);
+                    f.put("activoEstimado", c.isNull(31) ? JSONObject.NULL : (Object) Boolean.valueOf(c.getInt(31) == 1));
                     o.put("fundido", f);
                 }
+
+                // Duplicadas: ¿lo era?, ¿debía saltarse?, ¿se saltó de verdad?
+                JSONObject d = new JSONObject();
+                boolean comprobada = !c.isNull(27) && c.getInt(27) == 1;
+                d.put("comprobada", comprobada);
+                d.put("esDuplicada", comprobada ? (Object) Boolean.valueOf(c.getInt(9) == 1) : JSONObject.NULL);
+                d.put("deberiaSaltarse", !c.isNull(28) && c.getInt(28) == 1);
+                d.put("saltada", "saltada".equals(c.getString(7)));
+                d.put("resultadoSalto", c.isNull(29) ? JSONObject.NULL : c.getString(29));
+                d.put("msHastaCambio", c.isNull(30) ? JSONObject.NULL : (Object) Long.valueOf(c.getLong(30)));
+                d.put("ventanaMs", c.isNull(32) ? JSONObject.NULL : (Object) Long.valueOf(c.getLong(32)));
+                o.put("duplicada", d);
                 out.put(o);
             }
         } catch (Throwable t) {

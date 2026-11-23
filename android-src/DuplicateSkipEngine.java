@@ -106,6 +106,8 @@ final class DuplicateSkipEngine {
     private static final long IMPORT_DEDUP_WINDOW_MS = 90_000L;
 
     private static final long SKIP_VERIFY_RETRY_DELAY_MS = 350L;
+    /** Un salto se da por confirmado si la canción cambió antes de esto. */
+    private static final long SKIP_CONFIRM_MAX_MS = 4_000L;
     private static final long PAUSE_TO_SKIP_MAX_HOLD_MS = 4000L;
     /**
      * Reintentos de la reanudación tras «Pausar antes de saltar». Se insiste
@@ -257,6 +259,20 @@ final class DuplicateSkipEngine {
     private String mLogSource = "";
     private boolean mLogIndexReady = false;
     private String mLogConfigJson = "";
+    // Afinado 4.10.0: ¿se comprobó si era duplicada?, ¿debía saltarse?, la
+    // ventana aplicada y la estimación de fundido al abrir la canción.
+    private boolean mLogDupChecked = false;
+    private long mLogWindowMs = 0L;
+    private Boolean mLogFundidoActivo = null;
+    // Orden de salto de la sesión en curso: cuándo se emitió (uptime, 0 si no) y
+    // si el salto se abortó porque la pista viva ya no era la juzgada.
+    private long mSkipOrderUptimeMs = 0L;
+    private volatile long mSkipAbortedGeneration = -1L;
+
+    /** Transiciones recientes de fundido: crossfade fijo, fundido activo y ventana ampliada. */
+    private final FundidoReciente mFundidoReciente = new FundidoReciente();
+    /** Freno de cadenas de saltos (lista ya escuchada entera). */
+    private final FrenoCadena mFreno = new FrenoCadena();
 
     // ── Medición de fundido (solo lectura: nunca influye en una decisión) ─────
     // Sesiones de escucha y notificación de pregunta; se crean en attach().
@@ -271,6 +287,8 @@ final class DuplicateSkipEngine {
     private long mPrevPosUptimeMs = 0L;
     private boolean mPrevPlaying = false;
     private long mPrevCloseUptimeMs = 0L;
+    /** ¿La última canción cerrada la cortó el propio motor? */
+    private boolean mPrevSkippedByEngine = false;
 
     // Última posición vista de la sesión en curso (para ser la «anterior» de la siguiente).
     private long mCurLastPosMs = -1L;
@@ -285,6 +303,7 @@ final class DuplicateSkipEngine {
     private long mFunPrevPosMs = -1L;
     private long mFunPrevPosUptimeMs = 0L;
     private boolean mFunPrevPlaying = false;
+    private boolean mFunPrevSkipped = false;
     private long mFunGapMs = 0L;
     // Primera observación válida de la sesión en curso (sonando y con posición).
     private boolean mFunSeen = false;
@@ -384,6 +403,8 @@ final class DuplicateSkipEngine {
         boolean takePremute = false;
         boolean duplicateSeen = false;
         boolean sessionChanged = false;
+        boolean frenoAviso = false;
+        long windowMs;
 
         synchronized (mSessionLock) {
             if (!key.equals(mSessionKey)) {
@@ -400,6 +421,7 @@ final class DuplicateSkipEngine {
             generation = mSessionGeneration;
             sessionAgeMs = obs.uptimeMs - mSessionStartedUptimeMs;
             boolean wasDecided = mSessionDecided;
+            windowMs = ventanaDecisionMs(ctx, obs.epochMs);
 
             // ── Decisión (como mucho una vez por sesión) ──────────────────────
             if (key.isEmpty()) {
@@ -419,13 +441,17 @@ final class DuplicateSkipEngine {
                 // de "reanudada a mitad": nunca se salta a ciegas.
                 mSessionDecided = true;
                 reason = "sin_posicion";
-            } else if (obs.positionMs > devDecisionWindowMs(ctx)) {
+            } else if (obs.positionMs > windowMs) {
                 mSessionDecided = true;
                 reason = "fuera_de_ventana";
                 // Aunque ya no se pueda saltar, la consulta es O(1) en memoria:
                 // se hace igualmente para que el contador diario refleje las
                 // duplicadas que se escaparon (es justo lo que se calibra).
-                duplicateSeen = mIndexReady && isDuplicateLocked(ctx, key, obs);
+                if (mIndexReady) {
+                    duplicateSeen = isDuplicateLocked(ctx, key, obs);
+                    mLogDupChecked = true;
+                }
+                mFreno.alConservada();
             } else if (!mIndexReady) {
                 // El índice sigue cargando: se reintenta, no se cierra.
                 reason = "indice_cargando";
@@ -435,15 +461,25 @@ final class DuplicateSkipEngine {
                 lookupNs = System.nanoTime() - lookupStartNs;
 
                 mSessionDecided = true;
-                if (hit) {
+                mLogDupChecked = true;
+                int freno = hit ? mFreno.alDuplicada(obs.uptimeMs) : FrenoCadena.SALTAR;
+                if (hit && freno != FrenoCadena.SALTAR) {
+                    // Lista ya escuchada entera: se deja sonar para que la música
+                    // no acabe parada (ver FrenoCadena). Cuenta como escucha normal.
+                    duplicateSeen = true;
+                    frenoAviso = freno == FrenoCadena.FRENAR;
+                    reason = "freno_de_cadena";
+                } else if (hit) {
                     // Una canción saltada no se anota como escuchada: si no, la
                     // próxima vez seguiría contando como "ya la oíste".
                     mSessionSuppressCommit = true;
                     mSessionCommitted = true;
                     doSkip = true;
                     duplicateSeen = true;
+                    mSkipOrderUptimeMs = obs.uptimeMs;
                     reason = "duplicada";
                 } else {
+                    mFreno.alNoDuplicada();
                     reason = "no_duplicada";
                 }
             }
@@ -458,6 +494,7 @@ final class DuplicateSkipEngine {
                 mLogAgeMs = sessionAgeMs;
                 mLogSource = obs.source;
                 mLogIndexReady = mIndexReady;
+                mLogWindowMs = windowMs;
                 if (decisionJustClosed) {
                     mLogDecision = doSkip ? "saltada" : "conservada";
                     mLogDuplicateSeen = duplicateSeen;
@@ -488,6 +525,7 @@ final class DuplicateSkipEngine {
         if (takePremute) applyPremute(generation);
 
         if (duplicateSeen) bumpDailyCounters(ctx, true, doSkip);
+        if (frenoAviso) FrenoAviso.mostrar(ctx, FrenoCadena.MAX_SEGUIDOS);
 
         if (doSkip) {
             mSkipCount++;
@@ -499,9 +537,11 @@ final class DuplicateSkipEngine {
                 // rebobina para no robarle al usuario ese fragmento.
                 boolean restart = devRestartOnKeep(ctx)
                         && obs.positionMs >= 0L
+                        // Con la ventana ampliada por un fundido no se rebobina: la
+                        // canción entró en fundido y volver a 0 lo rompería.
                         && obs.positionMs <= devDecisionWindowMs(ctx);
                 releasePremute(restart, reason);
-            } else if (isDecisionPending(generation) && sessionAgeMs < devDecisionWindowMs(ctx)) {
+            } else if (isDecisionPending(generation) && sessionAgeMs < windowMs) {
                 // Decisión aún abierta ("estabilizando" / "indice_cargando"): se
                 // reprograma la sonda. El límite por antigüedad de sesión acota el
                 // número de reintentos — pasada la ventana ya no se salta nunca,
@@ -573,6 +613,10 @@ final class DuplicateSkipEngine {
         mLogSource = obs.source;
         mLogIndexReady = mIndexReady;
         mLogConfigJson = "";
+        mLogDupChecked = false;
+        mLogWindowMs = ventanaDecisionMs(ctx, obs.epochMs);
+        mLogFundidoActivo = key.isEmpty() ? null : mFundidoReciente.activo(obs.epochMs);
+        mSkipOrderUptimeMs = 0L;
         accumulateLocked(obs.isPlaying, obs.uptimeMs);
 
         // Medición de fundido: se copian los datos de la canción anterior y se
@@ -584,6 +628,7 @@ final class DuplicateSkipEngine {
         mFunPrevPosMs = mPrevPosMs;
         mFunPrevPosUptimeMs = mPrevPosUptimeMs;
         mFunPrevPlaying = mPrevPlaying;
+        mFunPrevSkipped = mPrevValid && mPrevSkippedByEngine;
         mFunGapMs = mPrevValid ? Math.max(0L, obs.uptimeMs - mPrevCloseUptimeMs) : 0L;
         mFunSeen = false;
         mFunFirstPosMs = -1L;
@@ -625,6 +670,7 @@ final class DuplicateSkipEngine {
         mPrevPosUptimeMs = mCurLastPosUptimeMs;
         mPrevPlaying = mCurLastPlaying;
         mPrevCloseUptimeMs = nowUptimeMs;
+        mPrevSkippedByEngine = "saltada".equals(mLogDecision);
     }
 
     /**
@@ -670,6 +716,24 @@ final class DuplicateSkipEngine {
         final Context ctx = mContext;
         if (ctx == null || mSessionStartedEpochMs <= 0L) return;
 
+        final long playedMs = playedMsLocked(nowUptimeMs);
+        final String decision = mLogDecision.isEmpty() ? "sin_decidir" : mLogDecision;
+        // Filas sin decisión de menos de 1 s (pausas, parpadeos del aviso): no
+        // dicen nada y en algunos móviles eran la cuarta parte del registro.
+        if ("sin_decidir".equals(decision) && playedMs < 1_000L) return;
+
+        // ¿Era duplicada? Si la decisión no llegó a consultarlo (función apagada,
+        // en pausa…), se consulta ahora contra el intervalo configurado, con la
+        // hora de inicio de la canción. Su propia escucha queda fuera por la guarda.
+        if (!mLogDupChecked && !mSessionKey.isEmpty() && mIndexReady) {
+            long intervalMs = parseIntervalMs(skipInterval(ctx));
+            long matched = indexPlayBetween(mSessionKey, mSessionStartedEpochMs - intervalMs,
+                    mSessionStartedEpochMs - CURRENT_SESSION_GUARD_MS);
+            mLogMatchedAtMs = matched;
+            mLogDuplicateSeen = matched > 0L;
+            mLogDupChecked = true;
+        }
+
         final PlayLogStore.Entry e = new PlayLogStore.Entry();
         e.startedAtMs = mSessionStartedEpochMs;
         e.endedAtMs = System.currentTimeMillis();
@@ -677,9 +741,23 @@ final class DuplicateSkipEngine {
         e.artist = mSessionArtist;
         e.key = mSessionKey;
         e.durationMs = mSessionDurationMs;
-        e.playedMs = playedMsLocked(nowUptimeMs);
+        e.playedMs = playedMs;
         e.committed = mSessionCommitted && !mSessionSuppressCommit;
-        e.decision = mLogDecision.isEmpty() ? "sin_decidir" : mLogDecision;
+        e.decision = decision;
+        e.duplicateChecked = mLogDupChecked;
+        e.decisionWindowMs = mLogWindowMs;
+        e.fundidoActive = mLogFundidoActivo;
+        if ("saltada".equals(decision)) {
+            if (mSkipAbortedGeneration == mSessionGeneration) {
+                e.skipResult = "abortado";
+            } else if (mSkipOrderUptimeMs > 0L) {
+                long ms = Math.max(0L, nowUptimeMs - mSkipOrderUptimeMs);
+                e.skipMs = ms;
+                // Si la canción no cambió en unos segundos, el salto no surtió efecto
+                // (Spotify lo ignoró) y la canción se cerró por otra causa.
+                e.skipResult = ms <= SKIP_CONFIRM_MAX_MS ? "confirmado" : "sin_confirmar";
+            }
+        }
         e.reason = mLogReason;
         e.duplicateSeen = mLogDuplicateSeen;
         e.matchedPreviousAtMs = mLogMatchedAtMs;
@@ -700,6 +778,9 @@ final class DuplicateSkipEngine {
             e.mode = cfg.optString("listeningMode", e.mode);
         } catch (Throwable ignored) {
         }
+        // Según los ajustes de ese momento: función activa y duplicada dentro del
+        // intervalo. Si además no se saltó, la fila dice por qué (reason).
+        e.shouldSkip = e.skipEnabled && e.duplicateChecked && e.duplicateSeen;
 
         // Entrada del detector de fundido: se copia aquí (bajo el lock) y se
         // clasifica en el hilo de fondo, junto con la escritura.
@@ -716,6 +797,7 @@ final class DuplicateSkipEngine {
             fundidoIn.edadSesionMs = mFunFirstAgeMs;
             fundidoIn.origen = mFunFirstSource;
             fundidoIn.nuevaDuracionMs = mSessionDurationMs;
+            fundidoIn.anteriorSaltadaPorMotor = mFunPrevSkipped;
         } else {
             fundidoIn = null;
         }
@@ -724,7 +806,10 @@ final class DuplicateSkipEngine {
             @Override
             public void run() {
                 if (fundidoIn != null) {
-                    FundidoDetector.Resultado r = FundidoDetector.clasificar(fundidoIn);
+                    // Se anota en la memoria de transiciones, que lo ajusta si el
+                    // solape repite el de las anteriores (crossfade fijo).
+                    FundidoDetector.Resultado r = mFundidoReciente.registrar(
+                            e.startedAtMs, FundidoDetector.clasificar(fundidoIn));
                     e.fundidoLabel = r.etiqueta;
                     e.fundidoConfidence = r.confianza;
                     e.fundidoOverlapMs = r.solapeMs == FundidoDetector.SIN_DATO ? null : Long.valueOf(r.solapeMs);
@@ -841,7 +926,9 @@ final class DuplicateSkipEngine {
         // silenciar sería puro perjuicio.
         if (!obs.isPlaying) return;
         if (!isSkipEnabled(ctx) || !devPremute(ctx)) return;
-        if (obs.positionMs < 0L || obs.positionMs > devDecisionWindowMs(ctx)) return;
+        if (obs.positionMs < 0L || obs.positionMs > ventanaDecisionMs(ctx, obs.epochMs)) return;
+        // Con el freno de cadenas echado la canción se va a quedar: no se silencia.
+        if (mFreno.frenado(obs.uptimeMs)) return;
 
         mPremutePending = true;
     }
@@ -1038,6 +1125,7 @@ final class DuplicateSkipEngine {
             if (!expectedKey.equals(liveKey(t))) {
                 Log.i(TAG, "skip abortado: la pista viva ya no coincide");
                 recordTelemetryEvent("salto_abortado", expectedKey, "pista_cambiada");
+                mSkipAbortedGeneration = generation;
                 // La pista que suena ya no es la juzgada: devolver el sonido sin
                 // rebobinar, porque no es la canción que silenciamos.
                 releasePremute(false, "salto_abortado");
@@ -1930,6 +2018,17 @@ final class DuplicateSkipEngine {
         if (medir != null) e.putBoolean(PREF_FUNDIDO_MEDIR, medir);
         if (compartir != null) e.putBoolean(PREF_FUNDIDO_COMPARTIR, compartir);
         e.apply();
+    }
+
+    /**
+     * Ventana de decisión efectiva: la calibrada, ampliada con el solape del
+     * fundido si el motor estima que hay uno activo (ver FundidoReciente). Sin
+     * medición de fundido no se amplía.
+     */
+    private long ventanaDecisionMs(@Nullable Context ctx, long nowEpochMs) {
+        long base = devDecisionWindowMs(ctx);
+        if (!fundidoActivo(ctx)) return base;
+        return mFundidoReciente.ventanaDecisionMs(base, nowEpochMs);
     }
 
     static int devDecisionWindowMs(@Nullable Context ctx) {

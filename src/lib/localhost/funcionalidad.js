@@ -32,7 +32,10 @@ import { aBase64, deBase64, descomprimirAcotado, pasar } from './escuchas.js'
 
 export const COLL_FUNCIONALIDAD = 'funcionalidad'
 const VERSION = 1
-const FORMATO = 2
+// 3 (app 4.10.0): cada fila lleva además el bloque de duplicadas y la estimación
+// de fundido activo. Se siguen leyendo las subidas de formato 2.
+const FORMATO = 3
+const FORMATOS_LEIDOS = new Set([2, 3])
 
 /** Filas más recientes que se suben como máximo. */
 export const TOPE_FILAS = 1200
@@ -61,8 +64,39 @@ export function filaATupla (r) {
     r.positionAtDecisionMs,
     f ? f.detectado : null, f ? f.confianza : null, f ? f.solapeMs : null,
     f ? f.restanteAnteriorMs : null, f ? f.posicionPrimeraVistaMs : null,
-    f ? f.motivo : null, f ? f.sesionEscuchaId : null
+    f ? f.motivo : null, f ? f.sesionEscuchaId : null,
+    duplicadaATupla(r),
+    f && typeof f.activoEstimado === 'boolean' ? (f.activoEstimado ? 1 : 0) : null
   ]
+}
+
+const b01 = v => (v === true ? 1 : v === false ? 0 : null)
+
+/** El bloque de duplicadas de una fila nativa, en una tupla compacta. */
+function duplicadaATupla (r) {
+  const d = r?.duplicada
+  if (!d || typeof d !== 'object') return null
+  return [
+    d.comprobada ? 1 : 0, b01(d.esDuplicada), d.deberiaSaltarse ? 1 : 0,
+    d.resultadoSalto ?? null, d.msHastaCambio ?? null, d.ventanaMs ?? null,
+    r.skipEnabled ? 1 : 0, r.skipInterval ?? null
+  ]
+}
+
+function tuplaADuplicada (t, decision) {
+  if (!Array.isArray(t)) return null
+  const de01 = v => (v === 1 ? true : v === 0 ? false : null)
+  return {
+    comprobada: t[0] === 1,
+    esDuplicada: de01(t[1]),
+    deberiaSaltarse: t[2] === 1,
+    saltada: decision === 'saltada',
+    resultadoSalto: t[3] ?? null,
+    msHastaCambio: t[4] ?? null,
+    ventanaMs: t[5] ?? null,
+    funcionActiva: t[6] === 1,
+    intervalo: t[7] ?? null
+  }
 }
 
 /** Inversa de filaATupla, en la forma del fichero exportado (la respuesta se une luego por sesión). */
@@ -91,8 +125,10 @@ export function tuplaAFila (t, respuestas = new Map()) {
           posicionPrimeraVistaMs: t[15],
           motivo: t[16],
           sesionEscuchaId: idSesion,
-          respuestaUsuario: r === 'si' ? true : r === 'no' ? false : null
-        }
+          respuestaUsuario: r === 'si' ? true : r === 'no' ? false : null,
+          activoEstimado: t[19] === 1 ? true : t[19] === 0 ? false : null
+        },
+    duplicada: tuplaADuplicada(t[18], t[7])
   }
   return fila
 }
@@ -145,7 +181,7 @@ export async function desempaquetarRegistro (piezas) {
   try {
     const crudo = await descomprimirAcotado(deBase64(piezas.join('')), MAX_DESCOMPRIMIDO)
     const dato = JSON.parse(new TextDecoder().decode(crudo))
-    if (!dato || dato.f !== FORMATO || !Array.isArray(dato.filas)) return null
+    if (!dato || !FORMATOS_LEIDOS.has(dato.f) || !Array.isArray(dato.filas)) return null
     const sesiones = (Array.isArray(dato.ses) ? dato.ses : []).map(tuplaASesion)
     const respuestas = new Map(sesiones.map(s => [s.id, s.respuesta]))
     return {

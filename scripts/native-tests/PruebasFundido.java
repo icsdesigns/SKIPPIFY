@@ -119,7 +119,22 @@ public final class PruebasFundido {
 
         // Zonas grises.
         r = FundidoDetector.clasificar(base(2_000L, 2_000L));
-        check("solape de 4 s medido a mitad: sólo posible", r.etiqueta, FundidoDetector.POSIBLE);
+        check("solape de 4 s medido a mitad: probable (afinado 4.10)", r.etiqueta, FundidoDetector.PROBABLE);
+        check("  motivo solape_medido_a_mitad", r.motivo, "solape_medido_a_mitad");
+        check("  confianza media", r.confianza >= 0.6 && r.confianza < 0.85, true);
+        r = FundidoDetector.clasificar(base(-1_600L, 4_000L));
+        check("solape de 2,4 s medido a mitad: sólo posible", r.etiqueta, FundidoDetector.POSIBLE);
+        check("  motivo medida_a_mitad_del_solape", r.motivo, "medida_a_mitad_del_solape");
+        e = base(6_000L, 5_000L);
+        e.anteriorSonandoAlCerrar = false;
+        e.anteriorRestanteMs = 2_000L;
+        r = FundidoDetector.clasificar(e);
+        check("a mitad pero la anterior no sonaba: no se promociona", r.etiqueta.equals(FundidoDetector.PROBABLE), false);
+        e = base(7_000L, 300L);
+        e.anteriorSaltadaPorMotor = true;
+        r = FundidoDetector.clasificar(e);
+        check("la anterior la saltó el motor: no_aplica", r.etiqueta, FundidoDetector.NO_APLICA);
+        check("  motivo salto_del_motor", r.motivo, FundidoDetector.MOTIVO_SALTO_DEL_MOTOR);
         r = FundidoDetector.clasificar(base(0L, 1_000L));
         check("solape de 1 s: cambio normal", r.etiqueta, FundidoDetector.SIN_FUNDIDO);
         r = FundidoDetector.clasificar(base(0L, 1_600L));

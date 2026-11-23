@@ -37,6 +37,10 @@ const FUENTES = [
   join(raiz, 'android-src', 'FundidoDetector.java'),
   join(raiz, 'android-src', 'SesionEscuchaReloj.java'),
   join(raiz, 'scripts', 'native-tests', 'PruebasFundido.java'),
+  // El afinado del motor: memoria de fundidos (ventana ampliada) y freno de cadenas.
+  join(raiz, 'android-src', 'FundidoReciente.java'),
+  join(raiz, 'android-src', 'FrenoCadena.java'),
+  join(raiz, 'scripts', 'native-tests', 'PruebasMotorAfinado.java'),
   // Los disparadores de los grupos en segundo plano y el aviso de los domingos.
   join(raiz, 'android-src', 'RitmoGrupos.java'),
   join(raiz, 'scripts', 'native-tests', 'PruebasGrupos.java'),
@@ -84,6 +88,7 @@ try {
   execFileSync('java', ['-Dfile.encoding=UTF-8', '-cp', salida, 'com.skippify.app.PruebasWidgetMes'], { stdio: 'inherit' })
   execFileSync('java', ['-Dfile.encoding=UTF-8', '-cp', salida, 'com.skippify.app.PruebasEscuchasApi'], { stdio: 'inherit' })
   execFileSync('java', ['-Dfile.encoding=UTF-8', '-cp', salida, 'com.skippify.app.PruebasFundido'], { stdio: 'inherit' })
+  execFileSync('java', ['-Dfile.encoding=UTF-8', '-cp', salida, 'com.skippify.app.PruebasMotorAfinado'], { stdio: 'inherit' })
   execFileSync('java', ['-Dfile.encoding=UTF-8', '-cp', salida, 'com.skippify.app.PruebasGrupos'], { stdio: 'inherit' })
   execFileSync('java', ['-Dfile.encoding=UTF-8', '-cp', salida, 'com.skippify.app.PruebasAvisoSonoro'], { stdio: 'inherit' })
   execFileSync('java', ['-Dfile.encoding=UTF-8', '-cp', salida, 'com.skippify.app.PruebasActualizaciones'], { stdio: 'inherit' })

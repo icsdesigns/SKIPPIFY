@@ -9,6 +9,7 @@ import {
   desempaquetarRegistro, empaquetarRegistro, registroMeta, registrosDeSubida, resumirFuncionalidad,
   tocaSubir, MAX_TROZOS, TOPE_FILAS, TROZO_CHARS, SUBIDA_CADA_MS, SUBIDA_TRAS_RESPUESTA_MS, REINTENTO_MS
 } from '../src/lib/localhost/funcionalidad.js'
+import { resumirRegistro, predecirSesion } from '../src/lib/registroResumen.js'
 
 let fallos = 0
 let total = 0
@@ -78,6 +79,62 @@ console.log('\nLectura por persona')
   const nuevos = registrosDeSubida(['aa', 'bb'], { app: 'v', filas: 1, total: 1 }, 9_000).slice(0, 1)
   const r2 = resumirFuncionalidad([...entradas, ...nuevos.map((d, i) => ({ id: `n${i}`, persona: 'ana', hlc: 'z', data: d }))])
   check('una subida a medias no tapa la anterior', r2.get('ana').completa && r2.get('ana').subidaEn === 5_000)
+}
+
+console.log('\nBloque de duplicadas (formato 3)')
+{
+  const nativa = {
+    ...fila(1), decision: 'saltada', reason: 'duplicada', counted: false, playedMs: 300,
+    skipEnabled: true, skipInterval: '2w',
+    duplicada: { comprobada: true, esDuplicada: true, deberiaSaltarse: true, saltada: true, resultadoSalto: 'confirmado', msHastaCambio: 280, ventanaMs: 12000 },
+    fundido: { ...fila(1).fundido, activoEstimado: true }
+  }
+  const emp = await empaquetarRegistro({ filas: [nativa, fila(2)], sesiones: [], total: 2 })
+  const des = await desempaquetarRegistro(emp.piezas)
+  const d = des.filas[0].duplicada
+  check('ida y vuelta del bloque de duplicadas', d && d.esDuplicada === true && d.deberiaSaltarse && d.saltada && d.resultadoSalto === 'confirmado' && d.msHastaCambio === 280 && d.ventanaMs === 12000)
+  check('  con los ajustes de entonces', d.funcionActiva === true && d.intervalo === '2w')
+  check('  y la estimación de fundido', des.filas[0].fundido.activoEstimado === true)
+  check('fila sin bloque (versión anterior): duplicada null', des.filas[1].duplicada === null && des.filas[1].fundido.activoEstimado === null)
+
+  // Una subida de formato 2 (versiones anteriores) se sigue leyendo.
+  const json = JSON.stringify({ f: 2, g: 1, n: 1, filas: [[1, 2, 't', 'a', 100, 50, 1, 'conservada', 'no_duplicada', 'sonda', 10, 'sin_fundido', 0.9, -100, -100, 10, 'solape_nulo', null]], ses: [] })
+  const z = aBase64(await pasar(new TextEncoder().encode(json), new CompressionStream('gzip')))
+  const viejo = await desempaquetarRegistro([z])
+  check('una subida de formato 2 se sigue leyendo', viejo?.filas.length === 1 && viejo.filas[0].duplicada === null)
+}
+
+console.log('\nResumen del registro')
+{
+  const dup = (decision, reason, d) => ({ decision, reason, duplicada: { comprobada: true, funcionActiva: true, ...d } })
+  const filas = [
+    dup('saltada', 'duplicada', { esDuplicada: true, deberiaSaltarse: true, resultadoSalto: 'confirmado', msHastaCambio: 300 }),
+    dup('saltada', 'duplicada', { esDuplicada: true, deberiaSaltarse: true, resultadoSalto: 'abortado', msHastaCambio: null }),
+    dup('conservada', 'fuera_de_ventana', { esDuplicada: true, deberiaSaltarse: true }),
+    dup('conservada', 'freno_de_cadena', { esDuplicada: true, deberiaSaltarse: true }),
+    dup('conservada', 'no_duplicada', { esDuplicada: false, deberiaSaltarse: false }),
+    { decision: 'sin_decidir', reason: 'funcion_desactivada', duplicada: { comprobada: true, funcionActiva: false, esDuplicada: true, deberiaSaltarse: false } },
+    { decision: 'conservada', reason: 'no_duplicada' }
+  ]
+  const r = resumirRegistro(filas, []).duplicadas
+  check('cuenta duplicadas y las que debían saltarse', r.duplicadas === 5 && r.deberianSaltarse === 4)
+  check('saltadas, confirmadas y abortadas', r.saltadas === 2 && r.saltosConfirmados === 1 && r.saltosAbortados === 1)
+  check('escapadas por motivo', r.escapadas === 2 && r.escapadasPorMotivo.fuera_de_ventana === 1 && r.frenosDeCadena === 1)
+  check('duplicadas con la función apagada', r.duplicadasConFuncionApagada === 1)
+  check('eficacia = confirmadas / debían', r.eficacia === 25)
+  check('filas sin bloque no cuentan', r.filas === 6)
+
+  check('predicción: sin datos, incierto', predecirSesion({ probables: 1, sinFundido: 0 }) === 'incierto')
+  check('predicción: mayoría con fundido, sí', predecirSesion({ probables: 12, sinFundido: 12 }) === 'si')
+  check('predicción: casi todo sin fundido, no', predecirSesion({ probables: 4, sinFundido: 27 }) === 'no')
+  check('predicción: mezcla, incierto', predecirSesion({ probables: 3, sinFundido: 7 }) === 'incierto')
+
+  const fu = (id, detectado) => ({ fundido: { detectado, sesionEscuchaId: id, solapeMs: 7000 } })
+  const fil = [fu(1, 'fundido_probable'), fu(1, 'fundido_probable'), fu(2, 'sin_fundido'), fu(2, 'sin_fundido'), fu(3, 'sin_fundido'), fu(3, 'sin_fundido')]
+  const ses = [{ id: 1, respuesta: 'si' }, { id: 2, respuesta: 'no' }, { id: 3, respuesta: 'si' }, { id: 4, respuesta: null }]
+  const c = resumirRegistro(fil, ses).fundido.contraste
+  check('contraste con la encuesta', c.contrastadas === 3 && c.aciertos === 2 && c.matriz.no_si === 1 && c.eficacia === 66.7)
+  check('sensibilidad y precisión', c.sensibilidad === 50 && c.precision === 100)
 }
 
 console.log('\nCuándo subir')

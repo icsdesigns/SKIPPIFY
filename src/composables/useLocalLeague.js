@@ -30,6 +30,7 @@ import { proyectarRegistros, limpiarTexto, MAX_NOMBRE_PERSONA, MAX_NOMBRE_GRUPO 
 import { relaysSeguros } from '@/lib/localhost/relays'
 import { useMacros } from '@/composables/useMacros'
 import { COLL_MACROS, fusionarGrupos, leerMacrosDelGrupo, macrosCompartibles, planDePublicacion } from '@/lib/macrosCompartidas'
+import { resumirRegistro } from '@/lib/registroResumen'
 import {
   COLL_FUNCIONALIDAD, TOPE_FILAS, SUBIDA_TRAS_RESPUESTA_MS, desempaquetarRegistro, empaquetarRegistro,
   puedeComprimir, registroMeta, registrosDeSubida, resumirFuncionalidad, tocaSubir
@@ -821,6 +822,30 @@ async function publicarEscuchas (groupId, { desdeFondo = false } = {}) {
 // reintenta más tarde.
 
 const FUNC_KEY = 'skippify-funcionalidad-subida'
+/**
+ * Reset de registros de funcionalidad de la 4.10.0. El del móvil lo hace el
+ * motor nativo al actualizar su base; aquí se retira, una vez por grupo, lo que
+ * este miembro tenía subido de antes, para que nadie descargue datos previos al
+ * afinado. Se guarda la lista de grupos ya limpiados.
+ */
+const RESET_KEY = 'skippify-funcionalidad-reset-4.10'
+
+function leerGruposReseteados () {
+  try {
+    const v = JSON.parse(localStorage.getItem(RESET_KEY) || '[]')
+    return new Set(Array.isArray(v) ? v : [])
+  } catch {
+    return new Set()
+  }
+}
+
+function anotarGrupoReseteado (groupId) {
+  try {
+    const hechos = leerGruposReseteados()
+    hechos.add(groupId)
+    localStorage.setItem(RESET_KEY, JSON.stringify([...hechos]))
+  } catch { /* se repetiría la limpieza, que es inofensiva */ }
+}
 let subiendoFuncionalidad = false
 
 function leerEstadoSubida () {
@@ -876,6 +901,19 @@ async function publicarFuncionalidad (groupId) {
   if (app && mio?.version !== app) {
     await coll.add(registroMeta(app, ahora))
     for (const id of mio?.ids.meta || []) await coll.remove(id)
+  }
+
+  // 1 bis. Reset de la 4.10.0: se retira lo subido antes, una sola vez por grupo,
+  // y se olvida la última subida para que la próxima vaya con el registro nuevo.
+  if (!leerGruposReseteados().has(groupId)) {
+    for (const id of mio?.ids.trozos || []) await coll.remove(id)
+    const estadoPrevio = leerEstadoSubida()
+    if (estadoPrevio[groupId]) {
+      delete estadoPrevio[groupId]
+      guardarEstadoSubida(estadoPrevio)
+    }
+    anotarGrupoReseteado(groupId)
+    return
   }
 
   const reg = await import('@/composables/usePlayLog')
@@ -998,6 +1036,7 @@ async function descargarFuncionalidad (groupId, uid = null) {
       filasSubidas: reg.filas.length,
       filasEnSuMovil: reg.total,
       sesionesDeEscucha: reg.sesiones.map(x => ({ ...x, inicio: iso(x.inicio), fin: iso(x.fin), respuestaEn: iso(x.respuestaEn) })),
+      resumen: resumirRegistro(reg.filas, reg.sesiones),
       registro: reg.filas.map(x => ({ ...x, startedAt: iso(x.startedAt), endedAt: iso(x.endedAt) }))
     })
   }

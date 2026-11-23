@@ -40,7 +40,11 @@ package com.skippify.app;
  *    rango real de crossfade y de las transiciones del DJ/Mix), la anterior
  *    seguía sonando al cerrarse y la primera vista coincidió con el principio o
  *    el final del fundido (P o R < 1,5 s, es decir, la medida es limpia).
- *    Fuera de eso, fundido_posible.
+ *    Si la medida cayó a mitad del fundido (P y R > 1,5 s) pero el solape está
+ *    entre 3 y 12,5 s y la anterior sonaba, también es fundido_probable, con
+ *    confianza 0,7 (motivo solape_medido_a_mitad). Fuera de eso, fundido_posible.
+ *  · Si la anterior la cortó el propio motor (duplicada saltada), no_aplica con
+ *    motivo salto_del_motor: no es ni fundido ni un salto del usuario.
  *  · 14 s < O ≤ 15 s → fundido_posible con confianza baja (frontera con el salto
  *    manual).
  *
@@ -53,6 +57,8 @@ final class FundidoDetector {
     static final String POSIBLE = "fundido_posible";
     static final String SIN_FUNDIDO = "sin_fundido";
     static final String NO_APLICA = "no_aplica";
+    /** Motivo de no_aplica cuando la anterior la cortó el propio motor (duplicada saltada). */
+    static final String MOTIVO_SALTO_DEL_MOTOR = "salto_del_motor";
 
     /** Hueco máximo (silencio o pausa) entre el final de una y el principio de otra. */
     static final long HUECO_MAX_MS = 5_000L;
@@ -73,6 +79,13 @@ final class FundidoDetector {
     static final long PAUSA_EN_RECTA_FINAL_MS = 3_000L;
     /** Si la primera vista llegó con la sesión ya así de vieja, la medida es menos fiable. */
     static final long EDAD_TARDIA_MS = 3_000L;
+    /**
+     * Desde este solape, una medida tomada a mitad del fundido (P y R > 1,5 s) se
+     * da también por probable: en los registros de noviembre 22 de 24 de esas
+     * medidas caían en sesiones que el usuario confirmó con fundido. Por debajo
+     * el ruido de la extrapolación pesa demasiado y se queda en posible.
+     */
+    static final long MITAD_PROBABLE_MIN_MS = 3_000L;
 
     /** Datos de entrada; -1 significa «desconocido» salvo donde se indica. */
     static final class Entrada {
@@ -99,6 +112,11 @@ final class FundidoDetector {
         String origen = "";
         /** Duración de la nueva (sólo para validar que la posición cabe). */
         long nuevaDuracionMs = -1L;
+        /**
+         * ¿La anterior la cortó el propio motor por duplicada? Entonces no hubo ni
+         * fundido ni salto del usuario: el corte es nuestro y no se clasifica.
+         */
+        boolean anteriorSaltadaPorMotor = false;
     }
 
     /** Resultado de la clasificación. */
@@ -156,6 +174,7 @@ final class FundidoDetector {
         final long pOut = p >= 0L ? p : SIN_DATO;
 
         if (e.mismaCancion) return noAplica("misma_cancion_reabierta", SIN_DATO, r, pOut);
+        if (e.anteriorSaltadaPorMotor) return noAplica(MOTIVO_SALTO_DEL_MOTOR, SIN_DATO, r, pOut);
         if (e.anteriorDuracionMs <= 0L) return noAplica("falta_duracion_anterior", SIN_DATO, r, pOut);
         if (!e.anteriorRestanteConocido) return noAplica("falta_posicion_anterior", SIN_DATO, SIN_DATO, pOut);
         if (p < 0L) return noAplica("falta_posicion_nueva", SIN_DATO, r, SIN_DATO);
@@ -194,6 +213,14 @@ final class FundidoDetector {
                 && e.anteriorSonandoAlCerrar && medidaLimpia) {
             double c = 0.85;
             return new Resultado(PROBABLE, ajusta(c, origenSonda, vistaTardia), solape, r, p, "solape_coherente");
+        }
+
+        // Medida a mitad del fundido (el aviso llegó con el solape en curso): P + R
+        // sigue siendo el solape entero, solo que con más ruido. Con un solape
+        // claramente por encima del ruido y la anterior sonando, es un fundido.
+        if (!medidaLimpia && e.anteriorSonandoAlCerrar
+                && solape >= MITAD_PROBABLE_MIN_MS && solape <= PROBABLE_MAX_MS) {
+            return new Resultado(PROBABLE, ajusta(0.7, origenSonda, vistaTardia), solape, r, p, "solape_medido_a_mitad");
         }
 
         String motivo;

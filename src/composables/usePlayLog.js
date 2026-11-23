@@ -16,11 +16,14 @@ import { Filesystem, Directory, Encoding } from '@capacitor/filesystem'
 import { guardarArchivo } from '@/lib/guardarArchivo'
 import { useEventStore } from '@/stores/events'
 import { useFeatures } from '@/composables/useFeatures'
+import { resumirRegistro } from '@/lib/registroResumen'
 
 const PAGE_SIZE = 500
 const EXPORT_SCHEMA = 'skippify-play-log'
 // 2: filas con `fundido` y lista de `sesionesDeEscucha`. Solo se añade, nada se quita.
-const EXPORT_VERSION = 2
+// 3 (4.10.0): filas con el bloque `duplicada`, `fundido.activoEstimado` y un `resumen`
+// con la eficacia del salto de duplicadas y de la predicción de fundido.
+const EXPORT_VERSION = 3
 
 const busy = ref(false)
 const total = ref(null)
@@ -38,12 +41,17 @@ function iso (ms) {
 
 /** Convierte las marcas de tiempo nativas (ms) a ISO para que el fichero se lea solo. */
 function readableRow (row) {
-  return {
+  const out = {
     ...row,
     startedAt: iso(row.startedAt),
     endedAt: iso(row.endedAt),
     matchedPreviousAt: iso(row.matchedPreviousAt)
   }
+  // El bloque de duplicadas lleva también los ajustes con los que se juzgó.
+  if (row?.duplicada && typeof row.duplicada === 'object') {
+    out.duplicada = { ...row.duplicada, funcionActiva: !!row.skipEnabled, intervalo: row.skipInterval ?? null }
+  }
+  return out
 }
 
 function readableSession (s) {
@@ -241,6 +249,9 @@ async function exportPlayLog () {
       // Sesiones de escucha (≥ 30 min de escucha reciben la pregunta de fundido)
       // con la respuesta del usuario: «si», «no» o null si no contestó.
       sesionesDeEscucha: sesiones,
+      // Eficacia del motor: duplicadas (debían saltarse / se saltaron / por qué
+      // se escaparon) y predicción de fundido frente a la encuesta.
+      resumen: resumirRegistro(rows, sesiones),
       // Cada fila trae `fundido: { detectado, confianza, solapeMs, ..., respuestaUsuario }`:
       // lo que detectó el motor frente a lo que dijo el usuario de su sesión.
       registro: rows
